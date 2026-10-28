@@ -4,11 +4,13 @@
 
 SCOM adapts Forged Alliance factions, units, structures, and gameplay systems to Sanctuary. The project covers UEF, Cybran, Aeon, and Seraphim forces, with land, air, and naval combat, experimental units, commander progression, and a companion AI profile.
 
-[Report a bug](https://github.com/Doodihealz/Scom/issues) · [Releases](https://github.com/Doodihealz/Scom/releases) · [Project activity](https://github.com/Doodihealz/Scom/commits/main/)
+[Download SCOM 1.0.0](https://github.com/Doodihealz/Scom/releases/download/V1.0/ScomInstaller.zip) · [Releases](https://github.com/Doodihealz/Scom/releases) · [Report a bug](https://github.com/Doodihealz/Scom/issues) · [Project activity](https://github.com/Doodihealz/Scom/commits/main/)
 
 ## Project status
 
-SCOM is in active development. **This GitHub repository currently contains project documentation; the mod files, installer, and downloadable releases have not been uploaded here.** GitHub's **Code → Download ZIP** therefore does not provide an installable copy of SCOM.
+SCOM is in active development. **SCOM 1.0.0 is available from the [V1.0 release](https://github.com/Doodihealz/Scom/releases/tag/V1.0).** Download `ScomInstaller.zip` from the release's **Assets** section for the complete mod bundle.
+
+GitHub's **Code → Download ZIP** and the release's automatic **Source code** archives contain the repository files. Use `ScomInstaller.zip` to install the mod.
 
 This overview describes the existing development work and its scope. It does not mean that every feature has been verified in the latest Sanctuary build. The latest AI changes have received source review; they have not been validated through live matches, benchmarks, or automated tests.
 
@@ -63,26 +65,44 @@ These are limits of the reviewed AI integration, not a claim that the underlying
 
 ## Installation and upgrades
 
-**There is no installer attached to this repository yet.** The following procedure is for a complete `ScomInstaller.zip` bundle obtained separately; it is not a procedure for installing this repository's documentation ZIP.
+### Download SCOM 1.0.0
 
-The current installation notes describe a bundle containing SCOM, SupCom Style UI, AI-Scom, and required components:
+Download [ScomInstaller.zip](https://github.com/Doodihealz/Scom/releases/download/V1.0/ScomInstaller.zip) from the [V1.0 release](https://github.com/Doodihealz/Scom/releases/tag/V1.0). The bundle contains SCOM, SupCom Style UI, AI-Scom, and required components.
+
+### Recommended: use setup
 
 1. Close Sanctuary.
 2. Extract the entire `ScomInstaller.zip` to a folder.
 3. Run `Install SCOM.cmd` from that folder.
 4. Select the installed Sanctuary game folder when prompted.
-5. Let the installer perform its compatibility and existing-file checks.
-6. Launch the game and select **AI-Scom** for AI players in the lobby.
 
-Keep the extracted scripts and payload folder together. Use the installer for upgrades so its compatibility and overwrite checks run.
+Setup checks your game version and protects existing files. Keep the extracted scripts and `payload` folder together.
 
-The AI profile installs under:
+### Manual installation
+
+1. Close Sanctuary.
+2. Extract the entire `ScomInstaller.zip` to a folder.
+3. Open the game's `engine` folder, which contains `Sanctuary.exe`.
+4. Open the extracted installer's `payload` folder.
+5. Copy **all files and folders inside `payload`** into `engine`, preserving the folder structure.
+
+Copy the contents of `payload` directly into `engine`; the destination should not have an extra `engine/payload` layer. This installs SCOM, SupCom Style UI, AI-Scom, and required components.
+
+### Enable AI-Scom
+
+The AI profile belongs at:
 
 ```text
 engine/LJ/lua/AI/mods/AI-Scom
 ```
 
-The AI package includes `INSTALL.txt`, `AI Patchnotes.txt`, and `Balance Rules.txt`. Follow the instructions packaged with the particular build you are installing. A current supported Sanctuary build and public release package have not yet been documented in this repository.
+Launch Sanctuary and select **AI-Scom** for AI players in the lobby.
+
+### Upgrades
+
+**Use setup (`Install SCOM.cmd`) for upgrades** so compatibility and file-conflict checks run.
+
+The AI package includes `INSTALL.txt`, `AI Patchnotes.txt`, and `Balance Rules.txt`. Follow the instructions packaged with the particular build you are installing.
 
 ## Reporting problems
 
