@@ -2,6 +2,8 @@
 
 A **Supreme Commander: Forged Alliance** overhaul for **Sanctuary: Shattered Sun**.
 
+**For full transparency, this mod is 100% vibe coded and made with ChatGPT Astra. I am very open and honest about that.**
+
 **[Download SCOM 1.0.1](https://github.com/Doodihealz/Scom/releases/download/V1.0/ScomInstaller.zip)** · [Releases](https://github.com/Doodihealz/Scom/releases) · [Discord community](https://discord.gg/quqwHcDb3A) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
 
 ## Features
