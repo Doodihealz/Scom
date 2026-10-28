@@ -53,7 +53,7 @@ engine/LJ/lua/AI/mods/AI-Scom
 
 ## Development status
 
-SCOM is in active development. The latest AI changes have been source-reviewed and still need in-game validation. The reviewed AI adapter does not support teleport, spawned-drone upgrades, manual tactical missiles, or transport loading/unloading.
+SCOM is approximately 85% complete and under heavy development.
 
 ## Credits and licensing
 
