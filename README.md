@@ -2,7 +2,7 @@
 
 A **Supreme Commander: Forged Alliance** overhaul for **Sanctuary: Shattered Sun**.
 
-**[Download SCOM 1.0.0](https://github.com/Doodihealz/Scom/releases/download/V1.0/ScomInstaller.zip)** · [Releases](https://github.com/Doodihealz/Scom/releases) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
+**[Download SCOM 1.0.0](https://github.com/Doodihealz/Scom/releases/download/V1.0/ScomInstaller.zip)** · [Releases](https://github.com/Doodihealz/Scom/releases) · [Discord community](https://discord.gg/quqwHcDb3A) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
 
 ## Features
 
