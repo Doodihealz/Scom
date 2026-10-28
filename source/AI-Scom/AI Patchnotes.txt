@@ -1,0 +1,186 @@
+AI-Scom 9.0.25-rc30
+
+- Continue extractor upgrades through T3 across the map. Keep the nearest home extractors first, allow safe affordable alternatives, and restart the persistent manager from remote extractors after the home economy finishes upgrading.
+- Permit one modest extractor upgrade alongside steady army production when real energy, completed field strength and resource commitments allow it. Retain conservative concurrency, reserve storage and native payment; competing technology, commander or experimental investment blocks this discretionary allowance.
+- Give one selected experimental or heavy project a bounded funding window with an actual reserved engineer. Protect its spending from optional production overcommit, then hand accounting to native construction without charging the project twice. Keep paid army production and bounded emergency recovery intact.
+- Recognize established advanced ground strength when admitting heavy construction. Choose an affordable legal engineer by actual build rate, request a third T3 engineer for real heavy demand, and give establishing or replacing experimental presence more priority alongside situational artillery choices.
+- Recheck funding after placement/path yields, preserve exact orders and paid foundations, and let alternative heavy projects be considered when a funding attempt expires.
+
+- Let nearby land groups blocked by the same observed enemy assemble into a stronger force through physical reinforcement. Keep actual attack-strength checks, threatened-front coverage, native micro and retreat priority.
+- Give blocked armies safe forward positions against mobile as well as static resistance. Preserve route-threat checks during initial movement, repathing and stuck-order recovery.
+- Prefer a useful ground-damage core when forming, refilling and combining armies, while retaining available support units. Consolidate small groups left without a mission after their initial deployment opportunity.
+- Count regrouped friendly strength correctly after retreat and keep land reconnaissance available when only aircraft are observed. Release assault assembly before native combat micro; newer orders and expired receiver assignments cannot be overwritten by stale support work.
+
+- Fix mass-fabrication plans rejecting their own empty startup platoon. Recognize native Alloys producers and converted SCFA fabricators through the same paid-conversion predicate; keep extractors, free generators and experimentals excluded, and T2 ahead of optional T3 fabrication.
+- Use genuine spare Energy during Alloy-limited construction while reserving the extra construction power unlocked by fabricated mass. Retain shared upkeep, technology and commander budgets; account for native next-tick satisfaction and non-unit economy events.
+- Reconcile owned default-off startup with an already-running native production entity without charging upkeep twice. Manual-off units no longer block new fabrication, and newly accepted foundations remain visible if their builder is lost before the next census.
+
+- Recover missing enhancement state for a completed, registered AI commander through the existing paid adapter after exact contract/template/ownership checks. Preserve incompatible existing states and unavailable capability filters; report initialization or completion-effect failures precisely.
+- Keep the existing commander owner available independently of the land-attack strategy once opening infrastructure and another usable builder exist. Air/naval support commanders can develop too; disabled land offense still keeps them at home.
+- Give compatible commander upgrades one bounded shared investment window instead of requiring permanently unused production income. Match admission and paid work to actual build power, role income shares and finite stores above a 20-percent reserve, while retaining field readiness and bounded emergency replacements.
+- Let a safe offensive commander deliberately return to the current MAIN for an upgrade through its existing movement controller. Preserve paid construction, newer native orders and retreat priority; use safe reclaim while funding instead of starting competing optional work.
+- Finish the exact assistance handoff against fresh native economy samples, account for enhancement commitments once, and continue useful paid progress without the former fixed elapsed-time cancellation. Expire unsuccessful funding/return intents and clean stale ownership in existing supervision.
+- Three manual source-review passes with three subagents, including four-faction native contracts, funding, order ownership and MAIN replacement. No tests, parsers, simulations or game execution.
+
+- Share a main-base alarm between ground defenders, bombers, production and construction. Use observed mobile attackers, native weapon targeting and actual own structure/shield damage; repeated unexplained impacts can request protection without revealing an unseen gun.
+- React to mobile artillery and drive-by attacks through existing combat micro and per-front coverage. Dispatch small available MAIN groups without a gathering delay, reinforce uncovered approaches, and release temporary defenders when their local mission ends.
+- Assemble funded T2/T3 ground bombers against observed T3+ static artillery. Coordinate physically ready wings on a shared ingress, account for real weapon damage, shields and AA including undivided splash damage, and expire stalled gatherings so another target can be considered.
+- Prioritize useful MAIN shields and the power to sustain them. Cover exposed factories and advanced economy, allow a second overlapping bubble where coverage is being hit or collapsing, and keep two bounded construction slots with actual menus, native costs, adjacency and exit clearance.
+- Let emergency shield builders construct under distant bombardment while retaining local danger checks. A damaged low-health builder can seek a real active bubble or evade laterally, preserving paid work and exact order ownership before resuming safely.
+- Complete three manual source-review passes with three subagents, including response ownership, hidden contacts, casualties, gathering timeouts and construction retreat. No tests, parsers, simulations or live matches.
+
+- Start a first queued structure directly when its selected builder is already within conservative live construction reach. Do not make a stationary opening wait for movement-graph approval; retain native placement, permission, danger, funding and order ownership checks.
+- Let the existing first-land-factory recovery formers act promptly at an empty MAIN without waiting for the periodic recovery strategy. Use a one-second opening-specific retry after a failed check or plan, with live foundation/order/reservation guards against duplicate construction. Preserve normal recovery behavior and error cooldowns elsewhere.
+
+- Unify experimental planning across all four factions. Discover the loaded legal roster from native templates and actual build menus; remove the UEF name whitelist and separate Monkeylord/Megalith-only director.
+- Choose offensive land, air and naval experimentals, economic support, shields and strategic projects from current threats, map access, allied pressure, existing forces and real costs. Keep armed mobile factories in combat roles and unarmed support units out of ordinary attack/engineer recruitment.
+- Build one to four useful T3 artillery structures inside the main base as resources allow. Scale the aggregate allowance with native cost and income, require known targets within weapon range, and preserve exits, storage adjacency and paid foundations.
+- Use actual registered weapons for observed-target fire control. Preserve native construction permissions, permanent upkeep, active mobile-factory production and first-experimental completion priority; normal mass-fabricator toggles cannot interfere with experimental resource generators.
+- Keep construction and first-project assistance recoverable after location-worker replacement. Release only exact owned orders and retain bounded searches, retries and native resource accounting. Three source-review passes with three subagents; no tests, parsers, simulations or live matches.
+
+- Prioritize finishing each owner's first experimental once its real foundation starts. Pin one project across mobile and structural experimentals; completed/lost native statistics keep the first-completion milestone from resetting after destruction.
+- Commit nearby spare AI engineers and a safe available commander, including to an allied player or AI's first project. Keep essential base builders and existing paid work; prevent legacy T4 assistance and new heavy foundations from competing for the same completion effort.
+- Share pending assistance against the experimental owner's actual native economy, discounts and build rates. Use available storage above a 20-percent reserve, recheck affordability, and reconcile simulation-tick accounting so a small shortfall sheds excess help without dismissing the whole team.
+- Release exact owned assist orders on completion, unsafe conditions, pauses, capture or reassignment. Bound helpers, recruitment, routes, retries and expiring claims; reuse existing scheduler/census paths without adding threads.
+
+- Recover idle engineers caught between the native base recruitment radius and its wider return-home tolerance. Reuse them for reachable mass expansion and ordinary construction through their actual assigned base.
+- Count usable idle engineers per base for factory production and recovery. Paused units, active work, newer orders, repairs, commanders and auxiliary pods cannot suppress requests for available builders.
+- Release abandoned reclaim target references only when the engineer has no owning platoon, live native work or accepted orders. Preserve paused workers and ongoing reclaim/construction.
+- Probe expansion placement with a legal extractor from an owned engineer's real build menu. Rotate bounded recovery candidates and retain native construction, path, funding and order-ownership checks.
+
+- Use actual amphibious naval movement for walking destroyers such as the Cybran Salem: form compatible groups, cross water, choose useful visible inland targets, fight ashore and return through native reachable routes. Ordinary water-only ships retain their own naval groups.
+- Correct surface amphibians being sent through the depth-limited seabed graph. Retain native movement restrictions and obstacle checks, and include anti-naval danger when evaluating their routes, shortcuts and encounter recovery. Long routes use bounded progress legs; a deferred water-route fallback keeps its place in the shared path budget.
+- Select naval targets with the weapons that can hit them, their actual minimum/maximum ranges and native target layers. Prefer useful factories, economy, engineers and threats near friendly bases; reduce duplicate commitments. Paused or externally controlled ships cannot contribute phantom combat strength.
+- Let fleets use individual target selection and native predicted-damage allocation to reduce redundant salvos. Walking ships use reachable land firing positions and selected-gun fallback positions. Exact native micro-order ownership preserves newer commands across yields.
+- Recover idle landed ships through their source base, admit nearby compatible reinforcements within the existing platoon cap, and allow homogeneous amphibious overflow through ordinary naval dispatch when its water-only group is unavailable. Keep searches and remembered patrol/rejected sites bounded.
+- Maintain a small funded amphibious naval cohort for disconnected land pressure and beachhead support. Count existing, unfinished and queued ships; threatened submarine and naval anti-air requirements take precedence over this preference.
+
+- Establish coastal beachheads with a spare amphibious or hover engineer when home defenses and the shared economy can support the mission. Consider flanking water crossings even when a land bridge exists; prefer useful, buildable shores connected to an enemy inland objective.
+- Secure the landing with point defense, register a real local base, then build a land factory and affordable anti-air. Add up to six native wall pieces when the engineer can actually build them, leaving production exits and routes inland and back to the shore open.
+- Grow and upgrade the foothold through local factory, engineer and combat counts. Launch independent inland groups while retaining a local reserve; use the existing combat micro and defense coordination. Keep lower-tier forces and working production through technology transitions.
+- Keep disconnected home support separate from the forward army, so shore factories and engineers cannot prevent rebuilding the home factory or restoring its advanced engineers. All locations still share actual resources and one factory-upgrade commitment.
+- Preserve paid construction through retreat and resume from the engineer's actual crossing progress. Bound site searches, retries and native route detours; release exact owned orders and reservations after loss or reassignment. Continue operating through factory replacement and loss of the original landing engineer.
+- Use capabilities provided by the host. This beachhead route uses actual amphibious/hover movement; the supplied host has no implemented transport load/unload orders. Unavailable wall templates are skipped in favor of the defensive foothold.
+
+- Keep mass-storage adjacency as a standing objective for completed extractors at every tier, including remote sites. Keep energy-storage adjacency as a standing objective around T2/T3 generators. Continue filling useful legal touching positions without a fixed global storage cap.
+- Coordinate storage builders across bases with actual native menus, exact skirts, reachable safe sites and shared pending claims. Preserve factory exits, existing structures and paid foundations. Use at most two concurrent storage projects, with one bounded supply-limited investment when normal production consumes the surplus.
+- Prefer useful T2 mass fabrication when sustained spare Energy can support its real upkeep. Include future upkeep in the common construction budget exactly once; use actual native production entities to shed inefficient fabricators first and resume efficient ones. Correct startup for newly built default-off fabricators while preserving explicit pauses and manual-off ownership.
+- Preserve T1/T2 fighting armies through technology transitions. Require a larger completed ground force before the first connected land upgrade; T3 also requires a real T2 combat cohort and another usable T2-or-higher production line. Keep two total land lines available under pressure. Disconnected support-engineer access and air technology retain their own valid paths.
+- Consolidate new land, air and naval factory upgrades under one owned development commitment. Legacy upgrade formers cannot bypass field readiness, production continuity or funding. Submitted upgrades and paid products still finish.
+- Keep lower-tier production available until a bounded completed replacement cohort reaches the field, and reopen wider production under ground pressure or replacement losses. Remove the one-unit global lower-tier queue cap during tech saving; count T1 and T2 allowances separately. Permit bounded cheap defensive recovery beside an ongoing upgrade.
+- Modernize land production toward 60-percent T2-capable and 50-percent T3 factory shares, after replacements exist. Reduce the share of income committed to upgrades while retaining native costs, payment and real construction rates. Plan power for viable next technology, and keep T2/T3 combat roles, bombers and naval progression useful.
+- Preserve shared extractor-upgrade admission, home-first preference, affordable fallback, and accepted-upgrade accounting. All new storage, fabrication and technology work uses the common resource ledger.
+
+- Protect exposed remote extractor clusters and valuable upgraded extractors with useful T1/T2 point defense. Remember observed ground raids briefly, count actual completed and pending coverage, and let affordable T2 defenses serve needs that surviving T1 guns cannot satisfy.
+- Reinforce repeatedly attacked base approaches using separate directional pressure memory. Armed enemy commanders count; aircraft, scouts, ordinary engineers, offshore ships and disconnected ground approaches do not create ground-turret demand. Retain distinct sides and the funded Survival starter.
+- Recruit a nearby eligible engineer that can reach, legally build and afford the exact defense. Match native base-pool radius and movement rules, allow suitable captured engineers and alternate source bases, preserve essential power builders and keep first technology commitments funded.
+- Coordinate targeted defense through two bounded construction slots, including startup assignments. Preserve native footprint, factory-exit, extractor-storage, safe-route and paid-foundation rules; revalidate unpaid starts after yielding paths. Pressure history and failed-site retries expire and have fixed limits; no new polling threads are added.
+
+- Correct torpedo-aircraft classification before generic bomber and gunship selection. Naval aircraft no longer inherit ground-bomber priority, fill ground-strike counts or enter ground gunship groups. Regular bombers and native advanced gunships supply ground attacks; torpedo production remains tied to naval demand.
+- Open with a two-interceptor screen under ordinary conditions, then prioritize initial bombers and gunships. Scale further cover with the strike force, actual visible combat aircraft and advanced air production; retain urgent replacement priorities for real raids. Scouts and unarmed transports no longer inflate the combat-air count.
+- Deploy the first interceptor pair immediately and let small gunship groups launch with two aircraft. Preserve larger independent patrol requirements and Survival's dedicated local defense. Fighter groups cannot recruit ground/naval strike aircraft merely because they carry secondary anti-air weapons.
+- Keep small independent T2/T3 gunship requests so surviving T1 aircraft cannot block useful higher-tech ground attack. Gunship demand is bounded by its actual tier goals. A two-fighter screen can support the first T2 air transition; T3 retains six completed fighters and the corresponding mature production goal.
+
+- Shorten return, reinforcement and fleet routes when native terrain clearance, actual movement layers and current threat permit. Keep necessary obstacle/threat detours and resume the accepted route after combat instead of restoring old waypoints.
+- Keep commander base fallbacks moving after an unreachable shield, measure protection travel by actual route length, and validate the shield's real volume. Retry genuinely obstructed shelter points without interrupting a long productive approach.
+- Use the same bounded movement queue for ordinary platoons and commander field support. Respect newer work through route recovery and micro handoffs; observe elapsed movement time so faster updates do not create false stalls.
+- Preserve mobile-factory production during tactical stops. Failed construction selectors release only their own unpaid successors and reservations while leaving paid foundations available to finish.
+- Release emergency production pauses after commander death, reassignment or recovery, and keep intentional pauses from expiring paid rebuilding work. Retire expired scheduling records within existing maintenance.
+- Recheck live target visibility and weapon eligibility, preserve new missions through formation changes, and evaluate bomber re-entry exposure from each aircraft's actual position. Recognize native order acceptance before recording flight or movement progress.
+- Correct commander enhancement forecasts to use actual native build power. Fund long laser and T3-engineering steps against their authored duration, and preserve paid enhancement progress through intentional pause without disabling danger cancellation.
+- Require sustainable energy for shield upkeep. Credit commander and pod assistance only from the exact registered native construction or repair contribution, including adjacency discounts.
+- Let newer queued orders take over from persistent commander assistance by removing only the old service order. Keep owned position snapshots for gun/laser approaches, aura/field-shield support and service progress tracking.
+- Restrict restoration-aura scans to the owning army and revalidate every healing recipient. Captured or replaced units cannot retain healing from the previous owner.
+- Queue up to three ordinary structure projects from the selected build list, including commander openings. Builders move directly into accepted native successors instead of stepping through several idle finishing states. Retain legal placement, adjacency, exact footprints and real resource commitments.
+- Reconsider unpaid construction when funding or local danger changes. Builders can withdraw and return to their existing unfinished foundation; ordinary replanning cannot steal a nearly completed structure. Paused work and replacement orders keep their proper owner.
+- Keep factories assigned across production cycles with a small adaptable native queue. Reconsider future products for recovery, counters and technology; protect the active paid product and release later owned entries for an upgrade. Repeated identical products refill at native completion without disbanding the factory assignment.
+- Keep a short native movement queue ready for land operations and fleets. Refill existing paths cheaply, start new fleet routes immediately, and remove routine stop-and-wait handoffs between waypoints and completed objectives. Combat and retreat retain control of movement.
+- Divide defense between simultaneous threatened sides of friendly bases. Count troops already on the way, redirect support toward uncovered approaches, and allow a safe oversized force to detach a bounded minority while retaining enough strength on its current side. Survival's primary can respond on multiple fronts.
+- Let T1 bombers choose exposed stationary mobile artillery when a short effective strike beats the next economic raid. Use consecutive visible positions, actual compatible bombing damage, visible shield health, route AA exposure and other wings' damage commitments.
+- Place the opening factory within the selected commander's construction reach wherever legal. Prefer useful in-range adjacency, then the nearest legal site; begin building immediately without a redundant walk or extra movement states. Use the commander's actual footprint instead of artificial spawn padding.
+- Let healthy commanders pressure exposed economy, engineers, factories and vulnerable commanders with nearby support. Recheck firing positions, air threats, defensive range and pursuit progress; return home when no useful attack remains.
+- Keep commanders productive through nearby structure completion, armed or engineer production assistance, damaged-home-structure repair and unclaimed local resource reclaim. Safe shelter permits work already in reach. Finishing one job immediately searches for another; failed targets receive individual cooldowns. Fund the current product from real income and protected stores, including actual shoulder-pod work.
+- Choose compatible offensive or support ACU builds from the loaded faction contract. Reserve whole prerequisite/slot paths, retain paid role commitments, adapt uncommitted roles to ground pressure and disconnected maps, and fund defining upgrades from bounded real income. Gun/laser, shield, regeneration and engineering choices use the effects the installed AI adapter can actually apply.
+- Keep the ACU on accepted unfinished structures through resource dips, pauses and the last native completion tick. Nearby structures at 90% or more completion take finishing priority within construction reach. Routine factory assistance and optional upgrades cannot steal that job; emergency protection and genuine stalled approaches still release it. Price the remaining work and credit only builders actually drawing native resources.
+- Use one commander weapon choice for approach and combat micro. Evaluate gun-versus-laser finishing time, visible shields, incoming fire and the target's death blast before closing. Support ACUs may position a real healing aura or field shield around useful troops, through native paths and exact owned orders. Recheck assignment and orders after pathfinding so old work cannot retask a new owner.
+- Teleport, spawned-drone upgrades and manual tactical missiles remain unavailable to this AI adapter: their SCOM host implementation is not included in the supplied sources. Do not buy or advertise effects that the private completion path cannot activate. No free/debug teleport or invented launch API is substituted.
+- Expand land production at the main base, expansions and outposts. Permit bounded parallel factory construction when real builders and resources can support it; idle factories in another domain no longer block expansion.
+- Build additional naval factories in an already served water area. Check shoreline access, connected water, clear exits, other planned sites and the actual construction budget before starting each new factory.
+- Protect funding for one viable T2/T3 factory upgrade before routine spending consumes it. Missing technology takes priority over repeated upgrades; finish the factory's paid product first and retain normal native costs and payments. New optional production, construction and assistance share the same protected budget.
+- Establish the highest available missing advanced engineer and prepare power for upcoming technology. A disconnected map can upgrade its support land factory; sustained enemy pressure permits first technology when the field army, factory safety and remaining production support it.
+- Scale Cybran hives to one per two completed land, air or naval factories when resources permit, including expansions. Prefer legal sites adjoining factories and require both the factory and its production point to be inside the hive's actual assist range. Count unfinished and upgrading hives without duplicating them.
+- Recover abandoned upgrade assignments after their owner stops, while preserving every native queued upgrade and unfinished target. Check the actual selected station and construction workers before committing optional spending.
+- Include submarines in the normal naval mix after the first surface ships, with a larger share against observed naval threats and native menu/cost checks for every order.
+- Give T2/T3 bombers their own bounded demand, counting queued aircraft and allowing higher tiers to satisfy lower-tier requests. T1 survivors no longer fill advanced strike goals; affordable advanced bomber orders take a production slot before optional cheap filler, while fighter readiness and recovery remain protected.
+- Remove the circular T2-attacker prerequisite for T3 air. Price usable products from the future factory's native menu and share upgrade priorities between factory reservations and construction selection, so repeated land upgrades cannot indefinitely postpone first air technology.
+- Form bomber wings by tech level and reserve fighter-bombers for ground strikes. T1 retains economic harassment alongside exposed-artillery opportunities; advanced wings compare known targets and credible commander finishes by value, effective bombing passes, travel and AA exposure. Existing native pass/flight micro remains in use.
+- Use encounter micro during land attacks, reinforcement travel and naval patrols, then resume the assigned mission. Air reinforcements also engage suitable local contacts. Select compatible weapons and useful firing positions; retreat and current unit ownership take precedence.
+- Count only available local support when judging an assault. Track moving objectives, retain productive engagements, and share fair native path admission between ground and naval groups.
+- Build appropriate ground and air defenses at valuable bases and expansions. Lower-tier defenses no longer block stronger replacements; shields target important assets that still lack coverage.
+- Compare useful grid-edge adjacency candidates, favor shared faces and multiple beneficial neighbors, and retain protected factory exits, extractor storage rings and planned construction clearance. Heavy structures use the same safeguards for adjacent and fallback sites.
+- Share one economic commitment ledger and one development census across production, construction, assistance and upgrades. Reserve only commander/pod work not yet drawing native resources; assistance never counts as a second foundation. Exact assignment, order and reservation identities protect combat/service handoffs, queued work and coroutine resumes. Failed expansion routes remain scoped to the builder that actually failed them.
+- Source review only for this update. No tests, simulations, benchmarks or live matches were run.
+
+AI-Scom 9.0.24-rc29
+
+- Give the first naval factory an independent construction slot and useful priority after land production is established, while retaining economy, engineer and water-area checks.
+- Search valid water placement for imported shipyards using each engineer's movement layer instead of requiring a land path to the factory center; check every unserved water area and preserve reachable approach orders.
+
+- Build T2 and T3 mass fabricators when sustained energy surplus covers construction and operation; pause fabrication during energy shortages and resume within the available budget.
+- Prefer exact grid-edge adjacency for factories, generators, fabricators and powered structures, including usable offset slots, while preserving factory exits and four-storage extractor rings.
+- Correct factories being classified as mass storage because they also carry storage-capacity tags.
+
+- Keep one inexpensive T1 land combat order eligible during Alloy shortages even when the surviving army exceeds its recovery threshold. Existing queued, unfinished and pending ground units consume this allowance, so idle factories cannot all overcommit it.
+
+AI-Scom 9.0.23-rc28
+
+- Keep land and air factories assigned and producing after a naval factory is lost; surviving fleets retain their naval base.
+- Recover lost production schedulers, orphaned factory assignments and failed empty-target production workers while preserving queued and partly built units.
+- Anticipate power needed to spend surplus Alloy consistently through construction dispatch.
+- Reserve factory upgrades only where a usable factory can actually be selected; release invalid reservations promptly.
+- Release commanders from abandoned recovery jobs without cancelling paid foundations or unrelated work.
+- Let fresh Hunter groups deploy and keep main-army reinforcements out of raid groups that already consumed their allocation.
+- Stop treating troops in retreat as available assault support.
+- Abandon unreachable combat targets when units circle without closing range or firing, then choose another objective.
+
+AI-Sanctuary-Rush 9.0.22-rc26
+
+- Repaired the T3 air-readiness callback passed to both construction and production lanes.
+- On Survival maps, keep ground platoons near home between waves and prioritize observed base intruders; stop alloy-raider formations, ground and bomber resource scouting, and empty enemy-base probes.
+- Schedule one T2 shield and one T2 ground defense at the main base when income and energy can support them, without waiting for a panic-zone breach.
+- Start a first advanced generator only when measured energy demand warrants it, and avoid repeated spawn-marker warnings for scripted wave armies.
+
+AI-Sanctuary-Rush 9.0.22-rc25
+
+- Delayed T2-to-T3 air upgrades until a completed fighter wing and T2 attack aircraft exist, ground pressure has eased, and loaded upgrade plus T3 combat-air costs fit sustained resources.
+- Verified that each faction has a playable T3 combat-air candidate before investing; upgrade reservations now release if readiness fades.
+
+AI-Sanctuary-Rush 9.0.22-rc24
+
+- Prioritized the first airfield, land capacity, and needed power when Alloy storage is near full. Stopped new power starts while Alloy is depleted and stored Energy is stable.
+- Launched the first fighter during a visible air raid and recognized attacks near owned distant extractors. Normal patrol formation still uses six fighters.
+- Delayed land factory tech until enough ground forces remain, including enemy-reactive upgrade paths.
+- Favored Cybran Cooling over conflicting engineering upgrades, removed the visual-only Stealth choice, and avoided long or stalled commander upgrades.
+- Checked local strength and a bounded sample of native routes before land assaults, including queued path recovery.
+
+AI-Sanctuary-Rush 9.0.22-rc23
+
+- Prioritized land T2/T3 upgrades over extra T1 factories and made upgrade projects available at every base.
+- Removed excessive factory-count requirements from the land-upgrade fallback path.
+- Allowed factory tech investment during ordinary army replacement when resources can sustain it; capped the income-scaled reserve threshold to actual storage.
+- Kept fresh land task forces independent through their first attack while locally regrouping depleted survivors.
+- Sent three-unit raids when the main army is established and a small idle pool is available.
+- Reused one fresh unit snapshot across each uninterrupted former-selection block and removed a duplicate structure economy check.
+
+AI-Sanctuary-Rush 9.0.21-rc22
+
+- Adapted construction funding to loaded SCOM unit costs and each builder's actual construction power.
+- Replaced match-age development gates with economic, army-strength and enemy-state decisions.
+- Restored the land primary's 80 attack threshold and protected its main-army role.
+- Preserved bounded parallel Alloy expansion and limited raiding groups relative to the main force.
+- Improved preparation for rising Alloy income, limited repeated high-storage power requests, and protected the first advanced power engineer.
+- Required sustainable funding for optional air factories and prioritized a six-fighter core before optional bomber and gunship production.
+- Prioritized the nearest home extractors through their Tech 2 and Tech 3 upgrade phases; optional assistance now releases on resource shortage.
+- Restricted idle Commander assistance to nearby armed-unit factory production and bounded new heavy-construction commitments.
+- Allowed attacks on unfinished enemy extractors without counting their unfinished weapons as active firepower.
+- Retained the bomber pass-and-return controller and aircraft order recovery.

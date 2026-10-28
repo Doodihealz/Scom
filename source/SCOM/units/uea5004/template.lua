@@ -1,0 +1,645 @@
+-- uea5004: C-6 Courier
+-- Editable full authoring data; shared code converts it into engine components.
+-- Explicit ranges control range rings; coordinate them with weapon range edits.
+-- host.lua and client.lua own behavior and class inheritance.
+UnitTemplate = {
+    ["additions"] = {
+        ["faSourceContract"] = {
+            ["fuelIntentionallyOmitted"] = true,
+            ["runtimeBehaviorApproval"] = false,
+            ["sourceAir"] = {
+                ["AutoLandTime"] = 1,
+                ["BankFactor"] = 0.1,
+                ["BankForward"] = false,
+                ["CanFly"] = true,
+                ["CirclingDirChange"] = false,
+                ["CirclingElevationChangeRatio"] = 0.25,
+                ["CirclingFlightChangeFrequency"] = 15,
+                ["CirclingRadiusChangeMaxRatio"] = 0.4,
+                ["CirclingRadiusChangeMinRatio"] = 0.3,
+                ["CirclingTurnMult"] = 1,
+                ["KLift"] = 2,
+                ["KLiftDamping"] = 2,
+                ["KMove"] = 0.95,
+                ["KMoveDamping"] = 2,
+                ["KRoll"] = 1,
+                ["KRollDamping"] = 1,
+                ["KTurn"] = 1,
+                ["KTurnDamping"] = 4,
+                ["LiftFactor"] = 8,
+                ["MaxAirspeed"] = 10,
+                ["StartTurnDistance"] = 10,
+                ["TransportHoverHeight"] = 3,
+            },
+            ["sourceAnimations"] = {
+                [1] = {
+                    ["archive"] = "units.scd",
+                    ["bindPoseTracks"] = {},
+                    ["blueprintUses"] = {
+                        [1] = ".Display.AnimationLand",
+                    },
+                    ["bytes"] = 51434,
+                    ["clipName"] = "FaUEA0107Atakeoff01",
+                    ["duration"] = 1.8333333730697632,
+                    ["entry"] = "units/UEA0107/UEA0107_Atakeoff01.sca",
+                    ["frames"] = 56,
+                    ["outputDuration"] = 1.8333333730697632,
+                    ["scriptLiteralUse"] = false,
+                    ["sha256"] = "01b8385a5921e7e03c5d4c14d880e531185389abb694a8bbfe366b67d872d9c8",
+                    ["sourcePlaybackRateBaked"] = 1,
+                    ["tracks"] = 32,
+                    ["usedBySource"] = true,
+                },
+            },
+            ["sourceBlueprint"] = "units/UEA0107/UEA0107_unit.bp",
+            ["sourceBlueprintSha256"] = "54d0e8b49832ced45f9eaf46c22ffd9795e462c81c89d6b1cab07fd88f4d8d1d",
+            ["sourceBuildableCategory"] = {},
+            ["sourceId"] = "UEA0107",
+            ["sourceIntel"] = {
+                ["VisionRadius"] = 32,
+            },
+            ["sourceMovement"] = {
+                ["BuildOnLayerCaps"] = {
+                    ["LAYER_Air"] = true,
+                    ["LAYER_Land"] = false,
+                    ["LAYER_Orbit"] = false,
+                    ["LAYER_Seabed"] = false,
+                    ["LAYER_Sub"] = false,
+                    ["LAYER_Water"] = false,
+                },
+                ["Elevation"] = 10,
+                ["FuelRechargeRate"] = 70,
+                ["FuelUseTime"] = 800,
+                ["MaxSpeed"] = 0.5,
+                ["MeshExtentsX"] = 1.25,
+                ["MeshExtentsY"] = 1,
+                ["MeshExtentsZ"] = 5.25,
+                ["MotionType"] = "RULEUMT_Air",
+            },
+            ["sourceScript"] = {
+                ["archive"] = "units.scd",
+                ["bytes"] = 4635,
+                ["entry"] = "units/UEA0107/UEA0107_Script.lua",
+                ["sha256"] = "52980ae7227f5cbd913f1719bcdfb838510a864298a76add7f5a9fda5d1233a3",
+            },
+            ["sourceShield"] = {},
+            ["sourceWeapons"] = {
+                [1] = {
+                    ["AboveWaterTargetsOnly"] = true,
+                    ["Damage"] = 100,
+                    ["DamageFriendly"] = true,
+                    ["DamageRadius"] = 1,
+                    ["DamageType"] = "Normal",
+                    ["DisplayName"] = "Air Crash",
+                    ["DummyWeapon"] = true,
+                    ["FiringTolerance"] = 2,
+                    ["Label"] = "DeathImpact",
+                    ["WeaponCategory"] = "Death",
+                },
+            },
+            ["targetId"] = "uea5004",
+            ["unsupportedWeaponBindings"] = {},
+        },
+        ["scoCargo"] = {
+            ["airPortable"] = true,
+            ["attachOffset"] = {
+                [1] = 0,
+                [2] = 0,
+                [3] = 0,
+            },
+            ["attachmentReference"] = "entity origin fallback: source model has no AttachPoint",
+            ["canCarryCommander"] = true,
+            ["canFire"] = true,
+            ["cargoClass"] = 10,
+            ["commander"] = false,
+            ["genericUpTo"] = 0,
+            ["portable"] = false,
+            ["slots"] = {
+                [1] = {
+                    ["bone"] = "Left_Attachpoint_sml_02",
+                    ["cargoClass"] = 1,
+                    ["occupies"] = {
+                        [1] = 1,
+                    },
+                    ["position"] = {
+                        [1] = 0.2576530182903143,
+                        [2] = 0.4618520731071362,
+                        [3] = -0.011221387595392814,
+                    },
+                },
+                [2] = {
+                    ["bone"] = "Right_Attachpoint_sml_02",
+                    ["cargoClass"] = 1,
+                    ["occupies"] = {
+                        [1] = 2,
+                    },
+                    ["position"] = {
+                        [1] = -0.25765299912049067,
+                        [2] = 0.4618520680748259,
+                        [3] = -0.01122138782047556,
+                    },
+                },
+                [3] = {
+                    ["bone"] = "Right_Attachpoint_sml_01",
+                    ["cargoClass"] = 1,
+                    ["occupies"] = {
+                        [1] = 3,
+                    },
+                    ["position"] = {
+                        [1] = -0.2576529541802148,
+                        [2] = 0.46185199501020247,
+                        [3] = 0.5707052491570043,
+                    },
+                },
+                [4] = {
+                    ["bone"] = "Left_Attachpoint_sml_01",
+                    ["cargoClass"] = 1,
+                    ["occupies"] = {
+                        [1] = 4,
+                    },
+                    ["position"] = {
+                        [1] = 0.2576530110762983,
+                        [2] = 0.4618520118242232,
+                        [3] = 0.5707052800650407,
+                    },
+                },
+                [5] = {
+                    ["bone"] = "Attachpoint_Med_01",
+                    ["cargoClass"] = 2,
+                    ["occupies"] = {
+                        [1] = 1,
+                        [2] = 4,
+                    },
+                    ["position"] = {
+                        [1] = 0.2576530144605991,
+                        [2] = 0.4618520416822125,
+                        [3] = 0.27741798398131395,
+                    },
+                },
+                [6] = {
+                    ["bone"] = "Attachpoint_Lrg_02",
+                    ["cargoClass"] = 3,
+                    ["occupies"] = {
+                        [1] = 2,
+                        [2] = 1,
+                        [3] = 3,
+                        [4] = 4,
+                    },
+                    ["position"] = {
+                        [1] = 4.1331210208561935e-15,
+                        [2] = 0.4618520416822091,
+                        [3] = 0.2774179736563522,
+                    },
+                },
+                [7] = {
+                    ["bone"] = "Attachpoint_Med_03",
+                    ["cargoClass"] = 2,
+                    ["occupies"] = {
+                        [1] = 2,
+                        [2] = 3,
+                    },
+                    ["position"] = {
+                        [1] = -0.25765299769303,
+                        [2] = 0.46185204168220095,
+                        [3] = 0.27741799146479074,
+                    },
+                },
+                [8] = {
+                    ["bone"] = "Left_Attachpoint_sml_03",
+                    ["cargoClass"] = 1,
+                    ["occupies"] = {
+                        [1] = 8,
+                    },
+                    ["position"] = {
+                        [1] = 0.25765299715647544,
+                        [2] = 0.46185216155314773,
+                        [3] = -0.5956925012364083,
+                    },
+                },
+                [9] = {
+                    ["bone"] = "Right_Attachpoint_sml_03",
+                    ["cargoClass"] = 1,
+                    ["occupies"] = {
+                        [1] = 9,
+                    },
+                    ["position"] = {
+                        [1] = -0.2576530644428667,
+                        [2] = 0.46185216451813227,
+                        [3] = -0.5956924941572862,
+                    },
+                },
+            },
+            ["sourceId"] = "UEA0107",
+            ["sourceModel"] = {
+                ["archive"] = "units.scd",
+                ["bytes"] = 222660,
+                ["entry"] = "units/UEA0107/UEA0107_lod0.scm",
+                ["sha256"] = "a927dcda6c70bd947ed937cb46700f576f829500c7dbf381d969e33bef96a029",
+            },
+            ["sourceTransport"] = {
+                ["AirClass"] = true,
+                ["Class2AttachSize"] = 2,
+                ["Class3AttachSize"] = 4,
+                ["TransportClass"] = 10,
+            },
+        },
+        ["scoSourceSecondaryVisuals"] = {
+            ["airAnimation"] = {
+                ["clips"] = {
+                    ["land"] = {
+                        ["clipName"] = "FaUEA0107Atakeoff01",
+                        ["duration"] = 1.8333333730697632,
+                        ["key"] = "scoSecondaryAir_land",
+                        ["sanAnimationPath"] = "Units/uea5004/LOD0/uea5004.sananimation",
+                        ["source"] = {
+                            ["archive"] = "units.scd",
+                            ["bindPoseTracks"] = {},
+                            ["blueprintUses"] = {
+                                [1] = ".Display.AnimationLand",
+                            },
+                            ["bytes"] = 51434,
+                            ["clipName"] = "FaUEA0107Atakeoff01",
+                            ["duration"] = 1.8333333730697632,
+                            ["entry"] = "units/UEA0107/UEA0107_Atakeoff01.sca",
+                            ["frames"] = 56,
+                            ["outputDuration"] = 1.8333333730697632,
+                            ["scriptLiteralUse"] = false,
+                            ["sha256"] = "01b8385a5921e7e03c5d4c14d880e531185389abb694a8bbfe366b67d872d9c8",
+                            ["sourcePlaybackRateBaked"] = 1,
+                            ["tracks"] = 32,
+                            ["usedBySource"] = true,
+                        },
+                    },
+                    ["takeoff"] = {
+                        ["clipName"] = "FaUEA0107Atakeoff01",
+                        ["duration"] = 1.8333333730697632,
+                        ["key"] = "scoSecondaryAir_takeoff",
+                        ["sanAnimationPath"] = "Units/uea5004/LOD0/uea5004.sananimation",
+                        ["source"] = {
+                            ["archive"] = "units.scd",
+                            ["bindPoseTracks"] = {},
+                            ["blueprintUses"] = {
+                                [1] = ".Display.AnimationLand",
+                            },
+                            ["bytes"] = 51434,
+                            ["clipName"] = "FaUEA0107Atakeoff01",
+                            ["duration"] = 1.8333333730697632,
+                            ["entry"] = "units/UEA0107/UEA0107_Atakeoff01.sca",
+                            ["frames"] = 56,
+                            ["outputDuration"] = 1.8333333730697632,
+                            ["scriptLiteralUse"] = false,
+                            ["sha256"] = "01b8385a5921e7e03c5d4c14d880e531185389abb694a8bbfe366b67d872d9c8",
+                            ["sourcePlaybackRateBaked"] = 1,
+                            ["tracks"] = 32,
+                            ["usedBySource"] = true,
+                        },
+                    },
+                },
+                ["initial"] = true,
+                ["kind"] = "reversible",
+            },
+            ["effects"] = {},
+            ["meshes"] = {},
+            ["sliders"] = {
+                [1] = {
+                    ["basePosition"] = {
+                        [1] = 1.4235496520996093e-05,
+                        [2] = 0.531118103981018,
+                        [3] = -1.5412535762786865,
+                    },
+                    ["bone"] = "Tail",
+                    ["closedOffset"] = {
+                        [1] = 0,
+                        [2] = 0,
+                        [3] = 0.885,
+                    },
+                    ["sourceBone"] = "Tail",
+                    ["sourceOffset"] = {
+                        [1] = 0,
+                        [2] = 0,
+                        [3] = 15,
+                    },
+                    ["sourceSpeed"] = 10,
+                    ["speed"] = 0.59,
+                },
+                [2] = {
+                    ["basePosition"] = {
+                        [1] = 1.4235496520996093e-05,
+                        [2] = 0.5124513168334961,
+                        [3] = 1.1425509662628173,
+                    },
+                    ["bone"] = "Head",
+                    ["closedOffset"] = {
+                        [1] = 0,
+                        [2] = 0,
+                        [3] = -0.885,
+                    },
+                    ["sourceBone"] = "Head",
+                    ["sourceOffset"] = {
+                        [1] = 0,
+                        [2] = 0,
+                        [3] = -15,
+                    },
+                    ["sourceSpeed"] = 10,
+                    ["speed"] = 0.59,
+                },
+            },
+            ["sourceBlueprintSha256"] = "54d0e8b49832ced45f9eaf46c22ffd9795e462c81c89d6b1cab07fd88f4d8d1d",
+            ["sourceId"] = "UEA0107",
+            ["sourceScript"] = {
+                ["archive"] = "units.scd",
+                ["bytes"] = 4635,
+                ["entry"] = "units/UEA0107/UEA0107_Script.lua",
+                ["sha256"] = "52980ae7227f5cbd913f1719bcdfb838510a864298a76add7f5a9fda5d1233a3",
+            },
+            ["targetId"] = "uea5004",
+        },
+    },
+    ["collisionInfo"] = {
+        ["centerOffset"] = {
+            ["x"] = 0,
+            ["y"] = -0.7,
+            ["z"] = 0,
+        },
+        ["collisionSize"] = {
+            ["x"] = 1.4,
+            ["y"] = 1.8,
+            ["z"] = 4.5,
+        },
+    },
+    ["defence"] = {
+        ["health"] = {
+            ["max"] = 500,
+            ["regen"] = 0,
+            ["value"] = 500,
+        },
+    },
+    ["economy"] = {
+        ["buildTime"] = 400,
+        ["cost"] = {
+            ["alloys"] = 80,
+            ["energy"] = 1600,
+        },
+    },
+    ["footprint"] = {
+        ["x"] = 1,
+        ["y"] = 4,
+    },
+    ["general"] = {
+        ["class"] = {
+            [1] = "unitsDefaultEDA",
+            [2] = "EDAAirUnit",
+        },
+        ["displayName"] = "C-6 Courier",
+        ["icon"] = {
+            ["shape"] = "air1",
+            ["symbol"] = "direct",
+            ["tech"] = "t1",
+        },
+        ["iconUI"] = "tech1_air1_direct.png",
+        ["iconUIBuildSortPriority"] = 50,
+        ["iconUIType"] = "air",
+        ["name"] = "C-6 Courier",
+        ["orders"] = {
+            ["Assist"] = true,
+            ["Move"] = true,
+            ["Patrol"] = true,
+            ["Stop"] = true,
+            ["Transport"] = true,
+        },
+        ["tpId"] = "uea5004",
+    },
+    ["intel"] = {
+        ["visionRadius"] = 32,
+    },
+    ["movement"] = {
+        ["acceleration"] = 10,
+        ["air"] = true,
+        ["airHover"] = false,
+        ["altitudeJitterFactor"] = 0,
+        ["bankFactor"] = 0.1,
+        ["bankHalfLife"] = 0.075647079736603,
+        ["collisionMaskDefault"] = {
+            [1] = "Air",
+        },
+        ["collisionMaskSpawn"] = {
+            [1] = "Air",
+        },
+        ["landWhenIdleSeconds"] = 1,
+        ["maxBankDegrees"] = 3,
+        ["minSpeed"] = 0,
+        ["orbitRange"] = 0,
+        ["orbitSpeed"] = 0,
+        ["patternBySituation"] = {
+            ["assist"] = "circle",
+            ["attack"] = "strafe",
+            ["hold"] = "circle",
+            ["move"] = "cruise",
+        },
+        ["patterns"] = {
+            ["circle"] = {
+                ["circle"] = {
+                    ["radius"] = 0,
+                    ["speed"] = 0,
+                },
+                ["mode"] = "Circle",
+            },
+            ["cruise"] = {},
+            ["strafe"] = {
+                ["mode"] = "Strafe",
+                ["strafe"] = {
+                    ["matchTargetSpeed"] = true,
+                    ["runOutLength"] = 14.324,
+                },
+            },
+        },
+        ["preferredAltitude"] = 10,
+        ["referenceAltitude"] = "GroundOrWater",
+        ["rotationSpeed"] = 90,
+        ["sortOrder"] = 1,
+        ["speed"] = 10,
+        ["terrainAlignmentFactor"] = 0,
+        ["type"] = "Plane",
+    },
+    ["ranges"] = {
+        [33] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 32,
+        },
+        [34] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 32,
+        },
+    },
+    ["tags"] = {
+        [1] = "AIR",
+        [2] = "EDA",
+        [3] = "MOBILE",
+        [4] = "SCFA_AIR",
+        [5] = "SCFA_ALLUNITS",
+        [6] = "SCFA_CANNOTUSEAIRSTAGING",
+        [7] = "SCFA_CANTRANSPORTCOMMANDER",
+        [8] = "SCFA_MOBILE",
+        [9] = "SCFA_PRODUCTSC1",
+        [10] = "SCFA_RECLAIMABLE",
+        [11] = "SCFA_SELECTABLE",
+        [12] = "SCFA_TECH1",
+        [13] = "SCFA_TRANSPORTATION",
+        [14] = "SCFA_TRANSPORTBUILTBYTIER1FACTORY",
+        [15] = "SCFA_TRANSPORTBUILTBYTIER2FACTORY",
+        [16] = "SCFA_TRANSPORTBUILTBYTIER3FACTORY",
+        [17] = "SCFA_TRANSPORTFOCUS",
+        [18] = "SCFA_UEF",
+        [19] = "SCFA_VISIBLETORECON",
+        [20] = "TECH1",
+        [21] = "BUILDABLE_BY_T1_FACTORY",
+        [22] = "BUILDABLE_BY_T2_FACTORY",
+        [23] = "BUILDABLE_BY_T3_FACTORY",
+    },
+    ["visuals"] = {
+        ["animations"] = {
+            ["rest"] = {
+                ["clipName"] = "Rest",
+                ["sanAnimationPath"] = "Units/uea5004/LOD0/uea5004.sananimation",
+            },
+            ["scoSecondaryAir_land"] = {
+                ["authoredSpeed"] = 1,
+                ["clipName"] = "FaUEA0107Atakeoff01",
+                ["playbackMode"] = 0,
+                ["sanAnimationPath"] = "Units/uea5004/LOD0/uea5004.sananimation",
+            },
+            ["scoSecondaryAir_takeoff"] = {
+                ["authoredSpeed"] = 1,
+                ["clipName"] = "FaUEA0107Atakeoff01",
+                ["playbackMode"] = 0,
+                ["sanAnimationPath"] = "Units/uea5004/LOD0/uea5004.sananimation",
+            },
+            ["walk"] = {
+                ["clipName"] = "Rest",
+                ["sanAnimationPath"] = "Units/uea5004/LOD0/uea5004.sananimation",
+            },
+        },
+        ["display"] = {
+            ["mainBarDisplayScale"] = {
+                ["x"] = 0.4,
+                ["y"] = 0.4,
+            },
+            ["mainBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 15,
+            },
+            ["progressBars"] = {
+                [1] = {
+                    ["colorBackground"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorEmpty"] = {
+                        ["a"] = 1,
+                        ["x"] = 1,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorFull"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 1,
+                        ["z"] = 0,
+                    },
+                    ["mainBar"] = true,
+                    ["name"] = "Health",
+                    ["property"] = "Health_Current",
+                    ["xOffset"] = 0,
+                    ["xScale"] = 1,
+                },
+            },
+            ["subBarDisplayScale"] = {
+                ["x"] = 1,
+                ["y"] = 1,
+            },
+            ["subBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 0,
+            },
+        },
+        ["effectsPersistent"] = {
+            [1] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_large.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.252,
+                    ["y"] = -0.24999999999999994,
+                    ["z"] = -0.9,
+                },
+                ["scoDamageSmoke"] = 0.75,
+            },
+            [2] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_large.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.308,
+                    ["y"] = -0.37599999999999995,
+                    ["z"] = 0.8099999999999999,
+                },
+                ["scoDamageSmoke"] = 0.5,
+            },
+            [3] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_large.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.27999999999999997,
+                    ["y"] = -0.19599999999999984,
+                    ["z"] = 0.72,
+                },
+                ["scoDamageSmoke"] = 0.25,
+            },
+            [4] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_large.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.252,
+                    ["y"] = 0.05600000000000005,
+                    ["z"] = -0.9,
+                },
+                ["scoDamageFire"] = 0.25,
+            },
+            [5] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_large.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.308,
+                    ["y"] = 0.02000000000000013,
+                    ["z"] = 0.8099999999999999,
+                },
+                ["scoDamageFire"] = 0.1,
+            },
+        },
+        ["mesh"] = {
+            ["lod0distance"] = 107,
+            ["lod1distance"] = 279,
+        },
+        ["selection"] = {
+            ["offset"] = {
+                ["x"] = 0,
+                ["y"] = -0.7,
+                ["z"] = 0,
+            },
+            ["size"] = {
+                ["x"] = 0.8,
+                ["y"] = 3,
+            },
+        },
+    },
+    ["weapons"] = {
+        [1] = {
+            ["category"] = "DeathExplosion",
+            ["damage"] = 100,
+            ["damageFriendly"] = true,
+            ["damageRadius"] = 1,
+            ["damageType"] = "Normal",
+            ["scoFaSourceWeaponIndex"] = 1,
+        },
+    },
+}

@@ -1,0 +1,380 @@
+-- uea5006: SR90 Blackbird
+-- Editable full authoring data; shared code converts it into engine components.
+-- Explicit ranges control range rings; coordinate them with weapon range edits.
+-- host.lua and client.lua own behavior and class inheritance.
+UnitTemplate = {
+    ["additions"] = {
+        ["faSourceContract"] = {
+            ["fuelIntentionallyOmitted"] = true,
+            ["runtimeBehaviorApproval"] = false,
+            ["sourceAir"] = {
+                ["AutoLandTime"] = 1,
+                ["BankFactor"] = 2,
+                ["BankForward"] = false,
+                ["CanFly"] = true,
+                ["CombatTurnSpeed"] = 1,
+                ["EngageDistance"] = 50,
+                ["KLift"] = 3,
+                ["KLiftDamping"] = 2.5,
+                ["KMove"] = 1,
+                ["KMoveDamping"] = 1,
+                ["KRoll"] = 2,
+                ["KRollDamping"] = 1,
+                ["KTurn"] = 1,
+                ["KTurnDamping"] = 1.5,
+                ["LiftFactor"] = 7,
+                ["MaxAirspeed"] = 30,
+                ["MinAirspeed"] = 25,
+                ["StartTurnDistance"] = 5,
+                ["TightTurnMultiplier"] = 1.1,
+                ["TurnSpeed"] = 0.8,
+                ["Winged"] = true,
+            },
+            ["sourceAnimations"] = {},
+            ["sourceBlueprint"] = "units/UEA0302/UEA0302_unit.bp",
+            ["sourceBlueprintSha256"] = "b61c5a8e844fe78f6e1b545c8f7c255e2cc4a525e812f3583c4a674b1aa9796c",
+            ["sourceBuildableCategory"] = {},
+            ["sourceId"] = "UEA0302",
+            ["sourceIntel"] = {
+                ["OmniRadius"] = 30,
+                ["RadarRadius"] = 96,
+                ["VisionRadius"] = 64,
+            },
+            ["sourceMovement"] = {
+                ["BuildOnLayerCaps"] = {
+                    ["LAYER_Air"] = true,
+                    ["LAYER_Land"] = false,
+                    ["LAYER_Orbit"] = false,
+                    ["LAYER_Seabed"] = false,
+                    ["LAYER_Sub"] = false,
+                    ["LAYER_Water"] = false,
+                },
+                ["Elevation"] = 25,
+                ["FuelRechargeRate"] = 15,
+                ["FuelUseTime"] = 1500,
+                ["GroundCollisionOffset"] = 1.6,
+                ["MaxSpeed"] = 10,
+                ["MeshExtentsX"] = 1.5,
+                ["MeshExtentsY"] = 0.5,
+                ["MeshExtentsZ"] = 2.25,
+                ["MinSpeedPercent"] = 0.85,
+                ["MotionType"] = "RULEUMT_Air",
+            },
+            ["sourceScript"] = {
+                ["archive"] = "units.scd",
+                ["bytes"] = 1062,
+                ["entry"] = "units/UEA0302/UEA0302_script.lua",
+                ["sha256"] = "58a393e3e70e89f985d8f283b43dec0a1cc1ab178c9481d8936c468fb1cd6154",
+            },
+            ["sourceShield"] = {},
+            ["sourceWeapons"] = {
+                [1] = {
+                    ["AboveWaterTargetsOnly"] = true,
+                    ["Damage"] = 100,
+                    ["DamageFriendly"] = true,
+                    ["DamageRadius"] = 1,
+                    ["DamageType"] = "Normal",
+                    ["DisplayName"] = "Air Crash",
+                    ["DummyWeapon"] = true,
+                    ["FiringTolerance"] = 2,
+                    ["Label"] = "DeathImpact",
+                    ["WeaponCategory"] = "Death",
+                },
+            },
+            ["targetId"] = "uea5006",
+            ["unsupportedWeaponBindings"] = {},
+        },
+        ["scoCargo"] = {
+            ["airPortable"] = true,
+            ["attachOffset"] = {
+                [1] = 0,
+                [2] = 0,
+                [3] = 0,
+            },
+            ["canFire"] = false,
+            ["cargoClass"] = 1,
+            ["portable"] = false,
+            ["slots"] = {},
+            ["unfoldDuration"] = 0,
+        },
+    },
+    ["collisionInfo"] = {
+        ["centerOffset"] = {
+            ["x"] = 0,
+            ["y"] = 0.07,
+            ["z"] = 0,
+        },
+        ["collisionSize"] = {
+            ["x"] = 0.8,
+            ["y"] = 0.25,
+            ["z"] = 1.8,
+        },
+    },
+    ["defence"] = {
+        ["health"] = {
+            ["max"] = 1150,
+            ["regen"] = 0,
+            ["value"] = 1150,
+        },
+    },
+    ["economy"] = {
+        ["buildTime"] = 900,
+        ["cost"] = {
+            ["alloys"] = 195,
+            ["energy"] = 7500,
+        },
+    },
+    ["footprint"] = {
+        ["x"] = 1,
+        ["y"] = 1,
+    },
+    ["general"] = {
+        ["class"] = {
+            [1] = "unitsDefaultEDA",
+            [2] = "EDAAirUnit",
+        },
+        ["displayName"] = "SR90 Blackbird",
+        ["icon"] = {
+            ["shape"] = "air1",
+            ["symbol"] = "direct",
+            ["tech"] = "t3",
+        },
+        ["iconUI"] = "tech3_air1_direct.png",
+        ["iconUIBuildSortPriority"] = 20,
+        ["iconUIType"] = "air",
+        ["name"] = "SR90 Blackbird",
+        ["orders"] = {
+            ["Assist"] = true,
+            ["Move"] = true,
+            ["Patrol"] = true,
+            ["Stop"] = true,
+        },
+        ["tpId"] = "uea5006",
+    },
+    ["intel"] = {
+        ["omniRadius"] = 30,
+        ["radarRadius"] = 96,
+        ["visionRadius"] = 64,
+    },
+    ["movement"] = {
+        ["acceleration"] = 30,
+        ["air"] = true,
+        ["airHover"] = false,
+        ["altitudeJitterFactor"] = 0,
+        ["bankFactor"] = 2,
+        ["bankHalfLife"] = 0.075647079736603,
+        ["collisionMaskDefault"] = {
+            [1] = "Air",
+        },
+        ["collisionMaskSpawn"] = {
+            [1] = "Air",
+        },
+        ["landWhenIdleSeconds"] = 1,
+        ["maxBankDegrees"] = 60,
+        ["minSpeed"] = 25,
+        ["orbitRange"] = 0,
+        ["orbitSpeed"] = 0,
+        ["patternBySituation"] = {
+            ["assist"] = "circle",
+            ["attack"] = "strafe",
+            ["hold"] = "circle",
+            ["move"] = "cruise",
+        },
+        ["patterns"] = {
+            ["circle"] = {
+                ["circle"] = {
+                    ["radius"] = 0,
+                    ["speed"] = 0,
+                },
+                ["mode"] = "Circle",
+            },
+            ["cruise"] = {},
+            ["strafe"] = {
+                ["mode"] = "Strafe",
+                ["strafe"] = {
+                    ["matchTargetSpeed"] = true,
+                    ["runOutLength"] = 14.324,
+                },
+            },
+        },
+        ["preferredAltitude"] = 25,
+        ["referenceAltitude"] = "GroundOrWater",
+        ["rotationSpeed"] = 90,
+        ["sortOrder"] = 1,
+        ["speed"] = 30,
+        ["terrainAlignmentFactor"] = 0,
+        ["type"] = "Plane",
+    },
+    ["ranges"] = {
+        [2] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 96,
+        },
+        [33] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 64,
+        },
+        [34] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 64,
+        },
+    },
+    ["tags"] = {
+        [1] = "AIR",
+        [2] = "BUILDABLE_BY_T3_FACTORY",
+        [3] = "EDA",
+        [4] = "MOBILE",
+        [5] = "SCFA_AIR",
+        [6] = "SCFA_ALLUNITS",
+        [7] = "SCFA_BUILTBYTIER3FACTORY",
+        [8] = "SCFA_HIGHALTAIR",
+        [9] = "SCFA_INTELLIGENCE",
+        [10] = "SCFA_MOBILE",
+        [11] = "SCFA_OVERLAYOMNI",
+        [12] = "SCFA_OVERLAYRADAR",
+        [13] = "SCFA_PRODUCTSC1",
+        [14] = "SCFA_RADAR",
+        [15] = "SCFA_RECLAIMABLE",
+        [16] = "SCFA_SELECTABLE",
+        [17] = "SCFA_SONAR",
+        [18] = "SCFA_TECH3",
+        [19] = "SCFA_UEF",
+        [20] = "SCFA_VISIBLETORECON",
+        [21] = "TECH3",
+        [22] = "SCOUT",
+    },
+    ["visuals"] = {
+        ["animations"] = {
+            ["rest"] = {
+                ["clipName"] = "Rest",
+                ["sanAnimationPath"] = "Units/uea5006/LOD0/uea5006.sananimation",
+            },
+            ["walk"] = {
+                ["clipName"] = "Rest",
+                ["sanAnimationPath"] = "Units/uea5006/LOD0/uea5006.sananimation",
+            },
+        },
+        ["display"] = {
+            ["mainBarDisplayScale"] = {
+                ["x"] = 0.4,
+                ["y"] = 0.4,
+            },
+            ["mainBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 15,
+            },
+            ["progressBars"] = {
+                [1] = {
+                    ["colorBackground"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorEmpty"] = {
+                        ["a"] = 1,
+                        ["x"] = 1,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorFull"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 1,
+                        ["z"] = 0,
+                    },
+                    ["mainBar"] = true,
+                    ["name"] = "Health",
+                    ["property"] = "Health_Current",
+                    ["xOffset"] = 0,
+                    ["xScale"] = 1,
+                },
+            },
+            ["subBarDisplayScale"] = {
+                ["x"] = 1,
+                ["y"] = 1,
+            },
+            ["subBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 0,
+            },
+        },
+        ["effectsPersistent"] = {
+            [1] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.144,
+                    ["y"] = 0.1325,
+                    ["z"] = -0.36000000000000004,
+                },
+                ["scoDamageSmoke"] = 0.75,
+            },
+            [2] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.17600000000000002,
+                    ["y"] = 0.115,
+                    ["z"] = 0.324,
+                },
+                ["scoDamageSmoke"] = 0.5,
+            },
+            [3] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.16000000000000003,
+                    ["y"] = 0.14,
+                    ["z"] = 0.28800000000000003,
+                },
+                ["scoDamageSmoke"] = 0.25,
+            },
+            [4] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.144,
+                    ["y"] = 0.175,
+                    ["z"] = -0.36000000000000004,
+                },
+                ["scoDamageFire"] = 0.25,
+            },
+            [5] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.17600000000000002,
+                    ["y"] = 0.17,
+                    ["z"] = 0.324,
+                },
+                ["scoDamageFire"] = 0.1,
+            },
+        },
+        ["mesh"] = {
+            ["lod0distance"] = 107,
+            ["lod1distance"] = 279,
+        },
+        ["selection"] = {
+            ["offset"] = {
+                ["x"] = 0,
+                ["y"] = 0.07,
+                ["z"] = 0,
+            },
+            ["size"] = {
+                ["x"] = 0.9,
+                ["y"] = 1.2,
+            },
+        },
+    },
+    ["weapons"] = {
+        [1] = {
+            ["category"] = "DeathExplosion",
+            ["damage"] = 100,
+            ["damageFriendly"] = true,
+            ["damageRadius"] = 1,
+            ["damageType"] = "Normal",
+            ["scoFaSourceWeaponIndex"] = 1,
+        },
+    },
+}

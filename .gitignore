@@ -1,0 +1,7 @@
+*.sanpack
+*.dll
+*.pdb
+*.zip
+bin/
+obj/
+__pycache__/

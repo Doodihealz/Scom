@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>ScomLandMotion</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <TargetFramework>netstandard2.1</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemGroup />
+  <ItemGroup>
+    <Reference Include="BepInEx">
+      <HintPath>$(SanctuaryEngineDirectory)\BepInEx\core\BepInEx.dll</HintPath>
+    </Reference>
+    <Reference Include="0Harmony">
+      <HintPath>$(SanctuaryEngineDirectory)\BepInEx\core\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="Trebuchet">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\Trebuchet.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Mathematics">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\Unity.Mathematics.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Collections">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\Unity.Collections.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <PropertyGroup>
+    <SanctuaryEngineDirectory Condition="'$(SanctuaryEngineDirectory)' == '' and '$(SANCTUARY_ENGINE)' != ''">$(SANCTUARY_ENGINE)</SanctuaryEngineDirectory>
+  </PropertyGroup>
+</Project>

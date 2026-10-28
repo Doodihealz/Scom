@@ -1,0 +1,618 @@
+-- ugl2002: Tier 2: Amphibious Tank
+-- Editable full authoring data; shared code converts it into engine components.
+-- Explicit ranges control range rings; coordinate them with weapon range edits.
+-- host.lua and client.lua own behavior and class inheritance.
+UnitTemplate = {
+    ["additions"] = {
+        ["faSourceContract"] = {
+            ["class"] = {
+                ["name"] = "GuardLandUnit",
+                ["owner"] = "unitsDefaultGuard",
+            },
+            ["collision"] = {
+                ["offset"] = {
+                    ["x"] = 0,
+                    ["y"] = 0,
+                    ["z"] = 0,
+                },
+                ["size"] = {
+                    ["x"] = 0.9,
+                    ["y"] = 0.45,
+                    ["z"] = 1.1,
+                },
+            },
+            ["defence"] = {
+                ["health"] = 1450,
+                ["regen"] = 0,
+            },
+            ["economy"] = {
+                ["buildCostEnergy"] = 1980,
+                ["buildCostMass"] = 297,
+                ["buildTime"] = 1320,
+            },
+            ["intel"] = {
+                ["sanctuaryWaterVisionRadiusSupported"] = false,
+                ["sourceWaterVisionRadius"] = 20,
+                ["visionRadius"] = 15,
+            },
+            ["limitations"] = {
+                ["sanctuaryProjectileMeshSwapSupported"] = false,
+                ["sourceRocketPackedMeshSwapAtSeconds"] = 0.15,
+                ["sourceTorpedoStayUnderwaterConstraintSupported"] = false,
+                ["sourceTreadAndGroundKickupEffects"] = false,
+                ["sourceWaterEntryAudio"] = false,
+            },
+            ["mapping"] = "URL0203 -> ugl2002",
+            ["movement"] = {
+                ["acceleration"] = 3.7,
+                ["brake"] = 3.7,
+                ["reverseSpeed"] = 0,
+                ["rotateOnSpot"] = true,
+                ["sourceLayerChangeOffsetHeight"] = -0.2,
+                ["sourceMotionType"] = "RULEUMT_Amphibious",
+                ["speed"] = 3.7,
+                ["steerForce"] = 10,
+                ["turnRadius"] = 0,
+                ["turnRate"] = 90,
+            },
+            ["selection"] = {
+                ["centerX"] = 0,
+                ["centerZ"] = 0,
+                ["thickness"] = 0.7,
+                ["x"] = 0.55,
+                ["z"] = 0.6,
+            },
+            ["sourceArchiveSha256"] = "c23a48d6b47043144baafc4c7f47b5a470392264f1bbaf962896923d58899c26",
+            ["sourceBlueprint"] = "units/URL0203/URL0203_unit.bp",
+            ["sourceBlueprintSha256"] = "c07db55c26720367272bc1b32b444a572632cbd9a21b772c1e43c06dcb4345ae",
+            ["sourceLayerWeapons"] = {
+                ["Land"] = {
+                    [1] = "MesonRocket",
+                    [2] = "HeavyBolter",
+                },
+                ["Seabed"] = {
+                    [1] = "Torpedo",
+                },
+            },
+            ["sourceScript"] = "units/URL0203/URL0203_script.lua",
+            ["sourceScriptSha256"] = "135df7d571db9b4812e497404a21c7d22002bc0620efdbe65420766c10c1b1cd",
+            ["substitution"] = true,
+        },
+        ["scoCargo"] = {
+            ["attachOffset"] = {
+                [1] = 0,
+                [2] = 0.28416280609207273,
+                [3] = -0.058486402879614985,
+            },
+            ["attachmentReference"] = "source AttachPoint plus native .01 root clearance",
+            ["canFire"] = true,
+            ["cargoClass"] = 2,
+            ["commander"] = false,
+            ["portable"] = true,
+            ["slots"] = {},
+            ["sourceId"] = "URL0203",
+            ["sourceModel"] = {
+                ["archive"] = "units.scd",
+                ["bytes"] = 42632,
+                ["entry"] = "units/URL0203/URL0203_LOD0.scm",
+                ["sha256"] = "f2a5da0f7506f1c792e61826d575fdd5299011742742ecc236fc2c96cea62f0b",
+            },
+        },
+        ["scoGroundTracks"] = {
+            ["boneName"] = "Root",
+            ["modelPath"] = "Units/ugl2002/LOD0/ugl2002_lod0.sanmodel",
+            ["trails"] = {
+                [1] = {
+                    ["pattern"] = "tread",
+                    ["positionOffset"] = {
+                        ["x"] = -0.2366042584180832,
+                        ["y"] = -4.5894354884556954e-05,
+                        ["z"] = -0.1753775179331441,
+                    },
+                    ["width"] = 0.219701,
+                },
+                [2] = {
+                    ["pattern"] = "tread",
+                    ["positionOffset"] = {
+                        ["x"] = 4.470348358154297e-08,
+                        ["y"] = -0.0008274213747018425,
+                        ["z"] = 0.11956179151862008,
+                    },
+                    ["width"] = 0.373492,
+                },
+                [3] = {
+                    ["pattern"] = "tread",
+                    ["positionOffset"] = {
+                        ["x"] = 0.23660428822040558,
+                        ["y"] = -4.5924157208721006e-05,
+                        ["z"] = -0.17537753283430174,
+                    },
+                    ["width"] = 0.219701,
+                },
+            },
+            ["unit"] = "ugl2002",
+        },
+    },
+    ["audio"] = {
+        ["engine"] = {
+            ["looping"] = true,
+            ["name"] = "aglu1420",
+        },
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "agod1120",
+        },
+    },
+    ["collisionInfo"] = {
+        ["centerOffset"] = {
+            ["x"] = 0,
+            ["y"] = 0.225,
+            ["z"] = 0,
+        },
+        ["collisionSize"] = {
+            ["x"] = 0.9,
+            ["y"] = 0.45,
+            ["z"] = 1.1,
+        },
+    },
+    ["defence"] = {
+        ["health"] = {
+            ["max"] = 1450,
+            ["regen"] = 0,
+            ["value"] = 1450,
+        },
+    },
+    ["economy"] = {
+        ["buildTime"] = 1320,
+        ["cost"] = {
+            ["alloys"] = 297,
+            ["energy"] = 1980,
+        },
+    },
+    ["footprint"] = {
+        ["x"] = 0.9,
+        ["y"] = 1.1,
+    },
+    ["general"] = {
+        ["class"] = {
+            [1] = "unitsDefaultGuard",
+            [2] = "GuardLandUnit",
+        },
+        ["displayName"] = "Tier 2: Amphibious Tank",
+        ["icon"] = {
+            ["shape"] = "land1",
+            ["symbol"] = "direct",
+            ["tech"] = "t2",
+        },
+        ["iconUI"] = "tech2_land1_direct.png",
+        ["iconUIBuildSortPriority"] = 90,
+        ["iconUIType"] = "amphibious",
+        ["name"] = "Wagner",
+        ["orders"] = {
+            ["Assist"] = true,
+            ["Attack"] = true,
+            ["AttackMove"] = true,
+            ["Move"] = true,
+            ["Patrol"] = true,
+            ["Stop"] = true,
+        },
+        ["threatByLayer"] = {
+            ["Air"] = 0,
+            ["Land"] = 324.3,
+            ["WaterSurface"] = 289.9,
+        },
+        ["tpId"] = "ugl2002",
+        ["unitTypeName"] = "GuardT2Tank",
+    },
+    ["intel"] = {
+        ["visionRadius"] = 15,
+    },
+    ["movement"] = {
+        ["acceleration"] = 3.7,
+        ["altitudeJitterFactor"] = 0,
+        ["bankFactor"] = 0,
+        ["bankHalfLife"] = 0.075647079736603,
+        ["collisionMaskDefault"] = {
+            [1] = "LandSmall",
+            [2] = "SeabedSmall",
+        },
+        ["collisionMaskSpawn"] = {
+            [1] = "LandSmall",
+            [2] = "SeabedSmall",
+        },
+        ["deceleration"] = 3.7,
+        ["maxBankDegrees"] = 0,
+        ["maxReverseDistance"] = 0,
+        ["orbitRange"] = 0,
+        ["orbitSpeed"] = 0,
+        ["preferredAltitude"] = 0,
+        ["referenceAltitude"] = "Ground",
+        ["rotationSpeed"] = 90,
+        ["sortOrder"] = 1,
+        ["speed"] = 3.7,
+        ["terrainAlignmentFactor"] = 1,
+        ["type"] = "TracksSeabed",
+    },
+    ["ranges"] = {
+        [6] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 32,
+        },
+        [33] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 15,
+        },
+        [34] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 15,
+        },
+    },
+    ["tags"] = {
+        [1] = "AMPHIBIOUS",
+        [2] = "ANTI_NAVY",
+        [3] = "ANTI_SURFACE",
+        [4] = "BUILDABLE_BY_T2_FACTORY",
+        [5] = "BUILDABLE_BY_T3_FACTORY",
+        [6] = "DIRECT_FIRE",
+        [7] = "GUARD",
+        [8] = "LAND",
+        [9] = "MOBILE",
+        [10] = "TANK",
+        [11] = "TECH2",
+        [12] = "SCFA_ALLUNITS",
+        [13] = "SCFA_BUILTBYTIER2FACTORY",
+        [14] = "SCFA_BUILTBYTIER3FACTORY",
+        [15] = "SCFA_CYBRAN",
+        [16] = "SCFA_DIRECTFIRE",
+        [17] = "SCFA_LAND",
+        [18] = "SCFA_MOBILE",
+        [19] = "SCFA_OVERLAYANTINAVY",
+        [20] = "SCFA_OVERLAYDIRECTFIRE",
+        [21] = "SCFA_PRODUCTSC1",
+        [22] = "SCFA_RECLAIMABLE",
+        [23] = "SCFA_SELECTABLE",
+        [24] = "SCFA_TANK",
+        [25] = "SCFA_TECH2",
+        [26] = "SCFA_VISIBLETORECON",
+    },
+    ["visuals"] = {
+        ["display"] = {
+            ["mainBarDisplayScale"] = {
+                ["x"] = 0.5,
+                ["y"] = 0.5,
+            },
+            ["mainBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 15,
+            },
+            ["progressBars"] = {
+                [1] = {
+                    ["colorBackground"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorEmpty"] = {
+                        ["a"] = 1,
+                        ["x"] = 1,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorFull"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 1,
+                        ["z"] = 0,
+                    },
+                    ["mainBar"] = true,
+                    ["name"] = "Health",
+                    ["property"] = "Health_Current",
+                    ["xOffset"] = 0,
+                    ["xScale"] = 1,
+                },
+            },
+            ["subBarDisplayScale"] = {
+                ["x"] = 1,
+                ["y"] = 1,
+            },
+            ["subBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 0,
+            },
+        },
+        ["effectsInstant"] = {
+            ["onDeath"] = {
+                [1] = {
+                    ["audioName"] = "Sounds/videvo.net_royalFree_soundEffects/Explosions/mi explosion 03 hpx.ogg",
+                    ["boneName"] = "Root",
+                    ["particleName"] = "VFX/Death/ved1201_death_land_medium.sanvfx",
+                },
+            },
+        },
+        ["effectsPersistent"] = {
+            [1] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.162,
+                    ["y"] = 0.3375,
+                    ["z"] = -0.22000000000000003,
+                },
+                ["scoDamageSmoke"] = 0.75,
+            },
+            [2] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.198,
+                    ["y"] = 0.306,
+                    ["z"] = 0.198,
+                },
+                ["scoDamageSmoke"] = 0.5,
+            },
+            [3] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.18000000000000002,
+                    ["y"] = 0.35100000000000003,
+                    ["z"] = 0.17600000000000002,
+                },
+                ["scoDamageSmoke"] = 0.25,
+            },
+            [4] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.162,
+                    ["y"] = 0.41400000000000003,
+                    ["z"] = -0.22000000000000003,
+                },
+                ["scoDamageFire"] = 0.25,
+            },
+            [5] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.198,
+                    ["y"] = 0.405,
+                    ["z"] = 0.198,
+                },
+                ["scoDamageFire"] = 0.1,
+            },
+        },
+        ["mesh"] = {
+            ["lod0distance"] = 65,
+            ["lod1distance"] = 171,
+        },
+        ["selection"] = {
+            ["offset"] = {
+                ["x"] = 0,
+                ["y"] = 0,
+                ["z"] = 0,
+            },
+            ["size"] = {
+                ["x"] = 0.55,
+                ["y"] = 0.6,
+            },
+        },
+    },
+    ["weapons"] = {
+        [1] = {
+            ["aimControllers"] = {
+                [1] = {
+                    ["aimBone"] = "Turret03_Muzzle",
+                    ["aimGravity"] = {
+                        ["x"] = 0,
+                        ["y"] = -4.9,
+                        ["z"] = 0,
+                    },
+                    ["aimTolerance"] = 2,
+                    ["defaultPitchAdjustment"] = 0,
+                    ["defaultYawAdjustment"] = 0,
+                    ["leadTarget"] = true,
+                    ["pitchBone"] = "Turret02",
+                    ["pitchMax"] = 10,
+                    ["pitchMin"] = -10,
+                    ["pitchSpeed"] = 70,
+                    ["poseResetTime"] = 3,
+                    ["projectileSpeed"] = 15,
+                    ["solverType"] = "NoArc",
+                    ["yawBone"] = "Turret02",
+                    ["yawMax"] = 180,
+                    ["yawMin"] = -180,
+                    ["yawSpeed"] = 90,
+                },
+            },
+            ["damage"] = 200,
+            ["damageRadius"] = 0,
+            ["damageType"] = "Normal",
+            ["effects"] = {},
+            ["firingRandomness"] = 0,
+            ["layerTargetLimits"] = {
+                [1] = "Land",
+                [2] = "WaterSurface",
+            },
+            ["layerWeaponLimits"] = {
+                [1] = "Land",
+            },
+            ["muzzleGroupChargeDelay"] = 0,
+            ["muzzleGroupTimeOut"] = -1,
+            ["muzzleGroups"] = {
+                [1] = {
+                    ["muzzles"] = {
+                        [1] = "Turret03_Muzzle",
+                    },
+                },
+            },
+            ["muzzleSalvoDelay"] = 0,
+            ["muzzleSalvoSize"] = 1,
+            ["projectileLifetime"] = 1.6866666666666668,
+            ["projectileTemplate"] = "psf0167",
+            ["rangeMax"] = 22,
+            ["rangeMin"] = 0,
+            ["rangeRingType"] = "DirectFire",
+            ["rangeTracking"] = 1.1,
+            ["reloadTime"] = 4,
+            ["scoFaProjectileIdentity"] = {
+                ["sourceBlueprintSha256"] = "a952ed37521cdf7935413c8e994a44fc91a397389078e4ab1796866fe403ce1b",
+                ["sourceIndex"] = 1,
+                ["sourceLabel"] = "Rocket",
+                ["sourceProjectile"] = "/projectiles/CDFRocketMeson01/CDFRocketMeson01_proj.bp",
+            },
+            ["scoFaWaterGate"] = "Above",
+            ["scoSourceMuzzle"] = {
+                ["sourceIndex"] = 1,
+                ["sourceLabel"] = "Rocket",
+            },
+            ["targetWaterLimits"] = "Above",
+        },
+        [2] = {
+            ["aimControllers"] = {
+                [1] = {
+                    ["aimBone"] = "Turret01_Muzzle",
+                    ["aimGravity"] = {
+                        ["x"] = 0,
+                        ["y"] = -4.9,
+                        ["z"] = 0,
+                    },
+                    ["aimTolerance"] = 2,
+                    ["defaultPitchAdjustment"] = 5,
+                    ["defaultYawAdjustment"] = 0,
+                    ["leadTarget"] = true,
+                    ["pitchBone"] = "Turret01_Barrel",
+                    ["pitchMax"] = 45,
+                    ["pitchMin"] = -35,
+                    ["pitchSpeed"] = 30,
+                    ["poseResetTime"] = 3,
+                    ["projectileSpeed"] = 30,
+                    ["solverType"] = "LowArc",
+                    ["yawBone"] = "Turret01",
+                    ["yawMax"] = 180,
+                    ["yawMin"] = -180,
+                    ["yawSpeed"] = 90,
+                },
+            },
+            ["damage"] = 50,
+            ["damageRadius"] = 0,
+            ["damageType"] = "Normal",
+            ["effects"] = {
+                ["onFire"] = "VFX/SCOM/Source/ugl2002/muzzle_bolter.sanvfx",
+            },
+            ["firingRandomness"] = 0,
+            ["layerTargetLimits"] = {
+                [1] = "Land",
+                [2] = "WaterSurface",
+            },
+            ["layerWeaponLimits"] = {
+                [1] = "Land",
+            },
+            ["muzzleGroupChargeDelay"] = 0,
+            ["muzzleGroupTimeOut"] = -1,
+            ["muzzleGroups"] = {
+                [1] = {
+                    ["muzzles"] = {
+                        [1] = "Turret01_Muzzle",
+                        [2] = "Turret02_Muzzle",
+                    },
+                },
+            },
+            ["muzzleSalvoDelay"] = 0,
+            ["muzzleSalvoSize"] = 1,
+            ["projectileLifetime"] = 0.8433333333333334,
+            ["projectileTemplate"] = "psf0087",
+            ["rangeMax"] = 22,
+            ["rangeMin"] = 0,
+            ["rangeRingType"] = "DirectFire",
+            ["rangeTracking"] = 1.1,
+            ["reloadTime"] = 2,
+            ["scoFaProjectileIdentity"] = {
+                ["sourceBlueprintSha256"] = "f29bbeda9a1d139e330d3cf4d30d7a9cffb80b321e77a2bb86eda7b9471b8091",
+                ["sourceIndex"] = 2,
+                ["sourceLabel"] = "Bolter",
+                ["sourceProjectile"] = "/projectiles/CDFBolter02/CDFBolter02_proj.bp",
+            },
+            ["scoFaWaterGate"] = "Above",
+            ["scoSourceMuzzle"] = {
+                ["sourceIndex"] = 2,
+                ["sourceLabel"] = "Bolter",
+            },
+            ["targetWaterLimits"] = "Above",
+        },
+        [3] = {
+            ["aimControllers"] = {
+                [1] = {
+                    ["aimBone"] = "Turret03_Muzzle",
+                    ["aimGravity"] = {
+                        ["x"] = 0,
+                        ["y"] = -4.9,
+                        ["z"] = 0,
+                    },
+                    ["aimTolerance"] = 2,
+                    ["defaultPitchAdjustment"] = 20,
+                    ["defaultYawAdjustment"] = 0,
+                    ["leadTarget"] = true,
+                    ["pitchBone"] = "Turret02",
+                    ["pitchMax"] = 50,
+                    ["pitchMin"] = -10,
+                    ["pitchSpeed"] = 70,
+                    ["poseResetTime"] = 3,
+                    ["projectileSpeed"] = 5,
+                    ["solverType"] = "NoArc",
+                    ["yawBone"] = "Turret02",
+                    ["yawMax"] = 180,
+                    ["yawMin"] = -180,
+                    ["yawSpeed"] = 90,
+                },
+            },
+            ["damage"] = 6,
+            ["damageRadius"] = 0,
+            ["damageType"] = "Normal",
+            ["effects"] = {
+                ["onFire"] = "VFX/SCOM/Source/ugl2002/muzzle_torpedo.sanvfx",
+            },
+            ["firingRandomness"] = 0,
+            ["layerTargetLimits"] = {
+                [1] = "WaterSurface",
+                [2] = "Water",
+                [3] = "Seabed",
+            },
+            ["layerWeaponLimits"] = {
+                [1] = "Seabed",
+            },
+            ["muzzleGroupChargeDelay"] = 0,
+            ["muzzleGroupTimeOut"] = -1,
+            ["muzzleGroups"] = {
+                [1] = {
+                    ["muzzles"] = {
+                        [1] = "Turret03_Muzzle",
+                        [2] = "Turret03_Muzzle",
+                    },
+                },
+            },
+            ["muzzleSalvoDelay"] = 0.8,
+            ["muzzleSalvoSize"] = 2,
+            ["projectileLifetime"] = 6,
+            ["projectileTemplate"] = "psf0084",
+            ["rangeMax"] = 32,
+            ["rangeMin"] = 0,
+            ["rangeRingType"] = "DirectFire",
+            ["rangeTracking"] = 1.1,
+            ["reloadTime"] = 4,
+            ["scoFaProjectileIdentity"] = {
+                ["sourceBlueprintSha256"] = "62fa521286123ca9dc8f8da1a9b7bf60cdcb15ee421b5ca05880c2c48d9045a8",
+                ["sourceIndex"] = 3,
+                ["sourceLabel"] = "Torpedo",
+                ["sourceProjectile"] = "/projectiles/CANTorpedoMeson02/CANTorpedoMeson02_proj.bp",
+            },
+            ["scoFaWaterGate"] = "Below",
+            ["scoSourceMuzzle"] = {
+                ["sourceIndex"] = 3,
+                ["sourceLabel"] = "Torpedo",
+            },
+            ["scoTorpedoWeapon"] = true,
+            ["targetWaterLimits"] = "Below",
+        },
+    },
+}

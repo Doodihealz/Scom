@@ -1,0 +1,472 @@
+-- ucs3102: Apocalypse
+-- Editable full authoring data; shared code converts it into engine components.
+-- Explicit ranges control range rings; coordinate them with weapon range edits.
+-- host.lua and client.lua own behavior and class inheritance.
+UnitTemplate = {
+    ["additions"] = {
+        ["faAnimationClosureWeaponDeploy"] = {
+            ["authoredDurationSeconds"] = 10,
+            ["authoredRate"] = 1,
+            ["constructionOpen"] = {
+                ["animationKey"] = "fa_construction_open",
+                ["authoredDurationSeconds"] = 16.6666660308838,
+                ["authoredRate"] = 1,
+                ["sha256"] = "55275d58fd1335dd1643bc823cc58fa6c4034265964611087c8c7522227c3c4b",
+                ["source"] = "units/UAB2305/UAB2305_Aopen.sca",
+            },
+            ["deployAnimationKey"] = "fa_deploy",
+            ["mapping"] = "UAB2305 -> ucs3102",
+            ["packedAnimationKey"] = "fa_packed",
+            ["repackTimeoutSeconds"] = 2.8,
+            ["sourceAnimation"] = "units/UAB2305/UAB2305_Alaunchsequence.sca",
+            ["sourceAnimationSha256"] = "55595941f480c2feb6282af0849e22e53a3179f9c1aa72190d755edd4537494e",
+            ["sourceArchiveSha256"] = "c23a48d6b47043144baafc4c7f47b5a470392264f1bbaf962896923d58899c26",
+            ["sourceBlueprintSha256"] = "038993929f7375646f6173a401adc214417afc7766d97ce62dc4c50870bb59f2",
+            ["sourceModelSha256"] = "1e0fc6b052acf714ada6a0a6b67a5624c994d271ecd0178f51d3f85e0aad7761",
+            ["sourceScriptSha256"] = "abf6dbc15e64ef1e4ca5148f398d016b835ab03b0642452bba5f85949437c2d8",
+            ["sourceWeaponUnpackLocksMotion"] = false,
+            ["sourceWeaponUnpacks"] = true,
+            ["transitionSeconds"] = 10,
+        },
+        ["faSourceContract"] = {
+            ["constructionSurfaceModelEntry"] = "",
+            ["constructionSurfaceModelSha256"] = "",
+            ["intel"] = {
+                ["provenanceOnly"] = {},
+                ["runtimeSupported"] = {
+                    ["visionRadius"] = 28,
+                },
+            },
+            ["movementCompatibility"] = "",
+            ["placement"] = {
+                ["footprint"] = {
+                    ["x"] = 3,
+                    ["z"] = 3,
+                },
+                ["footprintSource"] = "Footprint.Size",
+                ["sourceSkirt"] = {
+                    ["offsetX"] = -1.5,
+                    ["offsetZ"] = -1.5,
+                    ["sizeX"] = 6,
+                    ["sizeZ"] = 6,
+                },
+                ["sourceSkirtPresent"] = true,
+            },
+            ["shield"] = {
+                ["enabled"] = false,
+            },
+            ["sourceArchiveSha256"] = "c23a48d6b47043144baafc4c7f47b5a470392264f1bbaf962896923d58899c26",
+            ["sourceBlueprint"] = "units/UAB2305/UAB2305_unit.bp",
+            ["sourceBlueprintSha256"] = "038993929f7375646f6173a401adc214417afc7766d97ce62dc4c50870bb59f2",
+            ["sourceCategories"] = {
+                [1] = "AEON",
+                [2] = "BUILTBYTIER3COMMANDER",
+                [3] = "BUILTBYTIER3ENGINEER",
+                [4] = "DRAGBUILD",
+                [5] = "NUKE",
+                [6] = "PRODUCTSC1",
+                [7] = "RECLAIMABLE",
+                [8] = "SELECTABLE",
+                [9] = "SILO",
+                [10] = "SIZE12",
+                [11] = "SORTSTRATEGIC",
+                [12] = "STRATEGIC",
+                [13] = "STRUCTURE",
+                [14] = "TECH3",
+                [15] = "VISIBLETORECON",
+            },
+            ["sourceConstructionSurfaceClearance"] = 0,
+            ["sourceElevation"] = 0,
+            ["sourceId"] = "UAB2305",
+            ["sourceKLift"] = 0,
+            ["sourceKLiftDamping"] = 0,
+            ["sourceLiftFactor"] = 0,
+            ["sourceMotionType"] = "RULEUMT_None",
+            ["sourceUpgradeFrom"] = "",
+            ["sourceUpgradeTo"] = "",
+            ["targetId"] = "ucs3102",
+            ["weapons"] = {
+                [1] = {
+                    ["label"] = "QuantumMissiles",
+                    ["muzzleSalvoSize"] = 1,
+                    ["projectilesPerOnFire"] = 1,
+                    ["rackFireTogether"] = false,
+                    ["rackSalvoSize"] = 1,
+                    ["racks"] = {
+                        [1] = {
+                            ["muzzles"] = {
+                                [1] = "Turret_Muzzle01",
+                            },
+                            ["rackBone"] = "Turret_Muzzle01",
+                        },
+                    },
+                    ["rateOfFire"] = 1,
+                    ["reloadTime"] = 1,
+                    ["sourceCategory"] = "Missile",
+                    ["sourceProjectile"] = "/projectiles/AIFQuantumWarhead01/AIFQuantumWarhead01_proj.bp",
+                },
+                [2] = {
+                    ["label"] = "DeathWeapon",
+                    ["muzzleSalvoSize"] = 1,
+                    ["projectilesPerOnFire"] = 1,
+                    ["rackFireTogether"] = false,
+                    ["rackSalvoSize"] = 1,
+                    ["racks"] = {},
+                    ["rateOfFire"] = 0,
+                    ["reloadTime"] = 0,
+                    ["sourceCategory"] = "Death",
+                    ["sourceProjectile"] = "",
+                },
+            },
+        },
+        ["scoFieldFixUniversalUef"] = "1.1.2",
+        ["scoStrategicSilo"] = {
+            ["apocalypseFlight"] = {
+                ["arrivalTolerance"] = 0.01,
+                ["ascentTerminalSpeed"] = 18,
+                ["cruiseHeight"] = 60,
+                ["cruiseSpeed"] = 27,
+                ["descentSpeed"] = 27,
+                ["route"] = "VerticalArcLevelArcDown",
+                ["sourceAcceleration"] = 3,
+                ["sourceArchiveSha256"] = "60d2732597cde9ef046a663c8d439e60844f967147e14737c7ad5a08c641be12",
+                ["sourceBlueprintSha256"] = "7098e71f9e65f3780accaaf72b4936836780aeabf82d1543b67b68b9d22cecf1",
+                ["sourceInitialSpeed"] = 0,
+                ["sourceMaximumSpeed"] = 40,
+                ["sourcePreTrackSeconds"] = 7.5,
+                ["sourceProjectile"] = "AIFQuantumWarhead01",
+                ["sourceScriptSha256"] = "7a05f1b44a4050aa33a86d7753f1bb161a2af55db401dd2429426a67b3462a0e",
+                ["sourceUniformScale"] = 0.2,
+                ["turnRadius"] = 12,
+                ["version"] = "4.0.0",
+            },
+            ["buildOrder"] = "ManualFire1",
+            ["buildPower"] = 1080,
+            ["buildTime"] = 324000,
+            ["cost"] = {
+                ["alloys"] = 12000,
+                ["energy"] = 1350000,
+            },
+            ["creativeSpawnAmmo"] = 5,
+            ["damageFriendly"] = true,
+            ["defaultAutoBuild"] = true,
+            ["initialAmmo"] = 0,
+            ["initialProjectileSpeed"] = 1,
+            ["innerDamage"] = {
+                ["amount"] = 140000,
+                ["radius"] = 60,
+                ["ticks"] = 24,
+                ["totalTime"] = 0,
+            },
+            ["launchAnimation"] = {
+                ["duration"] = 10,
+                ["key"] = "fa_deploy",
+                ["packedKey"] = "fa_packed",
+                ["rate"] = 1,
+                ["repackTimeout"] = 2.8,
+            },
+            ["launchOrder"] = "ManualFire2",
+            ["maxAmmo"] = 5,
+            ["muzzle"] = "Turret_Muzzle01",
+            ["outerDamage"] = {
+                ["amount"] = 1000,
+                ["radius"] = 80,
+                ["ticks"] = 20,
+                ["totalTime"] = 0,
+            },
+            ["projectileLifetime"] = 600,
+            ["projectileTemplate"] = "psn003",
+            ["rangeMax"] = 20000,
+            ["rangeMin"] = 0,
+            ["terrainClearance"] = 0.05,
+            ["version"] = "1.0.0",
+        },
+        ["selectionHit"] = {
+            ["offset"] = {
+                ["x"] = 0,
+                ["y"] = 0.25,
+                ["z"] = 0,
+            },
+            ["size"] = {
+                ["x"] = 1.8,
+                ["y"] = 1.8,
+            },
+        },
+    },
+    ["audio"] = {
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "acod2110",
+        },
+    },
+    ["collisionInfo"] = {
+        ["centerOffset"] = {
+            ["x"] = 0,
+            ["y"] = 0.25,
+            ["z"] = 0,
+        },
+        ["collisionSize"] = {
+            ["x"] = 2,
+            ["y"] = 1,
+            ["z"] = 2,
+        },
+    },
+    ["construction"] = {
+        ["buildPower"] = 1080,
+    },
+    ["defence"] = {
+        ["health"] = {
+            ["max"] = 4000,
+            ["regen"] = 0,
+            ["value"] = 4000,
+        },
+    },
+    ["economy"] = {
+        ["buildTime"] = 9000,
+        ["cost"] = {
+            ["alloys"] = 15000,
+            ["energy"] = 210000,
+        },
+    },
+    ["footprint"] = {
+        ["x"] = 3,
+        ["y"] = 3,
+    },
+    ["general"] = {
+        ["class"] = {
+            [1] = "unitsDefaultChosen",
+            [2] = "AeonPortStructure",
+        },
+        ["displayName"] = "Apocalypse",
+        ["icon"] = {
+            ["shape"] = "structure1",
+            ["symbol"] = "direct",
+            ["tech"] = "t1",
+        },
+        ["iconUI"] = "tech1_structure1_direct.png",
+        ["iconUIBuildSortPriority"] = 320,
+        ["iconUIType"] = "land",
+        ["name"] = "Apocalypse",
+        ["orders"] = {
+            ["ManualFire1"] = true,
+            ["ManualFire2"] = true,
+            ["Stop"] = true,
+        },
+        ["toggles"] = {
+            ["Pause"] = false,
+        },
+        ["tpId"] = "ucs3102",
+        ["unitTypeName"] = "Apocalypse",
+    },
+    ["intel"] = {
+        ["visionRadius"] = 28,
+    },
+    ["ranges"] = {
+        [7] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 20000,
+        },
+        [33] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 28,
+        },
+        [34] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 28,
+        },
+    },
+    ["skirtSize"] = {
+        ["x"] = 6,
+        ["y"] = 6,
+    },
+    ["tags"] = {
+        [1] = "BUILDABLE_BY_T3_ENGINEER",
+        [2] = "CHOSEN",
+        [3] = "STRATEGIC",
+        [4] = "STRUCTURE",
+        [5] = "TECH3",
+        [6] = "SCFA_AEON",
+        [7] = "SCFA_ALLUNITS",
+        [8] = "SCFA_BUILTBYTIER3COMMANDER",
+        [9] = "SCFA_BUILTBYTIER3ENGINEER",
+        [10] = "SCFA_DRAGBUILD",
+        [11] = "SCFA_NUKE",
+        [12] = "SCFA_PRODUCTSC1",
+        [13] = "SCFA_RECLAIMABLE",
+        [14] = "SCFA_SELECTABLE",
+        [15] = "SCFA_SILO",
+        [16] = "SCFA_SIZE12",
+        [17] = "SCFA_SORTSTRATEGIC",
+        [18] = "SCFA_STRATEGIC",
+        [19] = "SCFA_STRUCTURE",
+        [20] = "SCFA_TECH3",
+        [21] = "SCFA_VISIBLETORECON",
+        [22] = "NUKE",
+        [23] = "SILO",
+        [24] = "INDIRECT_FIRE",
+    },
+    ["visuals"] = {
+        ["animations"] = {
+            ["fa_construction_open"] = {
+                ["clipName"] = "AnimOpen",
+                ["playbackMode"] = 0,
+                ["sanAnimationPath"] = "Units/ucs3102/LOD0/ucs3102.sananimation",
+            },
+            ["fa_deploy"] = {
+                ["clipName"] = "AnimAlaunchsequence",
+                ["playbackMode"] = 0,
+                ["sanAnimationPath"] = "Units/ucs3102/LOD0/ucs3102.sananimation",
+            },
+            ["fa_packed"] = {
+                ["clipName"] = "Rest",
+                ["playbackMode"] = 0,
+                ["sanAnimationPath"] = "Units/ucs3102/LOD0/ucs3102.sananimation",
+            },
+            ["source_animalaunchsequence"] = {
+                ["clipName"] = "AnimAlaunchsequence",
+                ["playbackMode"] = 0,
+                ["sanAnimationPath"] = "Units/ucs3102/LOD0/ucs3102.sananimation",
+            },
+            ["source_animopen"] = {
+                ["clipName"] = "AnimOpen",
+                ["playbackMode"] = 0,
+                ["sanAnimationPath"] = "Units/ucs3102/LOD0/ucs3102.sananimation",
+            },
+            ["walk"] = {
+                ["clipName"] = "Rest",
+                ["playbackMode"] = 0,
+                ["sanAnimationPath"] = "Units/ucs3102/LOD0/ucs3102.sananimation",
+            },
+        },
+        ["display"] = {
+            ["mainBarDisplayScale"] = {
+                ["x"] = 0.7,
+                ["y"] = 0.7,
+            },
+            ["mainBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 20,
+            },
+            ["progressBars"] = {
+                [1] = {
+                    ["colorBackground"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorEmpty"] = {
+                        ["a"] = 1,
+                        ["x"] = 1,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorFull"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 1,
+                        ["z"] = 0,
+                    },
+                    ["mainBar"] = true,
+                    ["name"] = "Health",
+                    ["property"] = "Health_Current",
+                    ["xOffset"] = 0,
+                    ["xScale"] = 1,
+                },
+            },
+            ["subBarDisplayScale"] = {
+                ["x"] = 1,
+                ["y"] = 1,
+            },
+            ["subBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 0,
+            },
+        },
+        ["effectsInstant"] = {
+            ["onDeath"] = {
+                [1] = {
+                    ["audioName"] = "unit_death_land_eda_small",
+                    ["boneName"] = "Root",
+                    ["particleName"] = "VFX/SCOM/FieldFixes/AeonDeathSmoke/vcd2101_death_building_small.sanvfx",
+                },
+            },
+        },
+        ["effectsPersistent"] = {
+            [1] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.36,
+                    ["y"] = 0.5,
+                    ["z"] = -0.4,
+                },
+                ["scoDamageSmoke"] = 0.75,
+            },
+            [2] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.44,
+                    ["y"] = 0.43,
+                    ["z"] = 0.36,
+                },
+                ["scoDamageSmoke"] = 0.5,
+            },
+            [3] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.4,
+                    ["y"] = 0.53,
+                    ["z"] = 0.32,
+                },
+                ["scoDamageSmoke"] = 0.25,
+            },
+            [4] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.36,
+                    ["y"] = 0.6699999999999999,
+                    ["z"] = -0.4,
+                },
+                ["scoDamageFire"] = 0.25,
+            },
+            [5] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_medium.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.44,
+                    ["y"] = 0.65,
+                    ["z"] = 0.36,
+                },
+                ["scoDamageFire"] = 0.1,
+            },
+        },
+        ["mesh"] = {
+            ["lod0distance"] = 67,
+            ["lod1distance"] = 175,
+        },
+        ["selection"] = {
+            ["offset"] = {
+                ["x"] = 0,
+                ["y"] = 0.25,
+                ["z"] = 0,
+            },
+            ["size"] = {
+                ["x"] = 1.8,
+                ["y"] = 1.8,
+            },
+        },
+    },
+    ["weapons"] = {
+        [1] = {
+            ["category"] = "DeathExplosion",
+            ["damage"] = 10000,
+            ["damageFriendly"] = true,
+            ["damageRadius"] = 6,
+            ["damageType"] = "Normal",
+        },
+    },
+}

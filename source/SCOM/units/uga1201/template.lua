@@ -1,0 +1,700 @@
+-- uga1201: Prowler
+-- Editable full authoring data; shared code converts it into engine components.
+-- Explicit ranges control range rings; coordinate them with weapon range edits.
+-- host.lua and client.lua own behavior and class inheritance.
+UnitTemplate = {
+    ["additions"] = {
+        ["faSourceContract"] = {
+            ["collision"] = {
+                ["centerOffset"] = {
+                    ["x"] = 0,
+                    ["y"] = 0,
+                    ["z"] = 0,
+                },
+                ["size"] = {
+                    ["x"] = 1,
+                    ["y"] = 0.2,
+                    ["z"] = 1,
+                },
+            },
+            ["deathImpact"] = {
+                ["aboveWaterTargetsOnly"] = false,
+                ["damage"] = 25,
+                ["damageFriendly"] = true,
+                ["damageRadius"] = 1,
+                ["damageType"] = "Normal",
+                ["firingTolerance"] = 2,
+                ["label"] = "DeathImpact",
+                ["weaponCategory"] = "Death",
+            },
+            ["footprint"] = {
+                ["sourceMaxSlope"] = 0.25,
+                ["x"] = 1,
+                ["y"] = 1,
+            },
+            ["movement"] = {
+                ["nativeAccelerationFallback"] = 15,
+                ["nativeOrbitRange"] = 6.366197723675814,
+                ["nativeOrbitSpeed"] = 10,
+                ["nativeRotationSpeedFallback"] = 90,
+                ["sourceAutoLandTime"] = 1,
+                ["sourceBankFactor"] = 2,
+                ["sourceBankForward"] = false,
+                ["sourceBreakOffDistance"] = 5,
+                ["sourceBreakOffTrigger"] = 15,
+                ["sourceCanFly"] = true,
+                ["sourceCombatTurnSpeed"] = 1.5,
+                ["sourceElevation"] = 18,
+                ["sourceEngageDistance"] = 50,
+                ["sourceFuelRechargeRate"] = 5,
+                ["sourceFuelUseTime"] = 300,
+                ["sourceKLift"] = 3,
+                ["sourceKLiftDamping"] = 2.5,
+                ["sourceKMove"] = 1,
+                ["sourceKMoveDamping"] = 1,
+                ["sourceKRoll"] = 2,
+                ["sourceKRollDamping"] = 1,
+                ["sourceKTurn"] = 1,
+                ["sourceKTurnDamping"] = 1.5,
+                ["sourceLiftFactor"] = 7,
+                ["sourceMaxAirspeed"] = 15,
+                ["sourceMinAirspeed"] = 10,
+                ["sourceMotionType"] = "RULEUMT_Air",
+                ["sourcePhysicsMaxSpeed"] = 0.5,
+                ["sourceStartTurnDistance"] = 5,
+                ["sourceTightTurnMultiplier"] = 1.02,
+                ["sourceTurnSpeed"] = 1.5,
+                ["sourceWinged"] = true,
+            },
+            ["selection"] = {
+                ["size"] = {
+                    ["x"] = 0.7,
+                    ["y"] = 0.6,
+                },
+                ["thickness"] = 0.6,
+            },
+            ["sourceArchiveSha256"] = "c23a48d6b47043144baafc4c7f47b5a470392264f1bbaf962896923d58899c26",
+            ["sourceBlueprint"] = "units/URA0102/URA0102_unit.bp",
+            ["sourceBlueprintSha256"] = "9b9c06de17cd21c644ab0a9d0a8b2b3f261dd0cb23feccbdc3fc2f9bbc39261b",
+            ["sourceCategories"] = {
+                [1] = "PRODUCTSC1",
+                [2] = "SELECTABLE",
+                [3] = "BUILTBYTIER1FACTORY",
+                [4] = "BUILTBYTIER2FACTORY",
+                [5] = "BUILTBYTIER3FACTORY",
+                [6] = "CYBRAN",
+                [7] = "MOBILE",
+                [8] = "AIR",
+                [9] = "HIGHALTAIR",
+                [10] = "TECH1",
+                [11] = "ANTIAIR",
+                [12] = "VISIBLETORECON",
+                [13] = "RECLAIMABLE",
+                [14] = "OVERLAYANTIAIR",
+            },
+            ["sourceId"] = "URA0102",
+            ["sourceSizeSphere"] = 1.6,
+            ["targetId"] = "uga1201",
+            ["weapons"] = {
+                [1] = {
+                    ["damage"] = 8,
+                    ["firingTolerance"] = 0.1,
+                    ["label"] = "AutoCannon",
+                    ["maxRadius"] = 25,
+                    ["muzzleBones"] = {
+                        [1] = "Left_Muzzle01",
+                    },
+                    ["muzzleSalvoDelay"] = 0.1,
+                    ["muzzleSalvoSize"] = 3,
+                    ["muzzleVelocity"] = 120,
+                    ["projectileLifetimeUsesMultiplier"] = 1.25,
+                    ["projectilesPerOnFire"] = 3,
+                    ["rackBone"] = "Left_Muzzle01",
+                    ["rateOfFire"] = 1,
+                    ["sourceProjectile"] = "projectiles/CAAAutocannon02/CAAAutocannon02_proj.bp",
+                    ["sourceProjectileArchiveSha256"] = "60d2732597cde9ef046a663c8d439e60844f967147e14737c7ad5a08c641be12",
+                    ["sourceProjectileScript"] = "projectiles/CAAAutocannon02/CAAAutocannon02_script.lua",
+                    ["sourceProjectileScriptSha256"] = "57f5695e460493503a05a77dcd7e7a0524c545c19e9ec9d63b3f48f0ff843dca",
+                    ["sourceProjectileSha256"] = "196d6739b1349438378aab28cdef2df8a1c5a346cebf1bbe290071786abb4957",
+                    ["targetDisallow"] = "UNTARGETABLE,LAND,STRUCTURE,NAVAL",
+                    ["targetLayers"] = {
+                        [1] = "Air",
+                    },
+                    ["targetOnly"] = "AIR",
+                    ["weaponLayers"] = {
+                        [1] = "Air",
+                        [2] = "Land",
+                    },
+                },
+                [2] = {
+                    ["alwaysRecheckTarget"] = true,
+                    ["damage"] = 8,
+                    ["firingTolerance"] = 0.1,
+                    ["label"] = "AutoCannon2",
+                    ["maxRadius"] = 25,
+                    ["muzzleBones"] = {
+                        [1] = "Right_Muzzle01",
+                    },
+                    ["muzzleSalvoDelay"] = 0.1,
+                    ["muzzleSalvoSize"] = 3,
+                    ["muzzleVelocity"] = 120,
+                    ["prefersPrimaryWeaponTarget"] = true,
+                    ["projectileLifetimeUsesMultiplier"] = 1.25,
+                    ["projectilesPerOnFire"] = 3,
+                    ["rackBone"] = "Right_Muzzle01",
+                    ["rateOfFire"] = 1,
+                    ["sourceProjectile"] = "projectiles/CAAAutocannon02/CAAAutocannon02_proj.bp",
+                    ["sourceProjectileArchiveSha256"] = "60d2732597cde9ef046a663c8d439e60844f967147e14737c7ad5a08c641be12",
+                    ["sourceProjectileScript"] = "projectiles/CAAAutocannon02/CAAAutocannon02_script.lua",
+                    ["sourceProjectileScriptSha256"] = "57f5695e460493503a05a77dcd7e7a0524c545c19e9ec9d63b3f48f0ff843dca",
+                    ["sourceProjectileSha256"] = "196d6739b1349438378aab28cdef2df8a1c5a346cebf1bbe290071786abb4957",
+                    ["targetDisallow"] = "UNTARGETABLE,LAND,STRUCTURE,NAVAL",
+                    ["targetLayers"] = {
+                        [1] = "Air",
+                    },
+                    ["targetOnly"] = "AIR",
+                    ["weaponLayers"] = {
+                        [1] = "Air",
+                        [2] = "Land",
+                    },
+                },
+            },
+        },
+        ["prowlerExhaustLifecycle"] = true,
+        ["scoCargo"] = {
+            ["airPortable"] = true,
+            ["attachOffset"] = {
+                [1] = 0,
+                [2] = 0,
+                [3] = 0,
+            },
+            ["canFire"] = false,
+            ["cargoClass"] = 1,
+            ["portable"] = false,
+            ["slots"] = {},
+            ["unfoldDuration"] = 0,
+        },
+        ["selectionHit"] = {
+            ["offset"] = {
+                ["x"] = 0,
+                ["y"] = 0,
+                ["z"] = 0,
+            },
+            ["size"] = {
+                ["x"] = 0.7,
+                ["y"] = 0.6,
+            },
+        },
+    },
+    ["audio"] = {
+        ["engine"] = {
+            ["looping"] = true,
+            ["name"] = "aglu1511",
+        },
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "agod5110",
+        },
+        ["onImpact"] = {
+            ["looping"] = false,
+            ["name"] = "agod5210",
+        },
+    },
+    ["collisionInfo"] = {
+        ["centerOffset"] = {
+            ["x"] = 0,
+            ["y"] = 0,
+            ["z"] = 0,
+        },
+        ["collisionSize"] = {
+            ["x"] = 1,
+            ["y"] = 0.2,
+            ["z"] = 1,
+        },
+    },
+    ["defence"] = {
+        ["health"] = {
+            ["max"] = 280,
+            ["regen"] = 0,
+            ["value"] = 280,
+        },
+    },
+    ["economy"] = {
+        ["buildTime"] = 500,
+        ["cost"] = {
+            ["alloys"] = 50,
+            ["energy"] = 2250,
+        },
+    },
+    ["footprint"] = {
+        ["x"] = 1,
+        ["y"] = 1,
+    },
+    ["general"] = {
+        ["class"] = {
+            [1] = "unitsDefaultGuard",
+            [2] = "GuardAirUnit",
+        },
+        ["displayName"] = "Prowler",
+        ["icon"] = {
+            ["shape"] = "air1",
+            ["symbol"] = "aa",
+            ["tech"] = "t1",
+        },
+        ["iconUI"] = "tech1_air1_antiAir.png",
+        ["iconUIBuildSortPriority"] = 30,
+        ["iconUIType"] = "air",
+        ["name"] = "Prowler",
+        ["orders"] = {
+            ["Assist"] = true,
+            ["Attack"] = true,
+            ["AttackMove"] = true,
+            ["Move"] = true,
+            ["Patrol"] = true,
+            ["Stop"] = true,
+        },
+        ["threatByLayer"] = {
+            ["Air"] = 116.9,
+            ["Land"] = 0,
+            ["WaterSurface"] = 0,
+        },
+        ["tpId"] = "uga1201",
+        ["unitTypeName"] = "GuardT1AAFighter",
+    },
+    ["intel"] = {
+        ["visionRadius"] = 28,
+    },
+    ["movement"] = {
+        ["acceleration"] = 15,
+        ["air"] = true,
+        ["airHover"] = false,
+        ["altitudeJitterFactor"] = 1,
+        ["bankFactor"] = 1,
+        ["bankHalfLife"] = 0.075647079736603,
+        ["collisionMaskDefault"] = {
+            [1] = "Air",
+        },
+        ["collisionMaskSpawn"] = {
+            [1] = "LandSmall",
+        },
+        ["landWhenIdleSeconds"] = 1,
+        ["maxBankDegrees"] = 30,
+        ["minSpeed"] = 10,
+        ["orbitRange"] = 6.366197723675814,
+        ["orbitSpeed"] = 10,
+        ["patternBySituation"] = {
+            ["assist"] = "circle",
+            ["attack"] = "strafe",
+            ["hold"] = "circle",
+            ["move"] = "cruise",
+        },
+        ["patterns"] = {
+            ["circle"] = {
+                ["circle"] = {
+                    ["radius"] = 6.366197723675814,
+                    ["speed"] = 10,
+                },
+                ["mode"] = "Circle",
+                ["vertical"] = {
+                    ["duration"] = {
+                        ["x"] = 2.5,
+                        ["y"] = 10,
+                    },
+                    ["offset"] = {
+                        ["x"] = -1,
+                        ["y"] = 1,
+                    },
+                },
+            },
+            ["cruise"] = {
+                ["vertical"] = {
+                    ["duration"] = {
+                        ["x"] = 2.5,
+                        ["y"] = 10,
+                    },
+                    ["offset"] = {
+                        ["x"] = -1,
+                        ["y"] = 1,
+                    },
+                },
+            },
+            ["strafe"] = {
+                ["mode"] = "Strafe",
+                ["strafe"] = {
+                    ["matchTargetSpeed"] = true,
+                    ["runOutLength"] = 11.459,
+                },
+                ["vertical"] = {
+                    ["duration"] = {
+                        ["x"] = 2.5,
+                        ["y"] = 10,
+                    },
+                    ["offset"] = {
+                        ["x"] = -1,
+                        ["y"] = 1,
+                    },
+                },
+            },
+        },
+        ["preferredAltitude"] = 18,
+        ["referenceAltitude"] = "GroundOrWater",
+        ["rotationSpeed"] = 90,
+        ["sortOrder"] = 1,
+        ["speed"] = 15,
+        ["terrainAlignmentFactor"] = 0,
+        ["type"] = "Plane",
+    },
+    ["ranges"] = {
+        [8] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 25,
+        },
+        [33] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 28,
+        },
+        [34] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 28,
+        },
+    },
+    ["tags"] = {
+        [1] = "AIR",
+        [2] = "ANTI_AIR",
+        [3] = "BUILDABLE_BY_T1_FACTORY",
+        [4] = "BUILDABLE_BY_T2_FACTORY",
+        [5] = "BUILDABLE_BY_T3_FACTORY",
+        [6] = "GUARD",
+        [7] = "FIGHTER",
+        [8] = "MOBILE",
+        [9] = "TECH1",
+        [10] = "SCFA_AIR",
+        [11] = "SCFA_ALLUNITS",
+        [12] = "SCFA_ANTIAIR",
+        [13] = "SCFA_BUILTBYTIER1FACTORY",
+        [14] = "SCFA_BUILTBYTIER2FACTORY",
+        [15] = "SCFA_BUILTBYTIER3FACTORY",
+        [16] = "SCFA_CYBRAN",
+        [17] = "SCFA_HIGHALTAIR",
+        [18] = "SCFA_MOBILE",
+        [19] = "SCFA_OVERLAYANTIAIR",
+        [20] = "SCFA_PRODUCTSC1",
+        [21] = "SCFA_RECLAIMABLE",
+        [22] = "SCFA_SELECTABLE",
+        [23] = "SCFA_TECH1",
+        [24] = "SCFA_VISIBLETORECON",
+    },
+    ["visuals"] = {
+        ["display"] = {
+            ["mainBarDisplayScale"] = {
+                ["x"] = 0.4,
+                ["y"] = 0.4,
+            },
+            ["mainBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 15,
+            },
+            ["progressBars"] = {
+                [1] = {
+                    ["colorBackground"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorEmpty"] = {
+                        ["a"] = 1,
+                        ["x"] = 1,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorFull"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 1,
+                        ["z"] = 0,
+                    },
+                    ["mainBar"] = true,
+                    ["name"] = "Health",
+                    ["property"] = "Health_Current",
+                    ["xOffset"] = 0,
+                    ["xScale"] = 1,
+                },
+            },
+            ["subBarDisplayScale"] = {
+                ["x"] = 1,
+                ["y"] = 1,
+            },
+            ["subBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 0,
+            },
+        },
+        ["effectsInstant"] = {
+            ["onDeath"] = {
+                [1] = {
+                    ["audioName"] = "Sounds/videvo.net_royalFree_soundEffects/Explosions/mi explosion 03 hpx.ogg",
+                    ["boneName"] = "Root",
+                    ["particleName"] = "VFX/SCOM/Death/vgd3101_death_air_small.sanvfx",
+                },
+            },
+            ["onImpact"] = {
+                [1] = {
+                    ["audioName"] = "Sounds/videvo.net_royalFree_soundEffects/Explosions/mi explosion 03 hpx.ogg",
+                    ["boneName"] = "Root",
+                    ["particleName"] = "VFX/Death/vgd1101_death_land_small.sanvfx",
+                },
+            },
+        },
+        ["effectsPersistent"] = {
+            [1] = {
+                ["boneName"] = "Exhaust",
+                ["particleName"] = "VFX/SCOM/Prowler/exhaust_cruise.sanvfx",
+            },
+            [2] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.18,
+                    ["y"] = 0.05,
+                    ["z"] = -0.2,
+                },
+                ["scoDamageSmoke"] = 0.75,
+            },
+            [3] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.22,
+                    ["y"] = 0.036,
+                    ["z"] = 0.18,
+                },
+                ["scoDamageSmoke"] = 0.5,
+            },
+            [4] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.2,
+                    ["y"] = 0.05600000000000001,
+                    ["z"] = 0.16,
+                },
+                ["scoDamageSmoke"] = 0.25,
+            },
+            [5] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.18,
+                    ["y"] = 0.084,
+                    ["z"] = -0.2,
+                },
+                ["scoDamageFire"] = 0.25,
+            },
+            [6] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.22,
+                    ["y"] = 0.08000000000000002,
+                    ["z"] = 0.18,
+                },
+                ["scoDamageFire"] = 0.1,
+            },
+        },
+        ["mesh"] = {
+            ["lod0distance"] = 107,
+            ["lod1distance"] = 279,
+        },
+        ["selection"] = {
+            ["offset"] = {
+                ["x"] = 0,
+                ["y"] = 0,
+                ["z"] = 0,
+            },
+            ["size"] = {
+                ["x"] = 0.7,
+                ["y"] = 0.6,
+            },
+        },
+    },
+    ["weapons"] = {
+        [1] = {
+            ["aimControllers"] = {
+                [1] = {
+                    ["aimBone"] = "Left_Muzzle01",
+                    ["aimGravity"] = {
+                        ["x"] = 0,
+                        ["y"] = -4.9,
+                        ["z"] = 0,
+                    },
+                    ["aimTolerance"] = 0.1,
+                    ["defaultPitchAdjustment"] = 0,
+                    ["defaultYawAdjustment"] = 0,
+                    ["leadTarget"] = true,
+                    ["pitchBone"] = "Left_Muzzle01",
+                    ["pitchMax"] = 55,
+                    ["pitchMin"] = -55,
+                    ["pitchSpeed"] = 360,
+                    ["poseResetTime"] = 0,
+                    ["projectileSpeed"] = 120,
+                    ["solverType"] = "NoArc",
+                    ["yawBone"] = "Left_Muzzle01",
+                    ["yawMax"] = 55,
+                    ["yawMin"] = -55,
+                    ["yawSpeed"] = 360,
+                },
+            },
+            ["audio"] = {
+                ["onFire"] = {
+                    ["looping"] = false,
+                    ["name"] = "agom1115",
+                },
+            },
+            ["collideFriendly"] = false,
+            ["damage"] = 8,
+            ["damageFriendly"] = false,
+            ["damageRadius"] = 0,
+            ["damageType"] = "Normal",
+            ["effects"] = {
+                ["onFire"] = "VFX/SCOM/Source/uga1201/muzzle_autocannon.sanvfx",
+            },
+            ["firingRandomness"] = 0,
+            ["layerTargetLimits"] = {
+                [1] = "Air",
+            },
+            ["layerWeaponLimits"] = {
+                [1] = "Air",
+                [2] = "Land",
+            },
+            ["muzzleGroupChargeDelay"] = 0,
+            ["muzzleGroupTimeOut"] = -1,
+            ["muzzleGroups"] = {
+                [1] = {
+                    ["muzzles"] = {
+                        [1] = "Left_Muzzle01",
+                        [2] = "Left_Muzzle01",
+                        [3] = "Left_Muzzle01",
+                    },
+                },
+            },
+            ["muzzleSalvoDelay"] = 0.1,
+            ["muzzleSalvoSize"] = 3,
+            ["muzzles"] = {
+                ["Left_Muzzle01"] = {
+                    ["aimController"] = "Left_Muzzle01",
+                },
+            },
+            ["projectileLifetime"] = 0.2604166666666667,
+            ["projectileTemplate"] = "psf0080",
+            ["rangeMax"] = 25,
+            ["rangeMin"] = 0,
+            ["rangeRingType"] = "AntiAir",
+            ["rangeTracking"] = 1.25,
+            ["reloadTime"] = 1,
+            ["scoFaProjectileIdentity"] = {
+                ["sourceBlueprintSha256"] = "196d6739b1349438378aab28cdef2df8a1c5a346cebf1bbe290071786abb4957",
+                ["sourceIndex"] = 1,
+                ["sourceLabel"] = "AutoCannon",
+                ["sourceProjectile"] = "/projectiles/CAAAutocannon02/CAAAutocannon02_proj.bp",
+            },
+            ["scoSourceMuzzle"] = {
+                ["sourceIndex"] = 1,
+                ["sourceLabel"] = "AutoCannon",
+            },
+            ["targetWaterLimits"] = "Above",
+        },
+        [2] = {
+            ["aimControllers"] = {
+                [1] = {
+                    ["aimBone"] = "Right_Muzzle01",
+                    ["aimGravity"] = {
+                        ["x"] = 0,
+                        ["y"] = -4.9,
+                        ["z"] = 0,
+                    },
+                    ["aimTolerance"] = 0.1,
+                    ["defaultPitchAdjustment"] = 0,
+                    ["defaultYawAdjustment"] = 0,
+                    ["leadTarget"] = true,
+                    ["pitchBone"] = "Right_Muzzle01",
+                    ["pitchMax"] = 55,
+                    ["pitchMin"] = -55,
+                    ["pitchSpeed"] = 360,
+                    ["poseResetTime"] = 0,
+                    ["projectileSpeed"] = 120,
+                    ["solverType"] = "NoArc",
+                    ["yawBone"] = "Right_Muzzle01",
+                    ["yawMax"] = 55,
+                    ["yawMin"] = -55,
+                    ["yawSpeed"] = 360,
+                },
+            },
+            ["audio"] = {
+                ["onFire"] = {
+                    ["looping"] = false,
+                    ["name"] = "agom1115",
+                },
+            },
+            ["collideFriendly"] = false,
+            ["damage"] = 8,
+            ["damageFriendly"] = false,
+            ["damageRadius"] = 0,
+            ["damageType"] = "Normal",
+            ["effects"] = {
+                ["onFire"] = "VFX/SCOM/Source/uga1201/muzzle_autocannon2.sanvfx",
+            },
+            ["firingRandomness"] = 0,
+            ["layerTargetLimits"] = {
+                [1] = "Air",
+            },
+            ["layerWeaponLimits"] = {
+                [1] = "Air",
+                [2] = "Land",
+            },
+            ["muzzleGroupChargeDelay"] = 0,
+            ["muzzleGroupTimeOut"] = -1,
+            ["muzzleGroups"] = {
+                [1] = {
+                    ["muzzles"] = {
+                        [1] = "Right_Muzzle01",
+                        [2] = "Right_Muzzle01",
+                        [3] = "Right_Muzzle01",
+                    },
+                },
+            },
+            ["muzzleSalvoDelay"] = 0.1,
+            ["muzzleSalvoSize"] = 3,
+            ["muzzles"] = {
+                ["Right_Muzzle01"] = {
+                    ["aimController"] = "Right_Muzzle01",
+                },
+            },
+            ["projectileLifetime"] = 0.2604166666666667,
+            ["projectileTemplate"] = "psf0080",
+            ["rangeMax"] = 25,
+            ["rangeMin"] = 0,
+            ["rangeRingType"] = "AntiAir",
+            ["rangeTracking"] = 1.25,
+            ["reloadTime"] = 1,
+            ["scoFaProjectileIdentity"] = {
+                ["sourceBlueprintSha256"] = "196d6739b1349438378aab28cdef2df8a1c5a346cebf1bbe290071786abb4957",
+                ["sourceIndex"] = 2,
+                ["sourceLabel"] = "AutoCannon2",
+                ["sourceProjectile"] = "/projectiles/CAAAutocannon02/CAAAutocannon02_proj.bp",
+            },
+            ["scoSourceMuzzle"] = {
+                ["sourceIndex"] = 2,
+                ["sourceLabel"] = "AutoCannon2",
+            },
+            ["targetWaterLimits"] = "Above",
+        },
+        [3] = {
+            ["category"] = "DeathExplosion",
+            ["damage"] = 25,
+            ["damageFriendly"] = true,
+            ["damageRadius"] = 1,
+            ["damageType"] = "Normal",
+        },
+    },
+}

@@ -1,0 +1,15 @@
+SCOM 1.0.1 - Manual Installation
+
+Recommended: extract ScomInstaller.zip and run "Install SCOM.cmd".
+Setup checks your game version and protects existing files.
+
+To install manually:
+1. Close Sanctuary.
+2. Open the game's engine folder, which contains Sanctuary.exe.
+3. Copy all files and folders inside payload into engine, keeping the folder
+   structure. This installs SCOM, the UI, AI and required components.
+
+The AI profile belongs at engine/LJ/lua/AI/mods/AI-Scom.
+Select AI-Scom for AI players in the lobby.
+
+Use setup for upgrades so compatibility and file-conflict checks run.

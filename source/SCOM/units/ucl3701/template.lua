@@ -1,0 +1,527 @@
+-- ucl3701: Sonar Platform
+-- Editable full authoring data; shared code converts it into engine components.
+-- Explicit ranges control range rings; coordinate them with weapon range edits.
+-- host.lua and client.lua own behavior and class inheritance.
+UnitTemplate = {
+    ["additions"] = {
+        ["faSourceContract"] = {
+            ["constructionSurfaceModelEntry"] = "",
+            ["constructionSurfaceModelSha256"] = "",
+            ["intel"] = {
+                ["provenanceOnly"] = {
+                    ["showIntelOnSelect"] = true,
+                    ["sonarRadius"] = 450,
+                    ["waterVisionRadius"] = 24,
+                },
+                ["runtimeSupported"] = {
+                    ["visionRadius"] = 32,
+                },
+            },
+            ["movementCompatibility"] = "",
+            ["placement"] = {
+                ["footprint"] = {
+                    ["x"] = 2,
+                    ["z"] = 2,
+                },
+                ["footprintSource"] = "Footprint.Size",
+                ["sourceSkirtPresent"] = false,
+            },
+            ["shield"] = {
+                ["enabled"] = false,
+            },
+            ["sourceArchiveSha256"] = "c23a48d6b47043144baafc4c7f47b5a470392264f1bbaf962896923d58899c26",
+            ["sourceBlueprint"] = "units/UAS0305/UAS0305_unit.bp",
+            ["sourceBlueprintSha256"] = "ed8d3dbcc37b49abbba54a08043739f9f938336ffe2ee58e7c549e293aecffb0",
+            ["sourceCategories"] = {
+                [1] = "AEON",
+                [2] = "BUILTBYTIER3COMMANDER",
+                [3] = "BUILTBYTIER3ENGINEER",
+                [4] = "DRAGBUILD",
+                [5] = "INTELLIGENCE",
+                [6] = "MOBILE",
+                [7] = "MOBILESONAR",
+                [8] = "NEEDMOBILEBUILD",
+                [9] = "OVERLAYDEFENSE",
+                [10] = "OVERLAYSONAR",
+                [11] = "PRODUCTSC1",
+                [12] = "RECLAIMABLE",
+                [13] = "SELECTABLE",
+                [14] = "SONAR",
+                [15] = "SORTINTEL",
+                [16] = "TECH3",
+                [17] = "VISIBLETORECON",
+            },
+            ["sourceConstructionSurfaceClearance"] = 0,
+            ["sourceElevation"] = 0,
+            ["sourceId"] = "UAS0305",
+            ["sourceKLift"] = 0,
+            ["sourceKLiftDamping"] = 0,
+            ["sourceLiftFactor"] = 0,
+            ["sourceMaxBrake"] = 4.5,
+            ["sourceMotionType"] = "RULEUMT_Water",
+            ["sourceUpgradeFrom"] = "UAB3202",
+            ["sourceUpgradeTo"] = "",
+            ["targetId"] = "ucl3701",
+            ["weapons"] = {
+                [1] = {
+                    ["label"] = "AntiTorpedo01",
+                    ["muzzleSalvoSize"] = 1,
+                    ["projectilesPerOnFire"] = 1,
+                    ["rackFireTogether"] = false,
+                    ["rackSalvoSize"] = 1,
+                    ["racks"] = {
+                        [1] = {
+                            ["muzzles"] = {
+                                [1] = "Muzzle_01",
+                            },
+                            ["rackBone"] = "Muzzle_01",
+                        },
+                    },
+                    ["rateOfFire"] = 0.15,
+                    ["reloadTime"] = 6.666666666666667,
+                    ["sourceCategory"] = "Defense",
+                    ["sourceProjectile"] = "/projectiles/AIMAntiTorpedo01/AIMAntiTorpedo01_proj.bp",
+                },
+            },
+        },
+        ["scoIdleResetLocomotion"] = true,
+        ["scoSeaParityMinimumWaterDepth"] = 1.5,
+        ["scoSeaParityPlacementMode"] = "LandOrWater",
+        ["scoSourceDeath"] = {
+            ["hasMovement"] = true,
+            ["sourceId"] = "UAS0305",
+            ["variants"] = {
+                [1] = {
+                    ["durationSeconds"] = 25,
+                    ["key"] = "scoSourceDeath01",
+                    ["rateMax"] = 1,
+                    ["rateMin"] = 1,
+                    ["weight"] = 1,
+                },
+            },
+        },
+        ["scoSourceInterception"] = {
+            ["sourceId"] = "UAS0305",
+            ["weapons"] = {
+                ["AntiTorpedo01"] = {
+                    ["counted"] = false,
+                    ["damage"] = 1,
+                    ["interval"] = 0.5,
+                    ["muzzleVelocity"] = 30,
+                    ["muzzles"] = {
+                        [1] = "Muzzle_01",
+                    },
+                    ["projectile"] = "psf0176",
+                    ["rangeMax"] = 32,
+                    ["rangeMin"] = 0,
+                    ["reload"] = 6.666666666666667,
+                    ["sourceIndex"] = 1,
+                    ["sourceLabel"] = "AntiTorpedo01",
+                    ["targetClass"] = "torpedo",
+                },
+            },
+        },
+        ["seaParityUnsupported"] = {
+            ["projectileInterception"] = true,
+        },
+        ["selectionHit"] = {
+            ["offset"] = {
+                ["x"] = 0,
+                ["y"] = 0.30000000000000004,
+                ["z"] = 0,
+            },
+            ["size"] = {
+                ["x"] = 0.65,
+                ["y"] = 0.65,
+            },
+        },
+    },
+    ["audio"] = {
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "acod3110",
+        },
+    },
+    ["collisionInfo"] = {
+        ["centerOffset"] = {
+            ["x"] = 0,
+            ["y"] = 0.30000000000000004,
+            ["z"] = 0,
+        },
+        ["collisionSize"] = {
+            ["x"] = 1,
+            ["y"] = 1.1,
+            ["z"] = 1,
+        },
+    },
+    ["defence"] = {
+        ["health"] = {
+            ["max"] = 1500,
+            ["regen"] = 0,
+            ["value"] = 1500,
+        },
+    },
+    ["economy"] = {
+        ["buildTime"] = 750,
+        ["cost"] = {
+            ["alloys"] = 400,
+            ["energy"] = 12000,
+        },
+        ["maintenanceConsumption"] = {
+            ["alloys"] = 0,
+            ["energy"] = 100,
+        },
+    },
+    ["footprint"] = {
+        ["x"] = 2,
+        ["y"] = 2,
+    },
+    ["general"] = {
+        ["class"] = {
+            [1] = "unitsDefaultChosen",
+            [2] = "AeonPortNavalUnit",
+        },
+        ["displayName"] = "Sonar Platform",
+        ["icon"] = {
+            ["shape"] = "naval1",
+            ["symbol"] = "direct",
+            ["tech"] = "t1",
+        },
+        ["iconUI"] = "tech1_naval1_direct.png",
+        ["iconUIBuildSortPriority"] = 80,
+        ["iconUIType"] = "water",
+        ["name"] = "Sonar Platform",
+        ["orders"] = {
+            ["Assist"] = true,
+            ["Attack"] = true,
+            ["AttackMove"] = true,
+            ["Move"] = true,
+            ["Patrol"] = true,
+            ["Stop"] = true,
+        },
+        ["requiresWaterPlacement"] = true,
+        ["tpId"] = "ucl3701",
+        ["unitTypeName"] = "Sonar Platform",
+    },
+    ["intel"] = {
+        ["visionRadius"] = 32,
+    },
+    ["movement"] = {
+        ["acceleration"] = 4.5,
+        ["altitudeJitterFactor"] = 0,
+        ["bankFactor"] = 0,
+        ["bankHalfLife"] = 0.075647079736603,
+        ["collisionMaskDefault"] = {
+            [1] = "Sea",
+        },
+        ["collisionMaskSpawn"] = {
+            [1] = "Sea",
+        },
+        ["deceleration"] = 4.5,
+        ["maxBankDegrees"] = 0,
+        ["orbitRange"] = 0,
+        ["orbitSpeed"] = 0,
+        ["preferredAltitude"] = 0,
+        ["referenceAltitude"] = "GroundOrWater",
+        ["rotationSpeed"] = 100,
+        ["sortOrder"] = 1,
+        ["speed"] = 4.5,
+        ["terrainAlignmentFactor"] = 0,
+        ["type"] = "WaterSurface",
+    },
+    ["ranges"] = {
+        [33] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 32,
+        },
+        [34] = {
+            ["innerRadius"] = 0,
+            ["outerRadius"] = 32,
+        },
+    },
+    ["tags"] = {
+        [1] = "BUILDABLE_BY_T3_ENGINEER",
+        [2] = "CHOSEN",
+        [3] = "MOBILE",
+        [4] = "NAVAL",
+        [5] = "TECH3",
+        [6] = "SCFA_AEON",
+        [7] = "SCFA_ALLUNITS",
+        [8] = "SCFA_BUILTBYTIER3COMMANDER",
+        [9] = "SCFA_BUILTBYTIER3ENGINEER",
+        [10] = "SCFA_DRAGBUILD",
+        [11] = "SCFA_INTELLIGENCE",
+        [12] = "SCFA_MOBILE",
+        [13] = "SCFA_MOBILESONAR",
+        [14] = "SCFA_NEEDMOBILEBUILD",
+        [15] = "SCFA_OVERLAYDEFENSE",
+        [16] = "SCFA_OVERLAYSONAR",
+        [17] = "SCFA_PRODUCTSC1",
+        [18] = "SCFA_RECLAIMABLE",
+        [19] = "SCFA_SELECTABLE",
+        [20] = "SCFA_SONAR",
+        [21] = "SCFA_SORTINTEL",
+        [22] = "SCFA_TECH3",
+        [23] = "SCFA_VISIBLETORECON",
+    },
+    ["visuals"] = {
+        ["animations"] = {
+            ["scoSourceDeath01"] = {
+                ["clipName"] = "AnimAdeath01",
+                ["playbackMode"] = 0,
+                ["sanAnimationPath"] = "Units/ucl3701/LOD0/ucl3701.sananimation",
+            },
+            ["source_animadeath01"] = {
+                ["clipName"] = "AnimAdeath01",
+                ["sanAnimationPath"] = "Units/ucl3701/LOD0/ucl3701.sananimation",
+            },
+            ["walk"] = {
+                ["clipName"] = "Rest",
+                ["sanAnimationPath"] = "Units/ucl3701/LOD0/ucl3701.sananimation",
+            },
+        },
+        ["display"] = {
+            ["mainBarDisplayScale"] = {
+                ["x"] = 0.7,
+                ["y"] = 0.7,
+            },
+            ["mainBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 20,
+            },
+            ["progressBars"] = {
+                [1] = {
+                    ["colorBackground"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorEmpty"] = {
+                        ["a"] = 1,
+                        ["x"] = 1,
+                        ["y"] = 0,
+                        ["z"] = 0,
+                    },
+                    ["colorFull"] = {
+                        ["a"] = 1,
+                        ["x"] = 0,
+                        ["y"] = 1,
+                        ["z"] = 0,
+                    },
+                    ["mainBar"] = true,
+                    ["name"] = "Health",
+                    ["property"] = "Health_Current",
+                    ["xOffset"] = 0,
+                    ["xScale"] = 1,
+                },
+            },
+            ["subBarDisplayScale"] = {
+                ["x"] = 1,
+                ["y"] = 1,
+            },
+            ["subBarOffSet"] = {
+                ["x"] = 0,
+                ["y"] = 0,
+            },
+        },
+        ["effectsInstant"] = {
+            ["onDeath"] = {
+                [1] = {
+                    ["audioName"] = "chosen_unit_death_small",
+                    ["boneName"] = "Root",
+                    ["particleName"] = "VFX/Death/vcd1101_death_land_small.sanvfx",
+                },
+            },
+        },
+        ["effectsPersistent"] = {
+            [1] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.18,
+                    ["y"] = 0.5750000000000001,
+                    ["z"] = -0.2,
+                },
+                ["scoDamageSmoke"] = 0.75,
+            },
+            [2] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.22,
+                    ["y"] = 0.49800000000000005,
+                    ["z"] = 0.18,
+                },
+                ["scoDamageSmoke"] = 0.5,
+            },
+            [3] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_smoke_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.2,
+                    ["y"] = 0.6080000000000001,
+                    ["z"] = 0.16,
+                },
+                ["scoDamageSmoke"] = 0.25,
+            },
+            [4] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0.18,
+                    ["y"] = 0.762,
+                    ["z"] = -0.2,
+                },
+                ["scoDamageFire"] = 0.25,
+            },
+            [5] = {
+                ["boneName"] = "__Head",
+                ["particleName"] = "VFX/SCOM/DamageSmoke/scom_damage_fire_small.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = -0.22,
+                    ["y"] = 0.7400000000000001,
+                    ["z"] = 0.18,
+                },
+                ["scoDamageFire"] = 0.1,
+            },
+        },
+        ["mesh"] = {
+            ["lod0distance"] = 73,
+            ["lod1distance"] = 190,
+        },
+        ["selection"] = {
+            ["offset"] = {
+                ["x"] = 0,
+                ["y"] = 0.30000000000000004,
+                ["z"] = 0,
+            },
+            ["size"] = {
+                ["x"] = 0.65,
+                ["y"] = 0.65,
+            },
+        },
+    },
+    ["weapons"] = {
+        [1] = {
+            ["aimControllers"] = {
+                [1] = {
+                    ["aimBone"] = "Muzzle_01",
+                    ["aimTolerance"] = 2,
+                    ["defaultPitchAdjustment"] = 0,
+                    ["defaultYawAdjustment"] = 0,
+                    ["leadTarget"] = true,
+                    ["pitchBone"] = "Muzzle_01",
+                    ["pitchMax"] = 90,
+                    ["pitchMin"] = -90,
+                    ["pitchSpeed"] = 180,
+                    ["projectileSpeed"] = 30,
+                    ["solverType"] = "LowArc",
+                    ["yawBone"] = "Muzzle_01",
+                    ["yawMax"] = 180,
+                    ["yawMin"] = -180,
+                    ["yawSpeed"] = 360,
+                },
+            },
+            ["collideFriendly"] = false,
+            ["damage"] = 1,
+            ["damageFriendly"] = false,
+            ["damageRadius"] = 0,
+            ["damageType"] = "Normal",
+            ["effects"] = {
+                ["onFire"] = "VFX/SCOM/Source/ucl3701/muzzle_antitorpedo01.sanvfx",
+            },
+            ["firingRandomness"] = 0,
+            ["layerTargetLimits"] = {
+                [1] = "Land",
+                [2] = "WaterSurface",
+                [3] = "Seabed",
+            },
+            ["muzzleGroupChargeDelay"] = 0,
+            ["muzzleGroupTimeOut"] = -1,
+            ["muzzleGroups"] = {
+                [1] = {
+                    ["muzzles"] = {
+                        [1] = "Muzzle_01",
+                    },
+                },
+            },
+            ["muzzleSalvoDelay"] = 0,
+            ["muzzleSalvoSize"] = 1,
+            ["muzzles"] = {
+                ["Muzzle_01"] = {
+                    ["aimController"] = "Muzzle_01",
+                },
+            },
+            ["name"] = "AntiTorpedo01",
+            ["projectileLifetime"] = 1.5,
+            ["projectileTemplate"] = "psf0176",
+            ["rangeMax"] = 32,
+            ["rangeMin"] = 0,
+            ["rangeRingType"] = "DirectFire",
+            ["rangeTracking"] = 1.25,
+            ["reloadTime"] = 6.666666666666667,
+            ["scoFaMissingWeapon"] = {
+                ["sourceBlueprintSha256"] = "ed8d3dbcc37b49abbba54a08043739f9f938336ffe2ee58e7c549e293aecffb0",
+                ["sourceId"] = "UAS0305",
+                ["sourceIndex"] = 1,
+                ["sourceLabel"] = "AntiTorpedo01",
+            },
+            ["scoFaSourceWeapon"] = {
+                ["BallisticArc"] = "RULEUBA_None",
+                ["CollideFriendly"] = false,
+                ["Damage"] = 1,
+                ["DamageType"] = "Normal",
+                ["DisplayName"] = "Quasar Anti Torpedo",
+                ["FireTargetLayerCapsTable"] = {
+                    ["Water"] = "Water",
+                },
+                ["FiringTolerance"] = 2,
+                ["Label"] = "AntiTorpedo01",
+                ["MaxRadius"] = 32,
+                ["MuzzleSalvoDelay"] = 0,
+                ["MuzzleSalvoSize"] = 1,
+                ["MuzzleVelocity"] = 30,
+                ["ProjectileId"] = "/projectiles/AIMAntiTorpedo01/AIMAntiTorpedo01_proj.bp",
+                ["ProjectileLifetime"] = 1.5,
+                ["RackBones"] = {
+                    [1] = {
+                        ["MuzzleBones"] = {
+                            [1] = "Muzzle_01",
+                        },
+                        ["RackBone"] = "Muzzle_01",
+                    },
+                },
+                ["RackFireTogether"] = false,
+                ["RackRecoilDistance"] = 0,
+                ["RackReloadTimeout"] = 10,
+                ["RackSalvoChargeTime"] = 0,
+                ["RackSalvoReloadTime"] = 0,
+                ["RackSalvoSize"] = 1,
+                ["RackSlavedToTurret"] = false,
+                ["RangeCategory"] = "UWRC_Countermeasure",
+                ["RateOfFire"] = 0.15,
+                ["TargetCheckInterval"] = 0.5,
+                ["TargetRestrictDisallow"] = "UNTARGETABLE",
+                ["TargetRestrictOnlyAllow"] = "TORPEDO",
+                ["TargetType"] = "RULEWTT_Projectile",
+                ["TrackingRadius"] = 1.5,
+                ["TurretBoneMuzzle"] = "Muzzle_01",
+                ["TurretBonePitch"] = "Muzzle_01",
+                ["TurretBoneYaw"] = "Muzzle_01",
+                ["TurretDualManipulators"] = false,
+                ["TurretPitch"] = 0,
+                ["TurretPitchRange"] = 90,
+                ["TurretPitchSpeed"] = 180,
+                ["TurretYaw"] = 0,
+                ["TurretYawRange"] = 180,
+                ["TurretYawSpeed"] = 360,
+                ["Turreted"] = true,
+                ["WeaponCategory"] = "Defense",
+            },
+            ["scoFaSourceWeaponIndex"] = 1,
+            ["scoSourceInterceptionLabel"] = "AntiTorpedo01",
+            ["scoTacticalOwned"] = true,
+        },
+    },
+}

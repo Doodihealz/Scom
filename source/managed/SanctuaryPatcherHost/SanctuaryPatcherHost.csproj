@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>SanctuaryPatcherHost</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <TargetFramework>net472</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemGroup />
+  <ItemGroup>
+    <Reference Include="Mono.Cecil">
+      <HintPath>$(SanctuaryEngineDirectory)\BepInEx\core\Mono.Cecil.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core" />
+  </ItemGroup>
+  <PropertyGroup>
+    <SanctuaryEngineDirectory Condition="'$(SanctuaryEngineDirectory)' == '' and '$(SANCTUARY_ENGINE)' != ''">$(SANCTUARY_ENGINE)</SanctuaryEngineDirectory>
+  </PropertyGroup>
+</Project>

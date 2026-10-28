@@ -1,0 +1,6 @@
+{
+  "drawDistance": 1000.0,
+  "fadeStart": 0.9,
+  "fadeFactor": 1.0,
+  "material": "Environment/SCOM/Footsteps/commander.sanmaterial"
+}

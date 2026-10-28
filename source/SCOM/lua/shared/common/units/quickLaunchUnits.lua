@@ -1,0 +1,245 @@
+-- For faster dev, when quick launch units are enabled, on a fraction of the units are loaded
+-- so that it loads less materials, vfx, etc
+QuickLaunchUnits = {
+
+    uel0000 = true,  -- EDACommander
+    uel1001 = true,  -- EDAT1Tank
+    uel1101 = true,  -- EDAT1MobileArty
+    uel1501 = true,  -- EDAT1Engineer
+    uel3001 = true,  -- EDAT3Tank
+    ues1511 = true,  -- EDAT1LandFactory
+    ues1601 = true,  -- EDAT1AlloyExtractor
+    ues1611 = true,  -- EDAT1EnergyGenerator
+    ues1501 = true,  -- EDAT1EngineeringStation
+
+    uel2501 = true,  -- EDAT2Engineer
+    ues2511 = true,  -- EDAT2LandFactory
+    ues2601 = true,  -- EDAT2AlloyExtractor
+
+    ucl0000 = true,  -- ChosenCommander
+
+    ugl0000 = true,  -- GuardCommander
+
+}
+
+-- Supreme Commander Overhaul true fourth Seraphim faction 2.0.0
+-- Explicitly keep all virtual Seraphim templates loadable when either development gate is enabled.
+QuickLaunchUnits["usa1001"] = true
+QuickLaunchUnits["usa1201"] = true
+QuickLaunchUnits["usa1502"] = true
+QuickLaunchUnits["usa1701"] = true
+QuickLaunchUnits["usa2011"] = true
+QuickLaunchUnits["usa2101"] = true
+QuickLaunchUnits["usa2301"] = true
+QuickLaunchUnits["usa2502"] = true
+QuickLaunchUnits["usa3001"] = true
+QuickLaunchUnits["usa3201"] = true
+QuickLaunchUnits["usa3701"] = true
+QuickLaunchUnits["usa4011"] = true
+QuickLaunchUnits["usl0000"] = true
+QuickLaunchUnits["usl1001"] = true
+QuickLaunchUnits["usl1101"] = true
+QuickLaunchUnits["usl1201"] = true
+QuickLaunchUnits["usl1501"] = true
+QuickLaunchUnits["usl1701"] = true
+QuickLaunchUnits["usl2002"] = true
+QuickLaunchUnits["usl2101"] = true
+QuickLaunchUnits["usl2201"] = true
+QuickLaunchUnits["usl2501"] = true
+QuickLaunchUnits["usl2806"] = true
+QuickLaunchUnits["usl3001"] = true
+QuickLaunchUnits["usl3101"] = true
+QuickLaunchUnits["usl3501"] = true
+QuickLaunchUnits["usl3801"] = true
+QuickLaunchUnits["usl4002"] = true
+QuickLaunchUnits["usl4004"] = true
+QuickLaunchUnits["usl4401"] = true
+QuickLaunchUnits["usn1001"] = true
+QuickLaunchUnits["usn1002"] = true
+QuickLaunchUnits["usn2001"] = true
+QuickLaunchUnits["usn2002"] = true
+QuickLaunchUnits["usn3001"] = true
+QuickLaunchUnits["usn3003"] = true
+QuickLaunchUnits["usn3004"] = true
+QuickLaunchUnits["uss1001"] = true
+QuickLaunchUnits["uss1201"] = true
+QuickLaunchUnits["uss1301"] = true
+QuickLaunchUnits["uss1511"] = true
+QuickLaunchUnits["uss1512"] = true
+QuickLaunchUnits["uss1513"] = true
+QuickLaunchUnits["uss1601"] = true
+QuickLaunchUnits["uss1602"] = true
+QuickLaunchUnits["uss1611"] = true
+QuickLaunchUnits["uss1612"] = true
+QuickLaunchUnits["uss1614"] = true
+QuickLaunchUnits["uss1701"] = true
+QuickLaunchUnits["uss1702"] = true
+QuickLaunchUnits["uss1804"] = true
+QuickLaunchUnits["uss2001"] = true
+QuickLaunchUnits["uss2101"] = true
+QuickLaunchUnits["uss2102"] = true
+QuickLaunchUnits["uss2201"] = true
+QuickLaunchUnits["uss2301"] = true
+QuickLaunchUnits["uss2401"] = true
+QuickLaunchUnits["uss2402"] = true
+QuickLaunchUnits["uss2510"] = true
+QuickLaunchUnits["uss2511"] = true
+QuickLaunchUnits["uss2512"] = true
+QuickLaunchUnits["uss2513"] = true
+QuickLaunchUnits["uss2601"] = true
+QuickLaunchUnits["uss2611"] = true
+QuickLaunchUnits["uss2701"] = true
+QuickLaunchUnits["uss2702"] = true
+QuickLaunchUnits["uss2711"] = true
+QuickLaunchUnits["uss2806"] = true
+QuickLaunchUnits["uss3101"] = true
+QuickLaunchUnits["uss3102"] = true
+QuickLaunchUnits["uss3201"] = true
+QuickLaunchUnits["uss3401"] = true
+QuickLaunchUnits["uss3402"] = true
+QuickLaunchUnits["uss3501"] = true
+QuickLaunchUnits["uss3511"] = true
+QuickLaunchUnits["uss3512"] = true
+QuickLaunchUnits["uss3513"] = true
+QuickLaunchUnits["uss3601"] = true
+QuickLaunchUnits["uss3603"] = true
+QuickLaunchUnits["uss3611"] = true
+QuickLaunchUnits["uss3701"] = true
+QuickLaunchUnits["uss4102"] = true
+
+
+-- Supreme Commander Overhaul one-for-one Aeon Chosen replacement 2.2.0
+do
+    -- Own exactly the 94 replaced Chosen slots.
+    -- The independently patched ucl0000 entry is untouched.
+    QuickLaunchUnits["uca1001"] = true
+    QuickLaunchUnits["uca1201"] = true
+    QuickLaunchUnits["uca1502"] = true
+    QuickLaunchUnits["uca1701"] = true
+    QuickLaunchUnits["uca2011"] = true
+    QuickLaunchUnits["uca2101"] = true
+    QuickLaunchUnits["uca2301"] = true
+    QuickLaunchUnits["uca2502"] = true
+    QuickLaunchUnits["uca2701"] = true
+    QuickLaunchUnits["uca2806"] = true
+    QuickLaunchUnits["uca3001"] = true
+    QuickLaunchUnits["uca3011"] = true
+    QuickLaunchUnits["uca3201"] = true
+    QuickLaunchUnits["uca3701"] = true
+    QuickLaunchUnits["uca4011"] = true
+    QuickLaunchUnits["ucl1001"] = true
+    QuickLaunchUnits["ucl1002"] = true
+    QuickLaunchUnits["ucl1101"] = true
+    QuickLaunchUnits["ucl1201"] = true
+    QuickLaunchUnits["ucl1501"] = true
+    QuickLaunchUnits["ucl1701"] = true
+    QuickLaunchUnits["ucl2002"] = true
+    QuickLaunchUnits["ucl2101"] = true
+    QuickLaunchUnits["ucl2201"] = true
+    QuickLaunchUnits["ucl2501"] = true
+    QuickLaunchUnits["ucl2806"] = true
+    QuickLaunchUnits["ucl3001"] = true
+    QuickLaunchUnits["ucl3101"] = true
+    QuickLaunchUnits["ucl3501"] = true
+    QuickLaunchUnits["ucl3701"] = true
+    QuickLaunchUnits["ucl3801"] = true
+    QuickLaunchUnits["ucl4001"] = true
+    QuickLaunchUnits["ucl4002"] = true
+    QuickLaunchUnits["ucl4003"] = true
+    QuickLaunchUnits["ucl4004"] = true
+    QuickLaunchUnits["ucl4005"] = true
+    QuickLaunchUnits["ucl4401"] = true
+    QuickLaunchUnits["ucn1001"] = true
+    QuickLaunchUnits["ucn3001"] = true
+    QuickLaunchUnits["ucs1001"] = true
+    QuickLaunchUnits["ucs1201"] = true
+    QuickLaunchUnits["ucs1301"] = true
+    QuickLaunchUnits["ucs1501"] = false
+    QuickLaunchUnits["ucs1511"] = true
+    QuickLaunchUnits["ucs1512"] = true
+    QuickLaunchUnits["ucs1513"] = true
+    QuickLaunchUnits["ucs1601"] = true
+    QuickLaunchUnits["ucs1602"] = true
+    QuickLaunchUnits["ucs1611"] = true
+    QuickLaunchUnits["ucs1612"] = true
+    QuickLaunchUnits["ucs1614"] = true
+    QuickLaunchUnits["ucs1701"] = true
+    QuickLaunchUnits["ucs1702"] = true
+    QuickLaunchUnits["ucs1801"] = true
+    QuickLaunchUnits["ucs1802"] = true
+    QuickLaunchUnits["ucs1803"] = true
+    QuickLaunchUnits["ucs1804"] = true
+    QuickLaunchUnits["ucs2001"] = true
+    QuickLaunchUnits["ucs2101"] = true
+    QuickLaunchUnits["ucs2102"] = true
+    QuickLaunchUnits["ucs2201"] = true
+    QuickLaunchUnits["ucs2301"] = true
+    QuickLaunchUnits["ucs2401"] = true
+    QuickLaunchUnits["ucs2402"] = true
+    QuickLaunchUnits["ucs2501"] = true
+    QuickLaunchUnits["ucs2510"] = true
+    QuickLaunchUnits["ucs2511"] = true
+    QuickLaunchUnits["ucs2512"] = true
+    QuickLaunchUnits["ucs2513"] = true
+    QuickLaunchUnits["ucs2601"] = true
+    QuickLaunchUnits["ucs2611"] = true
+    QuickLaunchUnits["ucs2701"] = true
+    QuickLaunchUnits["ucs2702"] = true
+    QuickLaunchUnits["ucs2711"] = true
+    QuickLaunchUnits["ucs2801"] = false
+    QuickLaunchUnits["ucs2802"] = false
+    QuickLaunchUnits["ucs2803"] = true
+    QuickLaunchUnits["ucs2806"] = true
+    QuickLaunchUnits["ucs3001"] = true
+    QuickLaunchUnits["ucs3101"] = true
+    QuickLaunchUnits["ucs3102"] = true
+    QuickLaunchUnits["ucs3201"] = true
+    QuickLaunchUnits["ucs3401"] = true
+    QuickLaunchUnits["ucs3402"] = true
+    QuickLaunchUnits["ucs3501"] = true
+    QuickLaunchUnits["ucs3511"] = true
+    QuickLaunchUnits["ucs3512"] = true
+    QuickLaunchUnits["ucs3513"] = true
+    QuickLaunchUnits["ucs3601"] = true
+    QuickLaunchUnits["ucs3603"] = true
+    QuickLaunchUnits["ucs3611"] = true
+    QuickLaunchUnits["ucs3701"] = true
+    QuickLaunchUnits["ucs3702"] = true
+    QuickLaunchUnits["ucs4102"] = true
+end
+
+-- Supreme Commander Overhaul sea parity 1.0.0
+-- Keep generated naval content loadable for AI and reduced quick launch.
+QuickLaunchUnits["uen1001"] = true
+QuickLaunchUnits["uen1002"] = true
+QuickLaunchUnits["uen2001"] = true
+QuickLaunchUnits["uen2002"] = true
+QuickLaunchUnits["uen3001"] = true
+QuickLaunchUnits["uen3004"] = true
+QuickLaunchUnits["uen3005"] = true
+QuickLaunchUnits["uen4001"] = true
+QuickLaunchUnits["ues1512"] = true
+QuickLaunchUnits["ues1513"] = true
+QuickLaunchUnits["ues2513"] = true
+QuickLaunchUnits["ues3513"] = true
+QuickLaunchUnits["ugn1001"] = true
+QuickLaunchUnits["ugn1002"] = true
+QuickLaunchUnits["ugn2001"] = true
+QuickLaunchUnits["ugn2002"] = true
+QuickLaunchUnits["ugn3001"] = true
+QuickLaunchUnits["ugn3003"] = true
+QuickLaunchUnits["ugn3004"] = true
+QuickLaunchUnits["ugn3005"] = true
+QuickLaunchUnits["ugs1512"] = true
+QuickLaunchUnits["ugs1513"] = true
+QuickLaunchUnits["ugs2513"] = true
+QuickLaunchUnits["ugs3513"] = true
+QuickLaunchUnits["ugs1511"] = true
+QuickLaunchUnits["ues2512"] = true
+QuickLaunchUnits["ues3512"] = true
+QuickLaunchUnits["ugs2512"] = true
+QuickLaunchUnits["ugs3512"] = true
+-- SCOM source roster availability 1.0.0
+for _, id in ipairs({ "uca1001", "uca1201", "uca1502", "uca1701", "uca2011", "uca2101", "uca2301", "uca2502", "uca2701", "uca2806", "uca3001", "uca3011", "uca3201", "uca3701", "uca4011", "uca5001", "ucl0000", "ucl1001", "ucl1002", "ucl1101", "ucl1201", "ucl1501", "ucl1701", "ucl2002", "ucl2101", "ucl2201", "ucl2501", "ucl2806", "ucl3001", "ucl3101", "ucl3501", "ucl3701", "ucl3801", "ucl4001", "ucl4002", "ucl4003", "ucl4004", "ucl4005", "ucl4401", "ucl5001", "ucn1001", "ucn3001", "ucn5001", "ucs1001", "ucs1201", "ucs1301", "ucs1501", "ucs1511", "ucs1512", "ucs1513", "ucs1601", "ucs1602", "ucs1611", "ucs1612", "ucs1614", "ucs1701", "ucs1702", "ucs1801", "ucs1802", "ucs1803", "ucs1804", "ucs2001", "ucs2101", "ucs2102", "ucs2201", "ucs2301", "ucs2401", "ucs2402", "ucs2501", "ucs2510", "ucs2511", "ucs2512", "ucs2513", "ucs2601", "ucs2611", "ucs2701", "ucs2702", "ucs2711", "ucs2801", "ucs2802", "ucs2803", "ucs2806", "ucs3001", "ucs3101", "ucs3102", "ucs3201", "ucs3401", "ucs3402", "ucs3501", "ucs3511", "ucs3512", "ucs3513", "ucs3601", "ucs3603", "ucs3611", "ucs3701", "ucs3702", "ucs4102", "ucs5001", "ucs5002", "ucs5003", "ucs5004", "ucs5005", "ucs5006", "ucs5007", "ucs5008", "uea0001", "uea1001", "uea1201", "uea1701", "uea2301", "uea3001", "uea5001", "uea5002", "uea5003", "uea5004", "uea5005", "uea5006", "uea5007", "uea5008", "uea5009", "uea5010", "uea5011", "uel0000", "uel1001", "uel1002", "uel1101", "uel1201", "uel1501", "uel1701", "uel2201", "uel2501", "uel3001", "uel3002", "uel3101", "uel3401", "uel3501", "uel4511", "uel5001", "uel5002", "uel5003", "uel5004", "uel5005", "uel5006", "uel5007", "uel5008", "uel5009", "uel5010", "uel5011", "uen1001", "uen1002", "uen2001", "uen2002", "uen3001", "uen3004", "uen3005", "uen4001", "uen5001", "uen5002", "uen5003", "ues1001", "ues1201", "ues1511", "ues1512", "ues1513", "ues1601", "ues1602", "ues1611", "ues1612", "ues1701", "ues2001", "ues2101", "ues2102", "ues2201", "ues2401", "ues2402", "ues2501", "ues2511", "ues2512", "ues2513", "ues2601", "ues2611", "ues2701", "ues3102", "ues3201", "ues3401", "ues3501", "ues3511", "ues3512", "ues3513", "ues3601", "ues3603", "ues3611", "ues3701", "ues4101", "ues5001", "ues5002", "ues5003", "ues5004", "ues5005", "ues5006", "ues5007", "ues5008", "ues5009", "ues5010", "ues5011", "ues5012", "ues5013", "ues5014", "ues5015", "ues5016", "ues5017", "ues5018", "ues5019", "ues5020", "ues5021", "ues5022", "ues5023", "ues5024", "ues5025", "ues5026", "ues5027", "ues5028", "ues5029", "ues5030", "ues5031", "ues5032", "ues5033", "ues5034", "ues5035", "ues5036", "ues5037", "ues5038", "ues5039", "ues5040", "ues5042", "ues5043", "ues5044", "ues5045", "ues5046", "ues5049", "ues5050", "ues5051", "ues5052", "ues5053", "ues5054", "ues5055", "ues5056", "ues5057", "ues5058", "ues5059", "ues5060", "ues5061", "ues5062", "ues5063", "ues5064", "ues5065", "ues5066", "ues5067", "ues5068", "ues5069", "ues5070", "ues5071", "ues5072", "ues5073", "ues5074", "ues5075", "ues5076", "ues5077", "ues5078", "ues5079", "ues5080", "ues5082", "ues5085", "ues5086", "ues5087", "ues5088", "ues5090", "ues5093", "ues5094", "uga1001", "uga1201", "uga1701", "uga2301", "uga3001", "uga5001", "uga5002", "uga5003", "uga5004", "uga5005", "uga5006", "uga5007", "uga5008", "uga5009", "ugl0000", "ugl1001", "ugl1002", "ugl1101", "ugl1501", "ugl1701", "ugl2002", "ugl2101", "ugl2201", "ugl2501", "ugl3001", "ugl3002", "ugl3101", "ugl3501", "ugl4001", "ugl4002", "ugl4011", "ugl5001", "ugl5002", "ugl5003", "ugl5004", "ugl5005", "ugl5006", "ugn1001", "ugn1002", "ugn2001", "ugn2002", "ugn3001", "ugn3003", "ugn3004", "ugn3005", "ugn5001", "ugn5002", "ugs1001", "ugs1201", "ugs1511", "ugs1512", "ugs1513", "ugs1601", "ugs1602", "ugs1611", "ugs1612", "ugs1701", "ugs2001", "ugs2101", "ugs2102", "ugs2201", "ugs2401", "ugs2402", "ugs2501", "ugs2511", "ugs2512", "ugs2513", "ugs2601", "ugs2611", "ugs2701", "ugs3101", "ugs3201", "ugs3401", "ugs3501", "ugs3511", "ugs3512", "ugs3513", "ugs3601", "ugs3603", "ugs3611", "ugs3701", "ugs4902", "ugs4903", "ugs4904", "ugs4905", "ugs5001", "ugs5002", "ugs5003", "ugs5004", "ugs5005", "ugs5006", "ugs5007", "ugs5008", "ugs5009", "ugs5010", "ugs5011", "ugs5012", "ugs5013", "ugs5014", "ugs5015", "ugs5016", "ugs5017", "ugs5018", "ugs5019", "ugs5020", "ugs5021", "ugs5022", "ugs5023", "ugs5024", "ugs5025", "ugs5026", "ugs5027", "ugs5028", "ugs5029", "ugs5030", "ugs5031", "ugs5032", "ugs5033", "ugs5034", "ugs5035", "ugs5036", "ugs5037", "ugs5038", "ugs5039", "ugs5040", "ugs5041", "ugs5042", "ugs5043", "ugs5044", "ugs5045", "ugs5046", "ugs5047", "ugs5048", "ugs5049", "ugs5050", "ugs5051", "ugs5052", "ugs5053", "ugs5054", "ugs5055", "ugs5056", "ugs5057", "ugs5058", "ugs5059", "ugs5060", "ugs5061", "ugs5062", "ugs5063", "ugs5064", "ugs5065", "ugs5066", "ugs5067", "ugs5068", "usa1001", "usa1201", "usa1502", "usa1701", "usa2011", "usa2101", "usa2301", "usa2502", "usa3001", "usa3201", "usa3701", "usa4011", "usl0000", "usl1001", "usl1101", "usl1201", "usl1501", "usl1701", "usl2002", "usl2101", "usl2201", "usl2501", "usl2806", "usl3001", "usl3101", "usl3501", "usl3801", "usl4002", "usl4004", "usl4401", "usl5002", "usn1001", "usn1002", "usn2001", "usn2002", "usn3001", "usn3003", "usn3004", "uss1001", "uss1201", "uss1301", "uss1511", "uss1512", "uss1513", "uss1601", "uss1602", "uss1611", "uss1612", "uss1614", "uss1701", "uss1702", "uss1804", "uss2001", "uss2101", "uss2102", "uss2201", "uss2301", "uss2401", "uss2402", "uss2510", "uss2511", "uss2512", "uss2513", "uss2601", "uss2611", "uss2701", "uss2702", "uss2711", "uss2806", "uss3101", "uss3102", "uss3201", "uss3401", "uss3402", "uss3501", "uss3511", "uss3512", "uss3513", "uss3601", "uss3603", "uss3611", "uss3701", "uss4102", "uss5002", "uss5003", "uss5004", "uss5005", "uss5006", "uss5007", "uss5008", "uss5009", "uss5010", "uss5011", "uss5012", "uss5013", "uss5014", "uss5015", "uss5016", "uss5017", "uss5018", "uss5019", "uss5020", "uss5021", "uss5022", "uss5023" }) do QuickLaunchUnits[id] = true end
+-- SCOM native Chosen Creative quick launch 1.0.0
+QuickLaunchUnits.ucl9505 = true

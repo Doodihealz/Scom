@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>ScomCybranConstruction.Runtime</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <TargetFramework>net40</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup />
+  <ItemGroup />
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Trebuchet">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\Trebuchet.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core" />
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Mathematics">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\Unity.Mathematics.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <PropertyGroup>
+    <SanctuaryEngineDirectory Condition="'$(SanctuaryEngineDirectory)' == '' and '$(SANCTUARY_ENGINE)' != ''">$(SANCTUARY_ENGINE)</SanctuaryEngineDirectory>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,18 @@
+SCOM 1.0.0 - Installation
+AI-Scom 9.0.25-rc30
+
+INSTALLATION
+
+1. Close Sanctuary and extract the entire ScomInstaller.zip to a folder.
+2. Run "Install SCOM.cmd" from that folder.
+3. Select the installed Sanctuary game folder when prompted. The installer checks
+   compatibility and existing files before installing the bundle.
+
+Use the installer when upgrading, so its compatibility and overwrite checks run.
+Keep the extracted scripts and payload folder together during installation.
+
+Includes SCOM, SupCom Style UI, AI-Scom and required components.
+
+Select AI-Scom for AI players in the lobby. Its files install under
+engine/LJ/lua/AI/mods/AI-Scom.
+Gameplay changes: AI Patchnotes.txt. Preserved policies: Balance Rules.txt.

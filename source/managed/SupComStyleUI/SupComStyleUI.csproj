@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>SupComStyleUI</AssemblyName>
+    <GenerateAssemblyInfo>False</GenerateAssemblyInfo>
+    <TargetFramework>net40</TargetFramework>
+  </PropertyGroup>
+  <PropertyGroup>
+    <LangVersion>12.0</LangVersion>
+    <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <PropertyGroup>
+    <RootNamespace />
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="SupComStyleUI.SupComStyleUI.TeamTelemetry.lua" LogicalName="SupComStyleUI.SupComStyleUI.TeamTelemetry.lua" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="Trebuchet">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\Trebuchet.dll</HintPath>
+    </Reference>
+    <Reference Include="BepInEx">
+      <HintPath>$(SanctuaryEngineDirectory)\BepInEx\core\BepInEx.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Core" />
+    <Reference Include="0Harmony">
+      <HintPath>$(SanctuaryEngineDirectory)\BepInEx\core\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>$(SanctuaryEngineDirectory)\Sanctuary_Data\Managed\Unity.InputSystem.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <PropertyGroup>
+    <SanctuaryEngineDirectory Condition="'$(SanctuaryEngineDirectory)' == '' and '$(SANCTUARY_ENGINE)' != ''">$(SANCTUARY_ENGINE)</SanctuaryEngineDirectory>
+  </PropertyGroup>
+</Project>

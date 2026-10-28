@@ -1,0 +1,420 @@
+{
+  "schema": 1,
+  "source_kind": "recovered C# from installed and embedded mod-owned managed assemblies; not original authored source",
+  "recovered_utc": "2026-10-28",
+  "decompiler": {
+    "name": "ilspycmd",
+    "version": "9.1.0.7988",
+    "engine": "ICSharpCode.Decompiler 9.1.0.7988",
+    "layout": "one file per top-level type; nested namespace directories",
+    "options": [
+      "--disable-updatecheck",
+      "--nested-directories",
+      "--project"
+    ]
+  },
+  "inspection": {
+    "tool": "REA 6.4.0",
+    "mode": "execution-free managed metadata inspection"
+  },
+  "components": [
+    {
+      "directory": "Scom",
+      "origin": "installed managed mod assembly",
+      "source_path": "SanctuaryMods/SCOM/Scom-patcher.dll",
+      "sha256": "0abbb4b7faf1919284f087921a55803eeab75800ec5d9e5acc17958f4cf77992",
+      "bytes": 133998592,
+      "assembly": "SupremeCommanderOverhaul-CachePatcher",
+      "assembly_version": "2.1.88.7",
+      "mvid": "b5ee03d6-1757-47c3-a0d9-15af6b0896d2",
+      "rea_evidence": "ev_895edea9b3791069fe25d511ecc66533a5d85a5ff51044b89116ef8ee72534b0",
+      "decompiler_exit_code": 0,
+      "csharp_files": 188,
+      "csharp_bytes": 6466349
+    },
+    {
+      "directory": "ScomLandMotion",
+      "origin": "installed managed mod assembly",
+      "source_path": "BepInEx/plugins/SCOMLandMotion/ScomLandMotion.dll",
+      "sha256": "e67719cab4b1093a72c7a9c1c937b811bfd1f0bd459284479fdc013eb23bb3a0",
+      "bytes": 17920,
+      "assembly": "ScomLandMotion",
+      "assembly_version": "1.0.0.0",
+      "mvid": "6f75eec7-33b1-4846-b15b-6c56c09cc10a",
+      "rea_evidence": "ev_cf1a3e166d6e005342bb44cf7aed00b21ec33e16035d1ba59ded88a8da22a868",
+      "decompiler_exit_code": 0,
+      "csharp_files": 8,
+      "csharp_bytes": 18989
+    },
+    {
+      "directory": "ScomTreeDecay",
+      "origin": "installed managed mod assembly",
+      "source_path": "BepInEx/plugins/SCOMTreeDecay/ScomTreeDecay.dll",
+      "sha256": "5e4a6958cb85eeec37fb9997d0c4e4c9772afc50ea7a90e88cd6d37c56791769",
+      "bytes": 12800,
+      "assembly": "ScomTreeDecay",
+      "assembly_version": "0.0.0.0",
+      "mvid": "7732640a-3188-4868-8e08-77d3c9dcb6ee",
+      "rea_evidence": "ev_ef455914d52a2b7cfb2a31f962c70b5feb85383e003759c7f47c2bbd520a3855",
+      "decompiler_exit_code": 0,
+      "csharp_files": 3,
+      "csharp_bytes": 13044
+    },
+    {
+      "directory": "SupComStyleUI",
+      "origin": "installed managed mod assembly",
+      "source_path": "BepInEx/plugins/SupComStyleUI/SupComStyleUI.dll",
+      "sha256": "97b88d7d9719c0c0e7ab30bc37dfbc399c9a853ffa3494e5a6f9a91a243eaece",
+      "bytes": 189952,
+      "assembly": "SupComStyleUI",
+      "assembly_version": "2.0.4.0",
+      "mvid": "662dd2b0-3c82-4a71-9801-2b61b1dbbdc1",
+      "rea_evidence": "ev_ac4ed8dd7ab0911373a35a2fad9997db5d2824825c2c89f01f1d8713550734bb",
+      "decompiler_exit_code": 0,
+      "csharp_files": 33,
+      "csharp_bytes": 336713
+    },
+    {
+      "directory": "SanctuaryPatcherHost",
+      "origin": "installed managed mod assembly",
+      "source_path": "BepInEx/patchers/SanctuaryPatcherHost.dll",
+      "sha256": "0a395d43480245af95d56fc1086a57ca5a81ebc4439c5dad2e4872b0bd6c6c11",
+      "bytes": 18432,
+      "assembly": "SanctuaryPatcherHost",
+      "assembly_version": "0.1.0.0",
+      "mvid": "e0931bfa-b0c4-4970-8c3a-0f3d687db952",
+      "rea_evidence": "ev_0d47c51b2cefb9888175f8eefd6fb4734068f9a21e0c61fbebec14acc97d9f71",
+      "decompiler_exit_code": 0,
+      "csharp_files": 4,
+      "csharp_bytes": 14119
+    },
+    {
+      "directory": "ModLoader",
+      "origin": "installed managed mod assembly",
+      "source_path": "BepInEx/plugins/ModLoader.dll",
+      "sha256": "c123f0d9ca1311da7cf8ef4ad9eedfc4ddf29a12930696503b448ccc2b5619b8",
+      "bytes": 24576,
+      "assembly": "ModLoader",
+      "assembly_version": "1.4.0.0",
+      "mvid": "69f36f7e-497e-4597-91b2-5315f47fa34a",
+      "rea_evidence": "ev_1967c74039101174c21283a1ff171d2acf0aa60ccf7729562203e6581894b630",
+      "decompiler_exit_code": 0,
+      "csharp_files": 4,
+      "csharp_bytes": 19459
+    },
+    {
+      "directory": "ScomCybranConstruction.Runtime",
+      "origin": "embedded managed mod assembly",
+      "container_source_path": "D:\\Steam\\steamapps\\common\\Sanctuary Shattered Sun Playtest\\engine\\SanctuaryMods\\SCOM\\Scom-patcher.dll",
+      "container_sha256": "0abbb4b7faf1919284f087921a55803eeab75800ec5d9e5acc17958f4cf77992",
+      "resource_name": "ScomCybranConstruction.Runtime.dll",
+      "sha256": "8982389f7dc0162674eacf355f9dd6acf1a59002b05fb74e41b9c945f2b1e377",
+      "bytes": 12800,
+      "assembly": "ScomCybranConstruction.Runtime",
+      "assembly_version": "0.0.0.0",
+      "mvid": "02dcaae3-4bc1-4bc3-a136-3204e28c1138",
+      "rea_evidence": "ev_d69946f555cb0513be2c967b07ac87bf2aa654d42f062423d783cf63e210e3e9",
+      "decompiler_exit_code": 0,
+      "csharp_files": 2,
+      "csharp_bytes": 12822
+    },
+    {
+      "directory": "ScomFatboyTracks.Runtime",
+      "origin": "embedded managed mod assembly",
+      "container_source_path": "D:\\Steam\\steamapps\\common\\Sanctuary Shattered Sun Playtest\\engine\\SanctuaryMods\\SCOM\\Scom-patcher.dll",
+      "container_sha256": "0abbb4b7faf1919284f087921a55803eeab75800ec5d9e5acc17958f4cf77992",
+      "resource_name": "ScomFatboyTracks.Runtime.dll",
+      "sha256": "94178059decf0e947006af9e3e720fab88073a60bc69a8f6cf45854503b27147",
+      "bytes": 27648,
+      "assembly": "FatboyTrackRuntime",
+      "assembly_version": "0.0.0.0",
+      "mvid": "d5476a65-53ab-4b9a-bfbc-1222974038e2",
+      "rea_evidence": "ev_5855eba66adfbfe12ed5c47780f572357c61a2ff786bf0e36a5bda1e45bd589b",
+      "decompiler_exit_code": 0,
+      "csharp_files": 7,
+      "csharp_bytes": 33954
+    },
+    {
+      "directory": "ScomNavalSurfaceFoam.WhiteFoamRuntime",
+      "origin": "embedded managed mod assembly",
+      "container_source_path": "D:\\Steam\\steamapps\\common\\Sanctuary Shattered Sun Playtest\\engine\\SanctuaryMods\\SCOM\\Scom-patcher.dll",
+      "container_sha256": "0abbb4b7faf1919284f087921a55803eeab75800ec5d9e5acc17958f4cf77992",
+      "resource_name": "ScomNavalSurfaceFoam.WhiteFoamRuntime.dll",
+      "sha256": "df42b47c093d8509e803fd36e9dfae3059b9a114b723275b0eea7c19ae9036f3",
+      "bytes": 15872,
+      "assembly": "Scom.NavalFoam.Runtime",
+      "assembly_version": "0.0.0.0",
+      "mvid": "0f735568-4804-4c34-bd3c-23ce2095f79c",
+      "rea_evidence": "ev_9d31faa7da10bfd68a10e62f468bc5146e91c0bcd1c96abb8750f918e9e94e0c",
+      "decompiler_exit_code": 0,
+      "csharp_files": 5,
+      "csharp_bytes": 14269
+    },
+    {
+      "directory": "ScomSeraphimLogo.Runtime",
+      "origin": "embedded managed mod assembly",
+      "container_source_path": "D:\\Steam\\steamapps\\common\\Sanctuary Shattered Sun Playtest\\engine\\SanctuaryMods\\SCOM\\Scom-patcher.dll",
+      "container_sha256": "0abbb4b7faf1919284f087921a55803eeab75800ec5d9e5acc17958f4cf77992",
+      "resource_name": "ScomSeraphimLogo.Runtime.dll",
+      "sha256": "36a2cf8e73e247eb9bb00916faae3014843186c650a579397bf2f4351dc16804",
+      "bytes": 104448,
+      "assembly": "ScomSeraphimLogo.Runtime",
+      "assembly_version": "0.0.0.0",
+      "mvid": null,
+      "rea_evidence": null,
+      "decompiler_exit_code": 0,
+      "csharp_files": 4,
+      "csharp_bytes": 6265
+    }
+  ],
+  "external_dependencies": {
+    "msbuild_property": "SanctuaryEngineDirectory",
+    "alternative_environment_variable": "SANCTUARY_ENGINE",
+    "directories": [
+      "Sanctuary_Data/Managed",
+      "BepInEx/core"
+    ],
+    "bundled": false
+  },
+  "retained_code_and_metadata_resources": [
+    {
+      "path": "Scom/ScomFieldFixes.Footsteps.Decal.colossus_left.sandecal",
+      "bytes": 140,
+      "sha256": "9886e3ad1f2cd47105dd90ffa451551eab750d1627dfa0e00cb90bfc293d7e37"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Footsteps.Decal.colossus_right.sandecal",
+      "bytes": 141,
+      "sha256": "f3eef255f42209e3afe166d35079b7a72d779870a7a5c8327aa7d127c4bb2195"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Footsteps.Decal.commander.sandecal",
+      "bytes": 136,
+      "sha256": "85d8dda3b6fbac5ab662213a3a3f46f726edce1179765396a5b5e24db23cedb2"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Footsteps.Decal.contact.sandecal",
+      "bytes": 134,
+      "sha256": "c8d20031e7c6ca8daa1ecada9c3c70e1c99c32c7772162bac46970f5f153aaf6"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.aeon_12_albedo.sandecal",
+      "bytes": 117,
+      "sha256": "5839029b6825a734234dc780292a97bf7f6bda3499e5e75ba436bedfdacf514a"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.aeon_12_normal.sandecal",
+      "bytes": 117,
+      "sha256": "0cb24978c834e140a2ea5d070b221b52690ee45b3a454431be75527673be723d"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.aeon_6_albedo.sandecal",
+      "bytes": 116,
+      "sha256": "b47f0eea49911c29dfbe1ad71d97d22ab4dedc39197e78cb7863bdee432630e5"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.aeon_6_normal.sandecal",
+      "bytes": 116,
+      "sha256": "5a80ec01e8d8c3a480713474065d877bbcf11d2600e1f4bd9e838b4a7c3d8d3a"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.aeon_8_albedo.sandecal",
+      "bytes": 116,
+      "sha256": "03ec036a03d135bbb4f175f2d597dc4b59058c6df069d0dd28836efa8afaf4bd"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.aeon_8_normal.sandecal",
+      "bytes": 116,
+      "sha256": "c3b11096a035ceeb17ca9a980e032d91dae0073f8d8022ffd8c1f10cc3d2ce88"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.cybran_12_albedo.sandecal",
+      "bytes": 119,
+      "sha256": "401526d5002f81d4c675d99cac01c798920c4ad982c7bb9f63989c62ed873973"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.cybran_12_normal.sandecal",
+      "bytes": 119,
+      "sha256": "7d217950dcf685a63eecf5514937d309ba98e9537499684cab1f0b5b3aace2bc"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.cybran_6_albedo.sandecal",
+      "bytes": 118,
+      "sha256": "a7cba84f567ed35db012ba1bfa3642fc869f8df07fa5c4816f1fe4c119417927"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.cybran_6_normal.sandecal",
+      "bytes": 118,
+      "sha256": "78d5d48df5f2a9dab1f76cbf913b4c92eef11bdddca97848e5d4723dcafc926d"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.cybran_8_albedo.sandecal",
+      "bytes": 118,
+      "sha256": "e93ff3043edd73a412a1a89894ab8a19425d159f386d417856fdabfba775947d"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.cybran_8_normal.sandecal",
+      "bytes": 118,
+      "sha256": "708a783d448458e7a94fb6c5e73d6a46ecc44fac48b3675076165bccb2fa955e"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.seraphim_12_albedo.sandecal",
+      "bytes": 121,
+      "sha256": "22d01f946646c9bf922d7e07ed4f62f19bdbb076ec9ff1318bd2120e42f99149"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.seraphim_12_normal.sandecal",
+      "bytes": 121,
+      "sha256": "a873a9b0831440bffa8d3b0ede5a0e7e9b1f200ab6d937917942810770d5cd5e"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.seraphim_6_albedo.sandecal",
+      "bytes": 120,
+      "sha256": "8092c0e5f4a205df5370bad55f4d93117e6eaba1dab201989b5286bbff7221bd"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.seraphim_6_normal.sandecal",
+      "bytes": 120,
+      "sha256": "4eff7b5217d50bfa55af4be3fe34b28cb0b28861070a51eb2142f9d54c2d2519"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.seraphim_8_albedo.sandecal",
+      "bytes": 120,
+      "sha256": "e180f1d89a75d45a95858d37717232e9fda4b90a22810e4201d9f912698a0d77"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.seraphim_8_normal.sandecal",
+      "bytes": 120,
+      "sha256": "c7ed5f273668d494eb1856cdfc2012865da5f6cf20cd473b38998e0bca02d915"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.uef_12_albedo.sandecal",
+      "bytes": 116,
+      "sha256": "122a0ed9107f2363c2d13e40822dc1a414b08e0588322fc4376a3ca8e9e7377f"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.uef_12_normal.sandecal",
+      "bytes": 116,
+      "sha256": "65042f92b8e5ae4816135b4f8909b4beb0a72f1d23434fd220dfdf052fa97de2"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.uef_6_albedo.sandecal",
+      "bytes": 115,
+      "sha256": "44830a4d2878a538137407d04a5dbccf5744e9a6f40bb2a3b8d98c288935dd82"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.uef_6_normal.sandecal",
+      "bytes": 115,
+      "sha256": "9fcf089b470cd41abb9a5b07405938ba3b0e3d59eb686375abcbd9985ae47d5a"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.uef_8_albedo.sandecal",
+      "bytes": 115,
+      "sha256": "73cc1bdf47c96e64f82e75f8dd547271adf06b9939f35bfb418a71015167801d"
+    },
+    {
+      "path": "Scom/ScomFieldFixes.Tarmac.Decal.uef_8_normal.sandecal",
+      "bytes": 115,
+      "sha256": "fa0b8f4399b3205e4415511da001ef09035db6e7481dce00277b4b3c1408c61e"
+    },
+    {
+      "path": "SupComStyleUI/SupComStyleUI.SupComStyleUI.TeamTelemetry.lua",
+      "bytes": 14834,
+      "sha256": "fc763d90a452e700dc17774236f82bdcc318c812e2cd764e7be84fd4203be878"
+    }
+  ],
+  "omitted_resources": {
+    "reason": "Exclude duplicated fallback Lua/templates, commercial converted assets, shaders, logo image and binary copies; the four mod-owned runtime DLLs have recovered source sibling projects.",
+    "by_extension": {
+      ".sanpack": {
+        "files": 5,
+        "bytes": 114041223
+      },
+      ".lua": {
+        "files": 1605,
+        "bytes": 6114370
+      },
+      ".santp": {
+        "files": 564,
+        "bytes": 2071903
+      },
+      ".dll": {
+        "files": 4,
+        "bytes": 160768
+      },
+      ".bundle": {
+        "files": 1,
+        "bytes": 3108707
+      },
+      ".png": {
+        "files": 1,
+        "bytes": 95042
+      }
+    },
+    "binary_resources": [
+      {
+        "path": "Scom/AeonStructureMotion.AeonExtractorAnimationAssets.sanpack",
+        "extension": ".sanpack",
+        "bytes": 296150
+      },
+      {
+        "path": "Scom/AeonStructureMotion.AeonStorageAnimationAssets.sanpack",
+        "extension": ".sanpack",
+        "bytes": 9166
+      },
+      {
+        "path": "Scom/CommanderEnhancements.uea0001-assets.sanpack",
+        "extension": ".sanpack",
+        "bytes": 80985
+      },
+      {
+        "path": "Scom/ScomCybranConstruction.Runtime.dll",
+        "extension": ".dll",
+        "bytes": 12800
+      },
+      {
+        "path": "Scom/ScomCybranConstruction.Shader.bundle",
+        "extension": ".bundle",
+        "bytes": 3108707
+      },
+      {
+        "path": "Scom/ScomFatboyTracks.Runtime.dll",
+        "extension": ".dll",
+        "bytes": 27648
+      },
+      {
+        "path": "Scom/ScomFieldFixes.FieldFixAssets.sanpack",
+        "extension": ".sanpack",
+        "bytes": 109598131
+      },
+      {
+        "path": "Scom/ScomNavalSurfaceFoam.WhiteFoamRuntime.dll",
+        "extension": ".dll",
+        "bytes": 15872
+      },
+      {
+        "path": "Scom/ScomSeraphimLogo.Runtime.dll",
+        "extension": ".dll",
+        "bytes": 104448
+      },
+      {
+        "path": "Scom/SupremeCommanderOverhaulSeaParity.Assets.SalemAmphibiousAnimationAssets.sanpack",
+        "extension": ".sanpack",
+        "bytes": 4056791
+      },
+      {
+        "path": "ScomSeraphimLogo.Runtime/ScomSeraphimLogo.ClassicGold.png",
+        "extension": ".png",
+        "bytes": 95042
+      }
+    ],
+    "conditional_project_declarations": true
+  },
+  "recovery_limits": [
+    "No target assembly was executed or modified.",
+    "Decompiler output is reconstructed source; original names, comments, project files and build inputs may be unavailable.",
+    "Projects reference private game/BepInEx libraries externally and omit runtime asset resources; no build or runtime equivalence claimed.",
+    "Long inline Lua strings and generated asset/specification tables in C# are preserved as readable behavior; no generated binary byte-array dump was found."
+  ],
+  "decompiler_errors": []
+}
