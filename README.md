@@ -1,130 +1,60 @@
 # SCOM — Supreme Commander Overhaul
 
-**A Supreme Commander: Forged Alliance overhaul for Sanctuary: Shattered Sun.**
+A **Supreme Commander: Forged Alliance** overhaul for **Sanctuary: Shattered Sun**.
 
-SCOM adapts Forged Alliance factions, units, structures, and gameplay systems to Sanctuary. The project covers UEF, Cybran, Aeon, and Seraphim forces, with land, air, and naval combat, experimental units, commander progression, and a companion AI profile.
+**[Download SCOM 1.0.0](https://github.com/Doodihealz/Scom/releases/download/V1.0/ScomInstaller.zip)** · [Releases](https://github.com/Doodihealz/Scom/releases) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
 
-[Download SCOM 1.0.0](https://github.com/Doodihealz/Scom/releases/download/V1.0/ScomInstaller.zip) · [Releases](https://github.com/Doodihealz/Scom/releases) · [Report a bug](https://github.com/Doodihealz/Scom/issues) · [Project activity](https://github.com/Doodihealz/Scom/commits/main/)
+## Features
 
-## Project status
+- Land, air, and naval forces, including experimental units.
+- Commander enhancements, veterancy, economy systems, and Construction Plans.
+- SupCom Style UI and **AI-Scom** for economy, production, expansion, and combat.
 
-SCOM is in active development. **SCOM 1.0.0 is available from the [V1.0 release](https://github.com/Doodihealz/Scom/releases/tag/V1.0).** Download `ScomInstaller.zip` from the release's **Assets** section for the complete mod bundle.
-
-GitHub's **Code → Download ZIP** and the release's automatic **Source code** archives contain the repository files. Use `ScomInstaller.zip` to install the mod.
-
-This overview describes the existing development work and its scope. It does not mean that every feature has been verified in the latest Sanctuary build. The latest AI changes have received source review; they have not been validated through live matches, benchmarks, or automated tests.
-
-Documentation refreshed: **October 27, 2026**.
-
-## Factions
-
-SCOM adapts three of Sanctuary's faction slots and adds Seraphim as a fourth faction.
-
-| SCOM faction | Sanctuary integration |
+| Faction | Sanctuary slot |
 | --- | --- |
-| **UEF** | Uses the EDA faction slot |
-| **Cybran** | Uses the Guard faction slot |
-| **Aeon** | Uses the Chosen faction slot |
-| **Seraphim** | Adds a separate fourth faction |
+| UEF | EDA |
+| Cybran | Guard |
+| Aeon | Chosen |
+| Seraphim | Added fourth faction |
 
-## Overhaul scope
+## Installation
 
-- **Units and structures:** Forged Alliance adaptations spanning engineers, factories, economy, defenses, ground forces, aircraft, and naval forces.
-- **Experimental units:** Work includes the Fatboy, Monkeylord, Megalith, Scathis, Galactic Colossus, and Czar.
-- **Commander enhancements:** Faction-specific upgrade paths, costs, prerequisites, slot conflicts, economy effects, and interface integration.
-- **Economy and technology:** Extractors, power generation, storage, fabrication, factory progression, and construction support.
-- **Veterancy:** Forged Alliance-style kill credit, health and regeneration progression, and unit-panel information.
-- **Construction and presentation:** Construction Plans, structure footprints and placement, factory exits, faction construction beams, unit names, and animation integration.
+Download **ScomInstaller.zip** using the link above. It includes SCOM, SupCom Style UI, AI-Scom, and required components.
 
-The overhaul and its companion AI are separate parts of the project. An enhancement implemented by SCOM is not automatically available to AI-Scom.
+### Recommended: setup
 
-## AI-Scom
-
-**AI-Scom** is the companion Lua AI profile for the overhaul. Its development covers:
-
-| Area | Scope |
-| --- | --- |
-| Economy | Opening construction, extractor expansion and upgrades, power planning, storage adjacency, and surplus-energy fabrication |
-| Production | Factory queues, engineer availability, construction assistance, and technology progression that preserves fighting forces |
-| Land combat | Independent attack groups, raiding, frontline support, defense across multiple approaches, and experimental construction |
-| Air combat | Interceptors, gunships, bomber wings, scouting, and target selection that considers visible threats and anti-air exposure |
-| Naval combat | Fleet composition, weapon-appropriate targets, amphibious warships, and coastal pressure |
-| Expansion | Persistent resource expansion, outposts, and coastal beachheads using capable amphibious or hover engineers |
-| Commanders | Construction, repairs, reclaim, combat support, shelter, and compatible enhancement planning |
-| Coordination | Shared resource commitments, native pathfinding and movement rules, order ownership, and recovery of idle or interrupted work |
-
-AI planning uses the installed faction templates, actual build menus, real costs, and live construction power. Native build permissions, placement restrictions, and accepted work remain authoritative.
-
-### Current AI integration limits
-
-The current AI adapter does not activate teleport, spawned-drone upgrades, or manually launched tactical missiles because the required SCOM host implementations were not included in its supplied source set. These abilities should not be treated as completed AI features.
-
-Coastal beachheads use actual amphibious or hover movement. Transport loading and unloading are not implemented in the supplied host path.
-
-These are limits of the reviewed AI integration, not a claim that the underlying overhaul lacks those systems.
-
-## Installation and upgrades
-
-### Download SCOM 1.0.0
-
-Download [ScomInstaller.zip](https://github.com/Doodihealz/Scom/releases/download/V1.0/ScomInstaller.zip) from the [V1.0 release](https://github.com/Doodihealz/Scom/releases/tag/V1.0). The bundle contains SCOM, SupCom Style UI, AI-Scom, and required components.
-
-### Recommended: use setup
-
-1. Close Sanctuary.
-2. Extract the entire `ScomInstaller.zip` to a folder.
-3. Run `Install SCOM.cmd` from that folder.
-4. Select the installed Sanctuary game folder when prompted.
+1. Close Sanctuary and extract the entire `ScomInstaller.zip`.
+2. Run `Install SCOM.cmd` from the extracted folder.
+3. Select your installed Sanctuary game folder when prompted.
 
 Setup checks your game version and protects existing files. Keep the extracted scripts and `payload` folder together.
 
 ### Manual installation
 
-1. Close Sanctuary.
-2. Extract the entire `ScomInstaller.zip` to a folder.
-3. Open the game's `engine` folder, which contains `Sanctuary.exe`.
-4. Open the extracted installer's `payload` folder.
-5. Copy **all files and folders inside `payload`** into `engine`, preserving the folder structure.
+1. Close Sanctuary and extract the entire `ScomInstaller.zip`.
+2. Open the game's `engine` folder containing `Sanctuary.exe`.
+3. Copy **all files and folders inside `payload`** directly into `engine`, preserving the folder structure.
 
-Copy the contents of `payload` directly into `engine`; the destination should not have an extra `engine/payload` layer. This installs SCOM, SupCom Style UI, AI-Scom, and required components.
+Copy the contents of `payload` so there is no extra `engine/payload` folder.
 
 ### Enable AI-Scom
 
-The AI profile belongs at:
+Select **AI-Scom** for AI players in the lobby. Its profile belongs at:
 
 ```text
 engine/LJ/lua/AI/mods/AI-Scom
 ```
 
-Launch Sanctuary and select **AI-Scom** for AI players in the lobby.
+**Upgrades:** use `Install SCOM.cmd` so compatibility and file-conflict checks run.
 
-### Upgrades
+## Bug reports
 
-**Use setup (`Install SCOM.cmd`) for upgrades** so compatibility and file-conflict checks run.
+[Open an issue](https://github.com/Doodihealz/Scom/issues) with your game and mod versions, faction, map, reproduction steps, and relevant logs.
 
-The AI package includes `INSTALL.txt`, `AI Patchnotes.txt`, and `Balance Rules.txt`. Follow the instructions packaged with the particular build you are installing.
+## Development status
 
-## Reporting problems
-
-Open an [issue](https://github.com/Doodihealz/Scom/issues) and include:
-
-- Your Sanctuary build and SCOM / AI-Scom package versions.
-- The affected faction, unit, structure, or AI behavior.
-- The map, game mode, and relevant lobby settings.
-- Steps to reproduce the problem.
-- What you expected and what actually happened.
-- A relevant log excerpt and, when useful, a screenshot or replay.
-
-For AI reports, describe the situation that led to the behavior: available resources, factories and engineers, technology level, visible threats, and whether the problem repeats. This helps distinguish an economy or placement restriction from an AI decision or recovery problem.
-
-## Development information
-
-The main overhaul includes cache-patcher and game-integration components. AI-Scom uses Lua modules with `formers/` and `strategies/` directories for production, construction, and combat behavior.
-
-Source code and reproducible build instructions are not yet present in this repository. When reviewing development changes, distinguish source review from successful in-game verification; no measured performance or win-rate improvement is claimed here.
+SCOM is in active development. The latest AI changes have been source-reviewed and still need in-game validation. The reviewed AI adapter does not support teleport, spawned-drone upgrades, manual tactical missiles, or transport loading/unloading.
 
 ## Credits and licensing
 
-SCOM is a community fan project built around **Sanctuary: Shattered Sun** and **Supreme Commander: Forged Alliance**. Credit for the original games, designs, and assets belongs to their respective creators.
-
-A complete component attribution list and a repository license have not yet been added. This README does not grant redistribution rights to third-party assets.
+SCOM is a community fan project. Original game assets belong to their respective creators. Source code, a repository license, and full component credits have not yet been added here; third-party assets retain their own terms.
