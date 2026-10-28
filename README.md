@@ -4,8 +4,6 @@
 
 SCOM adapts Forged Alliance factions, units, structures, and gameplay systems to Sanctuary. The project covers UEF, Cybran, Aeon, and Seraphim forces, with land, air, and naval combat, experimental units, commander progression, and a companion AI profile.
 
-Maintained by [Doodihealz](https://github.com/Doodihealz).
-
 [Report a bug](https://github.com/Doodihealz/Scom/issues) · [Releases](https://github.com/Doodihealz/Scom/releases) · [Project activity](https://github.com/Doodihealz/Scom/commits/main/)
 
 ## Project status
