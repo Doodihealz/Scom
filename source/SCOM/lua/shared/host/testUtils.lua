@@ -77,11 +77,51 @@ function DestroyUnitsByIds(unitIds)
     Log("Test Utilities: Destroying units with IDs:\n"..repr(unitIds))
 
     local units = GetUnitsByIDs(unitIds)
+    local cybranCount = 0
     for _, unit in pairs(units) do
-        if not unit.dead then
-            unit:Destroy()
+        if not unit.dead and unit.tpId == "ugl0000" then
+            cybranCount = cybranCount + 1
         end
     end
+
+    local function destroyUnits()
+        for _, unit in pairs(units) do
+            if not unit.dead then
+                local trace = rawget(_G, "SCOSelfDestructTrace")
+                if trace then trace(unit, "destroy-call") end
+                unit:Destroy()
+                if trace then trace(unit, "destroy-return") end
+            end
+        end
+    end
+    if cybranCount < 2 then return destroyUnits() end
+
+    -- Capture only this synchronous bulk command; restore any enclosing trace
+    -- even when a callback fails. No damage, scheduling or death behavior changes.
+    local previousTrace = rawget(_G, "SCOSelfDestructTrace")
+    local markerCount, lastMarker = 0, "batch-start"
+    local prefix = "[SCOM Cybran self-destruct] "
+    local function trace(unit, phase)
+        if unit.tpId ~= "ugl0000" then return end
+        lastMarker = string.format("unit=%s:%s phase=%s", tostring(unit.id.index),
+            tostring(unit.id.version), phase)
+        markerCount = markerCount + 1
+        if markerCount <= 128 then
+            Engine.Warn(prefix .. lastMarker)
+        elseif markerCount == 129 then
+            Engine.Warn(prefix .. "Marker limit reached; final status will still be recorded.")
+        end
+    end
+    Engine.Warn(prefix .. string.format("begin tick=%s cybran=%d selected=%d",
+        tostring(Engine.GetSimulationTick()), cybranCount, #units))
+    _G.SCOSelfDestructTrace = trace
+    local ok, failure = xpcall(destroyUnits, debug.traceback)
+    _G.SCOSelfDestructTrace = previousTrace
+    if not ok then
+        Engine.Warn(prefix .. "failed after " .. lastMarker .. "\n" .. tostring(failure))
+        error(failure, 0)
+    end
+    Engine.Warn(prefix .. "host command completed; markers=" .. markerCount)
 end
 
 function DeleteUnitsByIds(unitIds)

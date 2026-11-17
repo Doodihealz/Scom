@@ -1,6 +1,6 @@
 -- Bounded naval operations use each group's actual native movement capability.
 -- Walking ships retain sea combat and can exploit safe, gun-reachable inland targets.
-Version = "9.0.12-rc13"
+Version = "9.1.1"
 local Selection=Import("AI/mods/AI-Scom/RushSelection.lua")
 local AF=Import("AI/AIFunctions.lua")
 local MG=Import("AI/AIMarkerGenerator.lua")
@@ -253,7 +253,7 @@ local function TargetRange(p,t,units)
     for _,u in ipairs(units or Units(p)) do
         if not Movement.Suspended(u) then
             for _,w in ipairs(u.weapons or {}) do
-                if w.enabled and not w.isDeathExplosion and w:CanShootAt(t) then
+                if w.enabled and not w.isDeathExplosion and Intel.CanShootAt(p.army,w,t) then
                     local tp=w.tp or w;local maximum=tp.rangeMax or w.rangeMax or 0
                     local inner=tp.rangeMin or 0
                     if maximum>inner and maximum>range then range,minimum=maximum,inner end
@@ -293,8 +293,8 @@ function CanEngage(p,unit,target)
         if Own(p,u) and not Movement.Suspended(u) and Compatible(u,layer,p.ai.formerTable.RushHeavyCombat) then
             local reach,minimum=0,0
             for _,weapon in ipairs(u.weapons or {}) do
-                if weapon.enabled and not weapon.isDeathExplosion and weapon:CanShootAt(target) then
-                    if weapon:IsTargetInRange(target) then return true end
+                if weapon.enabled and not weapon.isDeathExplosion and Intel.CanShootAt(p.army,weapon,target) then
+                    if Intel.IsTargetInRange(p.army,weapon,target) then return true end
                     local tp=weapon.tp or weapon;local maximum,inner=tp.rangeMax or 0,tp.rangeMin or 0
                     if maximum>inner and maximum>reach then reach,minimum=maximum,inner end
                 end
@@ -403,7 +403,7 @@ local function TargetStrength(p,t,units)
     for _,u in ipairs(units or Units(p)) do
         if not Movement.Suspended(u) then
             for _,w in ipairs(u.weapons or {}) do
-                if w.enabled and not w.isDeathExplosion and w:CanShootAt(t) then
+                if w.enabled and not w.isDeathExplosion and Intel.CanShootAt(p.army,w,t) then
                     local value,reach=0,0
                     for _,layer in ipairs(layers) do
                         value=math.max(value,AF.GetUnitThreatValueByLayer(u,layer,false) or 0)
@@ -777,8 +777,8 @@ local function EncounterTarget(p,pos,range,g)
             for _,u in ipairs(units) do
                 if not Movement.Suspended(u) then
                     for _,weapon in ipairs(u.weapons or {}) do
-                        if weapon.enabled and not weapon.isDeathExplosion and weapon:CanShootAt(c.unit)
-                            and weapon:IsTargetInRange(c.unit) then inRange=true;break end
+                        if weapon.enabled and not weapon.isDeathExplosion and Intel.CanShootAt(p.army,weapon,c.unit)
+                            and Intel.IsTargetInRange(p.army,weapon,c.unit) then inRange=true;break end
                     end
                 end
                 if inRange then break end
@@ -858,6 +858,10 @@ function Tick(p,hooks)
     if not Live(p) or #Units(p)==0 then return false end
     local army,ai=p.army,p.ai;local op=ai.rushFleet
     local armyAI=army.ai
+    for _,goal in ipairs({op.goal or false,op.pendingRoute or false}) do
+        if goal and goal.unit then goal.unit=Intel.Contact(army,goal.unit) or goal.unit end
+    end
+    if op.microTarget then op.microTarget=Intel.Contact(army,op.microTarget) or op.microTarget end
     local function current() return Live(p) and p.army==army and army.ai==armyAI and p.ai==ai and ai.rushFleet==op end
     local units=Units(p);RefreshThreatLayers(p,units)
     local now=Now();local pos,own,range,g=Geometry(p);ai.rushGeometry=g

@@ -1,4 +1,5 @@
 -- AI-Scom base ownership and factory recovery. Native queues and paid work remain authoritative.
+local UnitState=Import("AI/mods/AI-Scom/RushUnitState.lua")
 local AF = Import("AI/AIFunctions.lua")
 local Creator = Import("AI/AILocationCreator.lua")
 local Reliability = Import("AI/mods/AI-Scom/RushReliability.lua")
@@ -110,7 +111,7 @@ function RecoverNativeQueue(army, factory, canBuild)
     local item = factory.buildQueue and factory.buildQueue[1]
     if not item or factory.productionBehaviorIsActive ~= true
         or not DeadThread(factory.productionBehaviorThread) or factory.isSlaveFactory
-        or factory.upgradeBehaviorIsActive or factory:GetPause() or not army:HasUnitCapSpace()
+        or factory.upgradeBehaviorIsActive or UnitState.IsPaused(factory) or not army:HasUnitCapSpace()
         or Live(factory.unitBeingBuilt) or Live(factory.productionBehaviorTargetUnit)
         or Live(factory.upgradeTarget) or Live(factory.upgradeBehaviorTargetUnit)
         or type(factory.ProductionBehaviorStop) ~= "function"

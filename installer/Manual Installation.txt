@@ -1,4 +1,4 @@
-SCOM 1.0.1 - Manual Installation
+SCOM 1.3.0 - Manual Installation
 
 Recommended: extract ScomInstaller.zip and run "Install SCOM.cmd".
 Setup checks your game version and protects existing files.
@@ -12,4 +12,16 @@ To install manually:
 The AI profile belongs at engine/LJ/lua/AI/mods/AI-Scom.
 Select AI-Scom for AI players in the lobby.
 
-Use setup for upgrades so compatibility and file-conflict checks run.
+Use setup for upgrades so compatibility and file-conflict checks run and the
+previous standalone SupComStyleUI.dll is retired after its exact hash matches.
+The current menu and UI are included in Scom-patcher.dll.
+
+SCOM menu changes include centered mod branding with an animated shine,
+mod and game version labels,
+hidden social links and Report Bug button, consistent button hover highlights,
+and a separate lobby wallpaper that fades smoothly in and out. The original Cybran
+wallpaper is retained for the main menu.
+
+The optional SCOM UI theme follows each player's saved setting. Existing
+settings are preserved. Editable menu/UI source and rebuild tools are in
+source/menu-ui; the installer does not copy source files into the game.

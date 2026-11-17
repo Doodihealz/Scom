@@ -129,51 +129,56 @@ function ConstructionPanel:ShowConstructionButtonsForTier(templatesInTier, isFac
 
     local demoTags = Tags.DEMO_UI_ONLY
 
-    for _, group in pairs(templatesInTier) do
-        if shouldAddSeparator then
-            self.constructionButtons:AddSeparator()
-        end
-
-        shouldAddSeparator = true
-
-        -- make a button for each unit type
-        for _, tpId in ipairs(group) do
-            local template = __Templates.Units[tpId]
-
-            local buttonData = {}
-
-            local isDemoUnit = demoTags[tpId]
-
-            if isDemoUnit then
-                buttonData.emitClickEvents = false
-                buttonData.emitHoverEvents = false
-                buttonData.foreground = { index = 0 }
-                buttonData.background = { index = 0}
-                buttonData.frame = { index = 0 }
-                buttonData.icon = { index = 0}
-                buttonData.iconGlowColor = EngineClasses.float3(0, 0, 0)
-                buttonData.emitClickEvents = false
-                buttonData.emitHoverEvents = false
-            else
-                buttonData.text = ConstructionHotkeys.GetHotkeyForTemplate(tpId, isFactory) or '?'
-                buttonData.foreground = template.general.foregroundIconID or { index = 0 }
-                buttonData.background = template.general.backgroundIconID or { index = 0 }
-                buttonData.icon = template.general.strategicIconID or { index = 0 }
-                buttonData.frame = { index = 0 }
-                buttonData.iconGlowColor = template.general.strategicIconGlowColor
-                buttonData.emitClickEvents = true
-                buttonData.emitHoverEvents = true
-                table.insert(currentDisplayedTemplates, tpId)
+    -- Tier groups are sparse; preserve the declared factory/engineer/economy
+    -- order instead of depending on hash-table iteration.
+    for groupIndex = 1, #self.groupDefinitions do
+        local group = templatesInTier[groupIndex]
+        if group then
+            if shouldAddSeparator then
+                self.constructionButtons:AddSeparator()
             end
 
-            local payload = {
-                panel = self,
-                selectedUnits = selectedUnits,
-                isFactory = isFactory,
-                tpId = tpId
-            }
+            shouldAddSeparator = true
 
-            self.constructionButtons:AddButton(buttonData, ConstructionClickFunction, ConstructionClickFunction, ConstructionHoverFunction, ConstructionHoverFunction, payload)
+            -- make a button for each unit type
+            for _, tpId in ipairs(group) do
+                local template = __Templates.Units[tpId]
+
+                local buttonData = {}
+
+                local isDemoUnit = demoTags[tpId]
+
+                if isDemoUnit then
+                    buttonData.emitClickEvents = false
+                    buttonData.emitHoverEvents = false
+                    buttonData.foreground = { index = 0 }
+                    buttonData.background = { index = 0}
+                    buttonData.frame = { index = 0 }
+                    buttonData.icon = { index = 0}
+                    buttonData.iconGlowColor = EngineClasses.float3(0, 0, 0)
+                    buttonData.emitClickEvents = false
+                    buttonData.emitHoverEvents = false
+                else
+                    buttonData.text = ConstructionHotkeys.GetHotkeyForTemplate(tpId, isFactory) or '?'
+                    buttonData.foreground = template.general.foregroundIconID or { index = 0 }
+                    buttonData.background = template.general.backgroundIconID or { index = 0 }
+                    buttonData.icon = template.general.strategicIconID or { index = 0 }
+                    buttonData.frame = { index = 0 }
+                    buttonData.iconGlowColor = template.general.strategicIconGlowColor
+                    buttonData.emitClickEvents = true
+                    buttonData.emitHoverEvents = true
+                    table.insert(currentDisplayedTemplates, tpId)
+                end
+
+                local payload = {
+                    panel = self,
+                    selectedUnits = selectedUnits,
+                    isFactory = isFactory,
+                    tpId = tpId
+                }
+
+                self.constructionButtons:AddButton(buttonData, ConstructionClickFunction, ConstructionClickFunction, ConstructionHoverFunction, ConstructionHoverFunction, payload)
+            end
         end
     end
 

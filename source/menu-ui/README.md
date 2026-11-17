@@ -1,0 +1,39 @@
+# SCOM 1.3.0 menu, UI, and terrain-mark source
+
+The release installer includes this UI inside `payload/SanctuaryMods/SCOM/Scom-patcher.dll`. It applies to any supported installation; it does not read a developer's desktop or require an extra UI plugin.
+
+The menu includes balanced logo placement and centered overhaul branding with an animated shine, separate mod/game version labels, hidden social links and Report Bug button, consistent gold button borders on hover, and a separate lobby wallpaper with a smooth one-second transition in both directions. Both wallpapers and the original shine GIF are embedded in the mod. The shine is drawn on the live text so its background remains transparent. The subtitle has no underline. The main menu renders the approved gold wallpaper directly, preserving its natural lighting around the commander's silhouette. The optional gold appearance follows the player's SCOM UI preference; saved settings are preserved during upgrades.
+
+Menu dialog and lobby buttons use a flat terrain-brown background (`#5A4D3D`), sampled from the approved wallpaper, with gold text and icons and one thin gold outline. Hover and selected states retain the flat fill and brighten the outline. This includes the two Play menu actions, Pick buttons, faction choices, compact arrows, and Unit Manager actions and restriction controls. The Ready button retains its checked glow and gentle pulse. The main-menu sidebar keeps its original full-size gold icons without boxes or added backgrounds. Shared settings and confirmation buttons keep their previous appearance during gameplay. The in-game HUD is unchanged.
+
+The Classic in-game HUD follows the Supreme Commander reference with steel frames, compact resources at the top left, controls at the top center, a clock and map overview stacked at the top right, unit details and orders at the bottom left, and a build strip across the bottom. Mass uses green resource bars and labels; energy uses yellow-orange. The overview uses the installed map's preview and the client's currently detected units; left click or drag focuses the native camera. Native order, selection, construction, and upgrade callbacks are retained. The in-game HUD preference remains independent of the menu appearance.
+
+Classic uses a 1080-pixel design height on the game's native 2160-pixel HUD canvas, while retaining the player's UI-scale preference. The gameplay canvas scale restores when Classic is disabled. Native command glyphs are decoded from their packed red-channel masks, trimmed, and cached for clear rendering on simple dark tiles. Native glow frames are suppressed only while the replacement is active. Orders use eight columns; selection cards and construction controls occupy separate frames fitted to their contents.
+
+Construction hotkeys use crisp, regular-weight white text on compact dark labels, with room for modified key bindings. Native hotkey text and visibility remain authoritative; selection/queue counts and commander upgrade progress keep their own presentation. The timer matches the minimap's width. Owned text materials keep resource labels green/orange through empty and defeated-player displays, and zero capacity does not trigger a shortage warning. Native alloy-deposit markers use the same lime green as Metal independently of the HUD preference; other markers retain their colors.
+
+The HUD uses opaque dark command tiles, readable dimmed action symbols, cleaner steel rims, and a unit card that avoids repeating the same name. Resource rows reserve separate space for income/expense figures above solid fill bars, without additive endpoint flares crossing the numbers. The compact timer sits above the right-aligned minimap; detailed unit tooltips respect that corner. The two-box layout button waits for Unity's deferred cleanup before rebuilding either preset. It recovers the previous preset if the requested layout fails, cancels pending work when leaving the match or disabling the HUD, and saves a preset only after successful application.
+
+The lobby's checked Ready button stays highlighted with a gold halo and a gentle glow pulse. This follows native local-player readiness for both host and client, without changing the Ready action. The effect stops when unchecked or leaving the lobby, and follows the SCOM UI preference.
+
+Unit Manager fills 96% of the full root canvas, with no outer shadow. Its dark controls keep text legible, and the search field stays dark when focused. The scrolling restriction groups and unit table resize to the available space and the saved font preference; at the default 2560×1440 setup, 24 unit rows fit per page. Native lobby visibility and host permissions, restriction resolution, saved rules, terrain rollback, and Apply/Cancel behavior are retained.
+
+Unit Manager sits in the lobby footer immediately left of Settings, with no caption or separate toolbar panel. When Settings is hidden for clients, or on the Lobby Settings page, it uses the available right edge of the same footer section. The local UI preferences fit between Leave/Return and Unit Manager; narrow windows reserve extra footer rows to keep them visible and readable. Native Ready/Start controls retain their layout and visibility rules. Opening Unit Manager refreshes the catalog and saved custom-group preferences automatically; the separate Reload edits button has been removed. Real opening errors use the native message dialog.
+
+Terrain marks use sampled ground and actual contact rather than treating every below-sea crater floor as water. This repairs nuclear scorch marks for all factions, footprints, and vehicle tracks while retaining native dimensions, fading, visibility, and contact guards. Both fresh-install Lua defaults and an upgrade-safe embedded source transform are included. The runtime repair is independent of UI preferences and optional terrain deformation. Its source and rebuild instructions are in `terrain-marks/README.md`.
+
+The menu palette uses champagne gold, with dark faction option cards and compact gold arrow controls. `ScomMainMenuGold.png` and `ScomLobbyGold.png` are the active, color-graded wallpapers; the commander has a darker metallic gold finish. Both are deterministic color corrections of the original pixels, preserving the face, armor seams and all spatial detail. The original wallpaper files remain embedded unchanged. The color-grade recipe is recorded in `integrated-ui/Assets/GoldArtworkPrompts.txt`, with its dependency-free .NET 8 tool in `artwork-tools`. Startup logs state whether the separately saved in-game HUD is On or Off.
+
+## Rebuild the embedded UI
+
+Use Python 3, a .NET 8 SDK, the supported game installation with BepInEx, and the `Scom-patcher.dll` from this release. From this folder run:
+
+```sh
+python rebuild/build.py --engine "/path/to/game/engine" --dotnet "/path/to/dotnet" --work "/path/to/build-folder" --base-patcher "/path/to/Scom-patcher.dll" --output "/path/to/candidate/Scom-patcher.dll"
+```
+
+The base DLL is read-only. The tool compiles `integrated-ui` as `Scom.UI.Runtime.dll`, embeds the artwork and Lua resources, replaces the UI resource in the candidate, and verifies preservation of the rest of the mod's methods, metadata, and resources. Close the game before installing the candidate.
+
+`integrated-ui/build.ps1` can compile the UI runtime directly on Windows using `-Engine` and an optional `-Output`. The Python entry point above also performs integration and preservation verification.
+
+This is the buildable menu/UI and terrain-mark repair portion of the mod. The rest of SCOM's recovered source remains available in its repository; these tools retain the remaining gameplay implementation in the supplied base DLL. Game and BepInEx reference assemblies are obtained from the recipient's installation and are not bundled in this source folder.

@@ -1,8 +1,11 @@
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
 -- Shared, short-lived spatial view of the NATIVE AI's enemy knowledge.
 -- Never reads enemy armies' unit tables. No telemetry/ground-truth input.
-Version = "9.0.25-rc30"
+Version = "9.1.1"
 local AF = Import("AI/AIFunctions.lua")
 local Policy = Import("AI/mods/AI-Scom/RushCombatPolicy.lua")
+local MG = Import("AI/AIMarkerGenerator.lua")
+local Movement = Import("AI/mods/AI-Scom/RushMovement.lua")
 local CELL = 64
 local caches = setmetatable({}, { __mode = "k" })
 local ownerCaches = setmetatable({}, { __mode = "k" })
@@ -28,11 +31,65 @@ local function Record(u)
     return {unit=u,owner=u.army,pos=Position(u)}
 end
 local function RecordLess(a,b) return a.sortId<b.sortId end
-local function Observed(army,u)
+function Detected(army,u)
     return u and not u.dead and not u.deleted and not u.CaptureInProgress and not u.ReclaimInProgress
         and u.army and army:IsEnemy(u.army)
         and ((type(u.IsIntelVisionVisible)=="function" and u:IsIntelVisionVisible(army))
-            or (type(u.IsIntelRadarVisible)=="function" and u:IsIntelRadarVisible(army))) or false
+            -- Full host units may outlive visual contact in a cached goal. Only
+            -- observer-owned sanitized contacts authorize radar/sonar scoring.
+            or u.aiIntelObserverArmyIndex==army.id and
+                ((type(u.IsIntelRadarVisible)=="function" and u:IsIntelRadarVisible(army))
+                    or (type(u.IsIntelSonarVisible)=="function" and u:IsIntelSonarVisible(army)))) or false
+end
+local Observed=Detected
+local function EnemyKey(u)
+    local id=u and u.id
+    return id and id.index~=nil and id.version~=nil and tostring(id.index)..":"..tostring(id.version) or nil
+end
+function SameTarget(a,b)
+    if a==b then return true end
+    local first,second=a and a.id,b and b.id
+    return first and second and first.index~=nil and first.version~=nil
+        and first.index==second.index and first.version==second.version or false
+end
+-- Sanitized radar/sonar contacts remain the scoring records. Resolve a host
+-- unit only inside native permission/range/setter calls; never return it to policy.
+local function HostTarget(army,target)
+    if not army or not target or not target.id then return nil end
+    local host=AF.GetDetectedEnemyHostUnit(army.id,target.id)
+    if host and not host.dead and not host.deleted and host.army and army:IsEnemy(host.army)
+        and not host.CaptureInProgress and not host.ReclaimInProgress then return host end
+end
+function CanShootAt(army,weapon,target)
+    local host=HostTarget(army,target)
+    return host~=nil and weapon~=nil and weapon:CanShootAt(host) or false
+end
+function IsTargetInRange(army,weapon,target)
+    local host=HostTarget(army,target)
+    return host~=nil and weapon~=nil and weapon:IsTargetInRange(host) or false
+end
+function SetPreferredTarget(unit,target)
+    unit:SetWeaponPreferredTarget(target and HostTarget(unit.army,target) or nil)
+end
+function IncomingDamage(army,target)
+    local host=HostTarget(army,target)
+    if not host then return 0 end
+    return Import("host/managers/targeting/targeterManager.lua").GetIncomingDamage(host,army)
+end
+local function EnemyRecord(cache,unit)
+    return cache.byEnemy[unit] or cache.byEnemyId[EnemyKey(unit)]
+end
+-- Refresh retained objectives through the native observer record when vision
+-- changes. The exact global ID keeps an accepted mission/claim intact.
+function Contact(army,target)
+    if not army or not target then return nil end
+    local contact=AF.GetEnemyIntelUnit(army.id,target)
+    if not contact or not Detected(army,contact) then return nil end
+    local cache=caches[army];local record=cache and EnemyRecord(cache,target)
+    if record and record.owner==contact.army then
+        record.unit=contact;cache.byEnemy[contact]=record
+    end
+    return contact
 end
 local function AppendRecords(result,seen,units,army)
     for _,u in pairs(units or {}) do
@@ -66,10 +123,14 @@ local function Value(r,layer)
 end
 -- Reuse the same native half-second record for defensive force accounting.
 -- The caller must still decide whether the unit can reach or shoot its objective.
+local function KnownRecord(army,unit)
+    local contact=Contact(army,unit)
+    local r=contact and EnemyRecord(Get(army),contact)
+    if r and Live(r) and Observed(army,contact) and Observed(army,r.unit) then return r end
+end
 function KnownThreat(army,unit,layer)
-    local r=unit and Get(army).byEnemy[unit]
-    if r and Live(r) and Observed(army,unit) then return Value(r,layer or "Land") end
-    return 0
+    local r=KnownRecord(army,unit)
+    return r and Value(r,layer or "Land") or 0
 end
 function IsStatic(unit)
     return unit:HasTags(Tags.STRUCTURE)
@@ -92,6 +153,17 @@ local function Range(r,layer)
         r.ranges[layer]=math.max(0,AF.GetUnitMaximumWeaponRangeByLayer(r.unit,layer) or 0)
     end
     return r.ranges[layer]
+end
+-- Base alarms and defense use the same observed record for both values. Avoid
+-- resolving the contact and rereading native armament for every consumer.
+function KnownArmament(army,unit,layer)
+    if not Observed(army,unit) then return 0,0 end
+    local r=KnownRecord(army,unit);layer=layer or "Land"
+    if r then
+        local value=Value(r,layer)
+        return value,value>0 and Range(r,layer) or 0
+    end
+    return 0,0
 end
 
 -- Owned/allied positions are shared by owner, not copied and sorted once for
@@ -132,8 +204,11 @@ function Get(army)
     stats.builds=stats.builds+1
     cache={at=now,expires=now+Policy.Config.SnapshotSeconds,
         enemy=SortedRecords(AF.GetEnemyUnitsOnMap(army.id),army),friendlyShards={},
-        enemyGrid={},byEnemy={},maximumRange={},enemyLayers={},stats=stats}
-    for _,r in ipairs(cache.enemy) do Add(cache.enemyGrid,r);cache.byEnemy[r.unit]=r end
+        enemyGrid={},byEnemy={},byEnemyId={},maximumRange={},enemyLayers={},stats=stats}
+    for _,r in ipairs(cache.enemy) do
+        Add(cache.enemyGrid,r);cache.byEnemy[r.unit]=r
+        local key=EnemyKey(r.unit);if key then cache.byEnemyId[key]=r end
+    end
     local owners={}
     for _,other in pairs(Armies or {}) do
         if other==army or army:IsAlly(other) then owners[#owners+1]=other end
@@ -180,8 +255,31 @@ end
 function Visible(army,unit)
     -- Cached membership is last observation, never permission to read a unit's
     -- live hidden position after it leaves vision/radar between snapshots.
-    local r=unit and Get(army).byEnemy[unit]
+    local r=unit and EnemyRecord(Get(army),unit)
     return r and Live(r) and Observed(army,unit) or false
+end
+
+-- Production shares observed contacts with combat. An unfinished turret is a
+-- target, but cannot justify diverting the army into siege production yet.
+function Composition(army)
+    local c=Get(army)
+    if c.composition then return c.composition end
+    local result={landDefenseCount=0,landDefenseThreat=0,landMobileThreat=0}
+    for _,r in ipairs(c.enemy) do
+        if r.completed and Live(r) and Observed(army,r.unit) and not r.unit:HasTags(Tags.AIR) then
+            local threat=Value(r,"Land")
+            if threat>0 then
+                if IsStatic(r.unit) then
+                    result.landDefenseCount=result.landDefenseCount+1
+                    result.landDefenseThreat=result.landDefenseThreat+threat
+                elseif r.unit:HasTags(Tags.MOBILE) then
+                    result.landMobileThreat=result.landMobileThreat+threat
+                end
+            end
+        end
+    end
+    c.composition=result
+    return result
 end
 
 -- Disjoint range bands avoid letting ONE map-range weapon turn every local
@@ -293,10 +391,38 @@ local function VisitFriendly(army,pos,radius,fn)
         end
     end
 end
+-- A nearby mobile is support only when its guns already reach the position or
+-- its own movement layer connects to it. Distance discounts reinforcements that
+-- have not joined yet; graph labels are cached in the half-second owned record.
+local function SupportWeight(r,pos,radius,layer,destinationAreas)
+    local distance=math.sqrt(D2(r.pos,pos))
+    local reach=Range(r,layer)
+    if distance<=reach then return 1 end
+    if IsStatic(r.unit) then return 0 end
+    local movement=r.supportLayer
+    if not movement then movement=Movement.UnitMovementLayer(r.unit);r.supportLayer=movement end
+    if not movement then return 0 end
+    if movement~="Air" then
+        if not MG.IsMarkerGridPresent() then return 0 end
+        r.supportAreas=r.supportAreas or {}
+        local area=r.supportAreas[movement]
+        if not area then area=MG.GetGraphAreaAtPosition(r.pos,movement,true);r.supportAreas[movement]=area end
+        local destination=destinationAreas[movement]
+        if destination==nil then
+            destination=MG.GetGraphAreaAtPosition(pos,movement,true) or false
+            destinationAreas[movement]=destination
+        end
+        if not area or not destination or area~=destination then return 0 end
+    end
+    return math.max(0,1-(distance-reach)/math.max(16,radius))
+end
 function FriendlyThreat(platoon,pos,radius,layer,mobileOnly)
     local threat,allied=0,0
+    local destinationAreas={}
     VisitFriendly(platoon.army,pos,radius,function(r)
         local u=r.unit
+        -- The querying force never contributes to its own support sum.
+        if u.platoon==platoon then return end
         -- An escaping force cannot underwrite a fresh assault or keep a
         -- supported primary committed after that force has disengaged.
         local supportPlatoon=u.platoon
@@ -313,11 +439,11 @@ function FriendlyThreat(platoon,pos,radius,layer,mobileOnly)
             -- withdrawal cannot permanently hide a regrouped nearby force.
             withdrawing=operation.policy.phase=="Retreat"
         end
-        if u.platoon~=platoon and not (u.ai and u.ai.eState=="RepairHome")
-            and not withdrawing and not (u.toggles and u.GetPause and u:GetPause())
+        if not (u.ai and u.ai.eState=="RepairHome")
+            and not withdrawing and not (RushUnitState.IsPaused(u))
             and (not IsStatic(u) or D2(r.pos,pos)<=Range(r,layer)^2)
             and (not mobileOnly or (u:HasTags(Tags.MOBILE) and not u:HasTags(Tags.ENGINEER+Tags.COMMAND))) then
-            local v=Value(r,layer);threat=threat+v
+            local v=Value(r,layer)*SupportWeight(r,pos,radius,layer,destinationAreas);threat=threat+v
             if u.army~=platoon.army then allied=allied+v end
         end
     end)
@@ -426,8 +552,22 @@ function InWeaponRange(geometry,target)
     if not target or target.dead or target.deleted then return false end
     for _,item in ipairs(geometry.points) do
         for _,weapon in ipairs(item.unit.weapons or {}) do
-            if weapon.enabled and not weapon.isDeathExplosion and weapon:CanShootAt(target)
-                and weapon:IsTargetInRange(target) then return true end
+            if weapon.enabled and not weapon.isDeathExplosion and CanShootAt(item.unit.army,weapon,target)
+                and IsTargetInRange(item.unit.army,weapon,target) then
+                local ai=item.unit.ai;local cache=ai and ai.landMicroTerrainCache
+                local tp=weapon.tp or weapon
+                local blocked=cache and cache.blocked and cache.target==target and cache.rangeRingType==tp.rangeRingType
+                    and ai.weaponMicroData and ai.weaponMicroData.primaryWeapon==weapon
+                    and cache.checkedAt and Now()>=cache.checkedAt and Now()-cache.checkedAt<=3
+                if blocked then
+                    local ownPos,targetPos=item.unit:GetPosition(),target:GetPosition()
+                    blocked=(ownPos.x-cache.unitPositionX)^2+(ownPos.z-cache.unitPositionZ)^2<=4
+                        and (targetPos.x-cache.targetPositionX)^2+(targetPos.z-cache.targetPositionZ)^2<=4
+                end
+                -- A current blocked firing line is approach work, not contact.
+                -- The ordinary no-contact watchdog can then release a stuck wave.
+                if not blocked then return true end
+            end
         end
     end
     return false

@@ -1,3 +1,4 @@
+local SCOM_MeshContact = Import('common/systems/scoMeshContact.lua')
 local SCOM_EditableUnits = Import("scom/editableUnits.lua")
 local IsBeamWeapon = Import("common/utilities/beams.lua").IsBeamWeapon
 local HierarchyTemplateLoader = Import("common/loading/hierarchyTemplateLoader.lua")
@@ -386,6 +387,221 @@ local function CreateColliderEntity(entityColliderName, entityColliderParent, vo
     table.insert(globalVolumeColliderTemplates, volumeColliderTemplate)
 end
 
+-- Editable source weapons do not run the legacy source finalizers. These
+-- existing stock one-shots cover their firing roles without owning a new loop.
+-- Keep the mapping explicit: helper/death weapons have no firing muzzle path.
+local SCOM_SourceWeaponAudio = {
+    pab101 = "acom2120",
+    pab301 = "acom2143",
+    pbf0001 = "agom1124",
+    pbf0003 = "aeom5230",
+    pbf0004 = "acom2140",
+    pbf0005 = "agom1110",
+    pbf0006 = "acom2140",
+    pbf0007 = "acom2143",
+    peb101 = "aeom3210",
+    peb301 = "aeom3230",
+    ped271 = "aeom5232",
+    pep305 = "aeom1130",
+    pgb101 = "agom1210",
+    pgb301 = "agom2340",
+    pmg402 = "acom3134",
+    pmg403 = "agom1125",
+    psb101 = "acom2120",
+    psb202 = "acom2143",
+    psb301 = "acom2143",
+    psf0002 = "acom5114",
+    psf0003 = "acom3134",
+    psf0004 = "agom1110",
+    psf0005 = "agom2234",
+    psf0006 = "agom1220",
+    psf0007 = "agom1220",
+    psf0008 = "agom1121",
+    psf0009 = "agom1115",
+    psf0010 = "agom1121",
+    psf0011 = "agom1220",
+    psf0012 = "agom1220",
+    psf0013 = "agom1130",
+    psf0014 = "agom1116",
+    psf0015 = "agom1130",
+    psf0016 = "agom1130",
+    psf0017 = "agom1110",
+    psf0018 = "agom1220",
+    psf0019 = "agom1220",
+    psf0020 = "agom1220",
+    psf0021 = "agom1220",
+    psf0022 = "agom1220",
+    psf0023 = "aeom5225",
+    psf0024 = "aeom3134",
+    psf0025 = "aeom1111",
+    psf0026 = "aeom1112",
+    psf0027 = "aeom3134",
+    psf0028 = "aeom3114",
+    psf0029 = "aeom5230",
+    psf0030 = "aeom1114",
+    psf0031 = "aeom1110",
+    psf0032 = "aeom1130",
+    psf0033 = "aeom1130",
+    psf0034 = "aeom3114",
+    psf0035 = "aeom3114",
+    psf0036 = "aeom3114",
+    psf0037 = "aeom1111",
+    psf0038 = "aeom3230",
+    psf0039 = "aeom3134",
+    psf0040 = "aeom3230",
+    psf0041 = "aeom3210",
+    psf0042 = "aeom3134",
+    psf0043 = "aeom3134",
+    psf0044 = "acom1112",
+    psf0045 = "acom1121",
+    psf0046 = "acom3134",
+    psf0047 = "acom1111",
+    psf0048 = "acom1112",
+    psf0049 = "acom3134",
+    psf0050 = "acom3134",
+    psf0051 = "acom3134",
+    psf0052 = "acom3134",
+    psf0053 = "acom3134",
+    psf0054 = "acom3134",
+    psf0055 = "acom3134",
+    psf0056 = "acom5114",
+    psf0057 = "acom1130",
+    psf0058 = "acom2130",
+    psf0059 = "acom5121",
+    psf0060 = "acom1114",
+    psf0061 = "acom2124",
+    psf0062 = "acom1333",
+    psf0063 = "acom2124",
+    psf0064 = "acom1140",
+    psf0065 = "acom2131",
+    psf0066 = "acom1333",
+    psf0067 = "acom2120",
+    psf0068 = "acom2130",
+    psf0069 = "acom2234",
+    psf0070 = "acom1114",
+    psf0071 = "acom2134",
+    psf0072 = "acom2224",
+    psf0073 = "acom3134",
+    psf0074 = "acom3134",
+    psf0075 = "acom3134",
+    psf0076 = "acom1210",
+    psf0077 = "acom1230",
+    psf0078 = "acom2234",
+    psf0079 = "acom3134",
+    psf0080 = "agom1110",
+    psf0081 = "agom1121",
+    psf0082 = "agom1121",
+    psf0083 = "agom1121",
+    psf0084 = "agom1220",
+    psf0085 = "agom1220",
+    psf0086 = "agom1220",
+    psf0087 = "agom1130",
+    psf0088 = "agom1130",
+    psf0089 = "agom1130",
+    psf0091 = "agom1130",
+    psf0092 = "agom1130",
+    psf0094 = "agom1114",
+    psf0096 = "agom2340",
+    psf0098 = "agom1220",
+    psf0100 = "acom1112",
+    psf0101 = "acom2142",
+    psf0102 = "acom2142",
+    psf0106 = "acom1121",
+    psf0107 = "acom2142",
+    psf0109 = "acom1111",
+    psf0111 = "acom1112",
+    psf0112 = "acom1112",
+    psf0113 = "acom1111",
+    psf0114 = "acom3134",
+    psf0115 = "acom3134",
+    psf0116 = "acom3134",
+    psf0117 = "acom3134",
+    psf0118 = "acom3134",
+    psf0119 = "acom3134",
+    psf0120 = "acom3134",
+    psf0121 = "acom3134",
+    psf0123 = "acom2110",
+    psf0126 = "acom5121",
+    psf0127 = "acom5121",
+    psf0129 = "aeom1130",
+    psf0130 = "acom2110",
+    psf0132 = "acom1114",
+    psf0133 = "acom2110",
+    psf0135 = "acom2130",
+    psf0136 = "acom3134",
+    psf0137 = "acom3134",
+    psf0138 = "acom3134",
+    psf0139 = "acom3134",
+    psf0140 = "acom3134",
+    psf0146 = "aeom3134",
+    psf0148 = "aeom3134",
+    psf0149 = "aeom3134",
+    psf0150 = "aeom3134",
+    psf0151 = "aeom1110",
+    psf0154 = "aeom1130",
+    psf0157 = "aeom3114",
+    psf0158 = "aeom1130",
+    psf0161 = "aeom3134",
+    psf0162 = "aeom3134",
+    psf0163 = "acom3134",
+    psf0164 = "acom2110",
+    psf0167 = "agom1120",
+    psf0173 = "acom1130",
+    psf0175 = "acom3134",
+    psf0176 = "acom3134",
+    psf0177 = "acom3134",
+    psf0178 = "agom1220",
+    psf0179 = "acom3134",
+    psf0180 = "aeom3134",
+    psf0181 = "agom1220",
+    psf0182 = "acom3134",
+    psf5035 = "aeom5224",
+    pst001 = "aeom3134",
+    pst002 = "acom3134",
+    pst003 = "agom1220",
+    pst004 = "acom3134",
+    pst006 = "aeom1111",
+    pst007 = "acom3134",
+    pst008 = "acom3134",
+}
+
+-- These legacy names are missing or have zero Play actions in the current bank.
+local SCOM_UnusableWeaponAudio = {
+    agom1221 = true,
+    agom3230 = true,
+    agom3134 = true,
+    acom4112 = true,
+    aclm5132 = true,
+    acom1132 = true,
+}
+
+local function SCOM_PrepareWeaponAudio(tp)
+    if not SCOM_EditableUnits.IsEditable(tp) or tp.general.tpId == "ucl9505" then return end
+    for index, weapon in ipairs(tp.weapons or {}) do
+        local projectile = weapon.projectileTemplate
+        local groups = weapon.muzzleGroups
+        if type(projectile) == "string" and type(groups) == "table" and #groups > 0 then
+            local audio = weapon.audio and weapon.audio.onFire
+            local event = SCOM_SourceWeaponAudio[projectile]
+            -- Thaam has a populated stock event but was reported silent. Use
+            -- the established one-shot EDA cannon instead; leave its cadence native.
+            if tp.general.tpId == "usl1001" and index == 1 and projectile == "psf0129"
+                and audio and audio.name == "acom2110" then
+                event = "aeom1130"
+            elseif audio and audio.name and not SCOM_UnusableWeaponAudio[audio.name] then
+                event = nil
+            end
+            if event then
+                weapon.audio = weapon.audio or {}
+                audio = audio or {}
+                audio.name = event
+                audio.looping = false
+                weapon.audio.onFire = audio
+            end
+        end
+    end
+end
+
 --- Converts loaded unit template to a unit prefab and registers it with the engine.
 -- @param the unit template
 function CreateUnitPrefab(tp)
@@ -393,6 +609,7 @@ function CreateUnitPrefab(tp)
         SCO_SourceFinalizeTemplate(tp)
         SCO_ApplyCommanderWeaponBrightness(tp)
     end
+    SCOM_PrepareWeaponAudio(tp)
     -- Editable Aeon templates use the same shield-colored death presentation.
     SCO_ApplyAeonDeathSmokeVisuals(tp)
 
@@ -808,7 +1025,7 @@ function CreateUnitPrefab(tp)
         elseif table.find(tp.tags, "CHOSEN") then
             constructionBeamMaterialPath = "VFX/SCOM/ConstructionBeams/aeon.sanmaterial"
         elseif table.find(tp.tags, "SERAPHIM") then
-            constructionBeamMaterialPath = "VFX/SCOM/ConstructionBeams/seraphim.sanmaterial"
+            constructionBeamMaterialPath = "VFX/SCOM/ConstructionBeams/seraphim_blue.sanmaterial"
         else
             constructionBeamMaterialPath = "VFX/SCOM/ConstructionBeams/uef.sanmaterial"
         end
@@ -1519,6 +1736,7 @@ function CreateUnitPrefab(tp)
     SCO_SourceDynamicVisuals(tp, prefabTemplate)
     SCO_FactoryClearancePrefab(tp, prefabTemplate)
     SCO_SourcePodAttachments(tp, prefabTemplate)
+    SCOM_MeshContact.Prepare(tp, prefabTemplate, meshPath)
     return Engine.CreatePrefab(prefabTemplate)
 end
 
@@ -2695,8 +2913,8 @@ function SCO_FieldFixUniversalUef(tp, tpId)
             muzzle = "Turret_Muzzle01", projectile = "psn003",
             maxAmmo = 5, rangeMin = 0, rangeMax = 20000,
             alloys = 12000, energy = 1350000,
-            innerDamage = 140000, innerRadius = 60,
-            outerDamage = 1000, outerRadius = 80,
+            innerDamage = 140000, innerRadius = 30,
+            outerDamage = 1000, outerRadius = 40,
             creativeSpawnAmmo = 5,
             -- SCOM Apocalypse source flight 4.0.0
             apocalypseFlight = {
@@ -5356,7 +5574,7 @@ function SCO_FieldFixAeonSeraphim(tp, tpId)
         end
         additions.multiConstructionBeam = {
             prefabName = "SCOM_SeraphimNavalMuzzleBeam",
-            materialPath = "VFX/SCOM/ConstructionBeams/seraphim.sanmaterial",
+            materialPath = "VFX/SCOM/ConstructionBeams/seraphim_blue.sanmaterial",
             shrink = 0.05, -- existing imported factory beam width
         }
         additions.seraphimNavalBuildPods = {
@@ -6588,14 +6806,17 @@ function CreateUnitPrefab(tp)
     return errorCode, unitPrefabId
 end
 
--- Shared SCOM tree motion. Unit modules opt in; map setup owns registration.
+-- Shared SCOM tree motion and terrain support. Map setup owns registration.
 do
     local CellSize, MaximumFalls = 16, 128
+    local MaximumNuclearFalls, MaximumImpactAttempts = 1024, 128
     local SweepingUnits = {uel4511 = true, ugl4001 = true, ucl4004 = true,
         usl4004 = true, ugl4002 = true, ugl4011 = true}
     local MaximumImpactRadius = 64
     local MaximumNukeImpactRadius = 192
     local cells, falls, fallThread = {}, {}, nil
+    local terrainOnlyCells = {}
+    local persistentCells, resourceCells = {}, nil
     local impactQueue, impactHead, impactTail = {}, 1, 0
     local SinkStart, FadeStart, CleanupTime = 420, 465, 480
     local pending, pendingHead, pendingTail = {}, 1, 0
@@ -6603,6 +6824,11 @@ do
     local clientFades, clientFadeThread = {}, nil
     local installed, generation = false, 0
     local registered, reported = 0, {}
+    local preparedTerrainChange
+
+    local function treeIsValid(tree)
+        return not tree.terrainRemoved and Engine.IsValidGlobalID(tree.id)
+    end
 
     local function reportOnce(key, message)
         if reported[key] then return end
@@ -6619,12 +6845,20 @@ do
     end
 
     local function treeDefinition(tp)
-        local tagged = false
+        local visuals = tp.visuals
+        if not visuals or visuals.isWreckage then return end
+        local persistent = {persistent = true}
+        local tagged, harvestable, treeFire = false, false, false
         for _, tag in ipairs(tp.tags or {}) do
             if tag == "KNOCKDOWNABLE" then tagged = true end
+            if tag == "HARVESTABLE" then harvestable = true end
         end
-        if not tp.collider or not tp.collider.size then return end
+        if not tp.collider or not tp.collider.size then return persistent end
         for _, effect in ipairs(tp.effects or {}) do
+            if effect.type == "FireEffect"
+                and effect.effect == "VFX/Environment/vxe4205_Tree_Fire_Procedural.sanvfx" then
+                treeFire = true
+            end
             if effect.type == "KnockdownEffect" and (tagged or effect.tag == "KNOCKDOWNABLE")
                 and finite(effect.maxRotation)
                 and effect.maxRotation >= 30 then
@@ -6635,13 +6869,34 @@ do
                     duration = effect.duration}
             end
         end
+        -- Native dead trees have tree-fire effects but no knockdown effect.
+        -- Register their support without giving static props fall animations.
+        local lod = visuals and visuals.lods and visuals.lods[1]
+        local model = lod and lod.model
+        if harvestable and treeFire and visuals and not visuals.isWreckage and type(model) == "string"
+            and model:match("^Environment/[^/]+/Props/") then
+            local size = tp.collider.size
+            return {height = size.y,
+                width = math.max(finite(size.x) and math.abs(size.x) or 0,
+                    finite(size.z) and math.abs(size.z) or 0), terrainOnly = true}
+        end
+        return persistent
     end
 
     local function register(definition, id, position, scale, rotation)
         if not definition or not id or not id.index or id.index <= 0 then return end
+        if definition.persistent then
+            local prop = {id = {index = id.index, version = id.version},
+                x = position.x, y = position.y, z = position.z}
+            local key = cellKey(prop.x, prop.z)
+            local bucket = persistentCells[key] or {}
+            persistentCells[key] = bucket
+            bucket[#bucket + 1] = prop
+            return
+        end
         local q = rotation.value
-        -- Already fallen scenery must retain its authored pose.
-        if 1 - 2 * (q.x * q.x + q.z * q.z) < 0.8 then return end
+        -- Already fallen scenery keeps its pose but still needs crater cleanup.
+        local upright = not definition.terrainOnly and 1 - 2 * (q.x * q.x + q.z * q.z) >= 0.8
         local height = definition.height * scale.y
         if not finite(height) or height <= 0 then return end
         local duration = definition.duration or {x = 1, y = 2}
@@ -6654,16 +6909,20 @@ do
             rotation = {value = {x = q.x, y = q.y, z = q.z, w = q.w}},
             angle = definition.angle, duration = low + (high - low) * (id.index % 97) / 96}
         local key = cellKey(tree.x, tree.z)
-        local bucket = cells[key] or {}
-        cells[key] = bucket
+        local index = upright and cells or terrainOnlyCells
+        local bucket = index[key] or {}
+        index[key] = bucket
         bucket[#bucket + 1] = tree
-        registered = registered + 1
+        if upright then registered = registered + 1 end
     end
 
     local function reset()
         if fallThread then KillThread(fallThread); fallThread = nil end
         if cleanupThread then KillThread(cleanupThread); cleanupThread = nil end
         if clientFadeThread then KillThread(clientFadeThread); clientFadeThread = nil end
+        preparedTerrainChange = nil
+        terrainOnlyCells = {}
+        persistentCells, resourceCells = {}, nil
         cells, falls = {}, {}
         impactQueue, impactHead, impactTail = {}, 1, 0
         pending, pendingHead, pendingTail, sinking = {}, 1, 0, {}
@@ -6755,16 +7014,17 @@ do
                 local tree = pending[pendingHead]
                 pending[pendingHead] = nil
                 pendingHead = pendingHead + 1
-                if Engine.IsValidGlobalID(tree.id) then sinking[#sinking + 1] = tree end
+                if treeIsValid(tree) then sinking[#sinking + 1] = tree end
             end
             if pendingHead > pendingTail then pending, pendingHead, pendingTail = {}, 1, 0 end
             for index = #sinking, 1, -1 do
                 local tree = sinking[index]
                 local elapsed = now - tree.started
-                if not Engine.IsValidGlobalID(tree.id) then
+                if not treeIsValid(tree) then
                     table.remove(sinking, index)
                 elseif elapsed >= CleanupTime then
-                    local code = Engine.DeletePrefabInstance(tree.id, false)
+                    local removed = Import("common/systems/scoSceneryReclaim.lua").Delete(tree.id)
+                    local code = removed and EngineErrorCode.Success or Engine.DeletePrefabInstance(tree.id, false)
                     tree.deleteAttempts = (tree.deleteAttempts or 0) + 1
                     if code == EngineErrorCode.Success or tree.deleteAttempts >= 5 then
                         if code ~= EngineErrorCode.Success then
@@ -6775,7 +7035,7 @@ do
                 else
                     local progress = math.max(0, math.min(1, (elapsed - SinkStart) / (CleanupTime - SinkStart)))
                     local eased = progress * progress * (3 - 2 * progress)
-                    local code = Engine.SetGlobalEntityPosition(tree.id, {
+                    local code = Import("common/systems/scoSceneryReclaim.lua").SetPosition(tree.id, {
                         x = tree.rest.x, y = tree.rest.y - tree.sinkDepth * eased, z = tree.rest.z})
                     if code ~= EngineErrorCode.Success then
                         reportOnce("sinkError", "Fallen-tree sinking rejected: " .. tostring(code))
@@ -6815,15 +7075,19 @@ do
     end
 
     local topple
-    local function drainImpactQueue()
-        while impactHead <= impactTail and #falls < MaximumFalls do
+    local function drainImpactQueue(now)
+        local attempts = 0
+        while impactHead <= impactTail and attempts < MaximumImpactAttempts do
             local entry = impactQueue[impactHead]
+            local limit = entry.nuclear and MaximumNuclearFalls or MaximumFalls
+            if #falls >= limit then break end
             impactQueue[impactHead] = nil
             impactHead = impactHead + 1
+            attempts = attempts + 1
             local tree = entry.tree
-            if Engine.IsValidGlobalID(tree.id) then
+            if treeIsValid(tree) then
                 local originalAngle = tree.angle
-                if not topple(tree, entry.dx, entry.dz) then
+                if not topple(tree, entry.dx, entry.dz, now, limit) then
                     tree.angle = originalAngle
                     local key = cellKey(tree.x, tree.z)
                     local bucket = cells[key] or {}
@@ -6838,31 +7102,48 @@ do
     local function animateFalls()
         while #falls > 0 or impactHead <= impactTail do
             WaitTicks(1)
-            drainImpactQueue()
             local now = Engine.GetSimulationTime()
+            drainImpactQueue(now)
             for index = #falls, 1, -1 do
                 local tree = falls[index]
                 local elapsed = math.max(0, now - tree.started)
-                if not Engine.IsValidGlobalID(tree.id) then
+                if not treeIsValid(tree) then
+                    tree.poseRotation, tree.posePosition = nil, nil
                     table.remove(falls, index)
-                else
+                elseif elapsed > 0 then
                     local progress = math.min(1, elapsed / tree.duration)
                     local angle = tree.angle * progress * progress
                     if elapsed > tree.duration then
                         local settle = math.min(1, (elapsed - tree.duration) / 0.25)
                         angle = tree.angle - math.rad(2) * math.sin(settle * math.pi) * (1 - settle)
                     end
-                    local rotation = Engine.QuaternionMultiply(
-                        Engine.QuaternionAxisAngle(tree.axis, angle), tree.rotation)
+                    -- AxisAngle(axis, angle) * authored rotation; the fall axis
+                    -- is horizontal. Keep the output private and reuse it after
+                    -- the synchronous native setter has copied its components.
+                    local sine, cosine = math.sin(angle * 0.5), math.cos(angle * 0.5)
+                    local ax, az = tree.axis.x * sine, tree.axis.z * sine
+                    local q = tree.rotation.value
+                    local rotation = tree.poseRotation
+                    if not rotation then
+                        rotation = {value = {}}
+                        tree.poseRotation = rotation
+                    end
+                    local r = rotation.value
+                    r.x = ax * q.w + cosine * q.x - az * q.y
+                    r.y = cosine * q.y + az * q.x - ax * q.z
+                    r.z = az * q.w + cosine * q.z + ax * q.y
+                    r.w = cosine * q.w - ax * q.x - az * q.z
                     local code = EngineErrorCode.Success
                     if tree.pivotOffset < 0 then
                         -- Rotate the buried root around ground contact, keeping the
                         -- visible trunk's hinge fixed instead of sinking the whole tree.
                         local offset = tree.pivotOffset * math.sin(angle)
-                        code = Engine.SetGlobalEntityPosition(tree.id, {
-                            x = tree.x + tree.dx * offset,
-                            y = tree.pivotY + tree.pivotOffset * math.cos(angle),
-                            z = tree.z + tree.dz * offset})
+                        local position = tree.posePosition
+                        if not position then position = {}; tree.posePosition = position end
+                        position.x = tree.x + tree.dx * offset
+                        position.y = tree.pivotY + tree.pivotOffset * math.cos(angle)
+                        position.z = tree.z + tree.dz * offset
+                        code = Import("common/systems/scoSceneryReclaim.lua").SetPosition(tree.id, position)
                     end
                     if code == EngineErrorCode.Success then
                         code = Engine.SetGlobalEntityLocalRotation(tree.id, rotation)
@@ -6874,6 +7155,7 @@ do
                     end
                     if code ~= EngineErrorCode.Success or elapsed >= tree.duration + 0.25 then
                         if code == EngineErrorCode.Success then scheduleCleanup(tree) end
+                        tree.poseRotation, tree.posePosition = nil, nil
                         table.remove(falls, index)
                     end
                 end
@@ -6882,8 +7164,8 @@ do
         fallThread = nil
     end
 
-    topple = function(tree, dx, dz)
-        if #falls >= MaximumFalls then return false end
+    topple = function(tree, dx, dz, now, limit)
+        if #falls >= (limit or MaximumFalls) then return false end
         local length = math.sqrt(dx * dx + dz * dz)
         if length < 0.0001 then return false end
         dx, dz = dx / length, dz / length
@@ -6905,7 +7187,7 @@ do
         if tree.angle < math.rad(5) then return false end
         tree.dx, tree.dz = dx, dz
         tree.axis = EngineClasses.float3(dz, 0, -dx)
-        tree.started = Engine.GetSimulationTime()
+        tree.started = now or Engine.GetSimulationTime()
         falls[#falls + 1] = tree
         if not fallThread then fallThread = NewThread(animateFalls) end
         return true
@@ -6998,14 +7280,14 @@ do
                 if bucket then
                     for index = #bucket, 1, -1 do
                         local tree = bucket[index]
-                        if not Engine.IsValidGlobalID(tree.id) then
+                        if not treeIsValid(tree) then
                             table.remove(bucket, index)
                         -- Map authors often bury trunk roots or place trees on slopes.
                         -- Contact needs vertical trunk/hull overlap, not equal base heights.
                         elseif tree.y <= math.max(previous.y, current.y) + bounds.top * scale
                             and tree.y + tree.height >= math.min(previous.y, current.y) + bounds.bottom * scale
                             and sweep(tree, previous, current, turn, bounds)
-                            and topple(tree, dx + turn * (tree.z - current.z), dz - turn * (tree.x - current.x)) then
+                            and topple(tree, dx + turn * (tree.z - current.z), dz - turn * (tree.x - current.x), now) then
                             table.remove(bucket, index)
                         end
                     end
@@ -7014,8 +7296,8 @@ do
         end
     end
 
-    -- Host impacts query standing trunks inside a bounded sphere. Overflow
-    -- shares the existing fall worker and its 128-tree budget.
+    -- Host impacts query standing trunks inside a bounded sphere. Nuclear
+    -- waves overlap more falls; new work is still bounded on each host tick.
     local function impact(position, radius, maximumRadius, nearestFirst)
         if not IsHost or type(position) ~= "table" or not finite(position.x)
             or not finite(position.y) or not finite(position.z)
@@ -7036,7 +7318,7 @@ do
                 if bucket then
                     for index = #bucket, 1, -1 do
                         local tree = bucket[index]
-                        if not Engine.IsValidGlobalID(tree.id) then
+                        if not treeIsValid(tree) then
                             table.remove(bucket, index)
                         else
                             local dx, dz = tree.x - position.x, tree.z - position.z
@@ -7051,7 +7333,7 @@ do
                                             local angle = (tree.id.index % 360) * math.pi / 180
                                             dx, dz = math.cos(angle), math.sin(angle)
                                         end
-                                        local entry = {tree = tree, dx = dx, dz = dz}
+                                        local entry = {tree = tree, dx = dx, dz = dz, nuclear = nearestFirst}
                                         if selected then
                                             entry.distanceSquared = distanceSquared
                                             selected[#selected + 1] = entry
@@ -7092,7 +7374,208 @@ do
         return impact(position, radius, MaximumNukeImpactRadius, true)
     end
 
-    SCOMTreeKnockdown = {Update = update, Impact = ordinaryImpact, NukeImpact = nukeImpact}
+    local function wreckIsSettled(wreck, id)
+        if not wreck.isWreckage or wreck.dead or wreck.deleted
+            or wreck.id.index ~= id.index or wreck.id.version ~= id.version
+            or __Entities.Props[id.index] ~= wreck or not Engine.IsValidGlobalID(id)
+            or wreck.scoNavalSinking or wreck.scoWaterWreckSettling then return false end
+        -- Aircraft mark their impact owner before starting the crash thread;
+        -- that marker remains after landing, so it is not a motion flag.
+        if wreck.scoAircraftCrashActive and not wreck.scoAircraftCrashContactPosition then return false end
+        local code, moving = Engine.GetRayColliderEnabled(id)
+        if code ~= EngineErrorCode.Success then
+            error("Could not query wreck motion: " .. tostring(code))
+        end
+        return not moving
+    end
+
+    -- Capture support before the native terrain transaction, then reconcile only
+    -- after both simulation worlds commit. No timers or guessed crater delays.
+    local function prepareTerrainChange(minX, minZ, maxX, maxZ)
+        if not IsHost then error("Terrain reconciliation requires the host") end
+        preparedTerrainChange = nil
+        local change = {trees = {}, props = {}, resources = {}, wrecks = {}}
+        local seen = {}
+        local function inside(x, z)
+            return x >= minX and x <= maxX and z >= minZ and z <= maxZ
+        end
+        local function groundAt(position)
+            local code, height = Engine.SampleTerrainHeight(position)
+            if code ~= EngineErrorCode.Success or not finite(height) then
+                error("Could not sample terrain support: " .. tostring(code))
+            end
+            return height
+        end
+        local function collect(tree, knownValid)
+            if seen[tree] or not inside(tree.x, tree.z)
+                or (not knownValid and not treeIsValid(tree)) then return end
+            seen[tree] = true
+            local position = {x = tree.x, y = tree.y, z = tree.z}
+            local ground = groundAt(position)
+            tree.terrainSupport = tree.terrainSupport or ground
+            change.trees[#change.trees + 1] = {tree = tree, position = position, ground = ground}
+        end
+        local function collectCells(spatialIndex, collectEntry)
+            for cx = math.floor(minX / CellSize), math.floor(maxX / CellSize) do
+                for cz = math.floor(minZ / CellSize), math.floor(maxZ / CellSize) do
+                    local bucket = spatialIndex[cx .. ":" .. cz]
+                    if bucket then
+                        for index = #bucket, 1, -1 do
+                            if treeIsValid(bucket[index]) then collectEntry(bucket[index], true)
+                            else table.remove(bucket, index) end
+                        end
+                        if #bucket == 0 then spatialIndex[cx .. ":" .. cz] = nil end
+                    end
+                end
+            end
+        end
+        collectCells(cells, collect)
+        collectCells(terrainOnlyCells, collect)
+        collectCells(persistentCells, function(prop)
+            if not inside(prop.x, prop.z) then return end
+            local position = {x = prop.x, y = prop.y, z = prop.z}
+            local ground = groundAt(position)
+            -- Capture authored burial/hover offsets before the first deformation.
+            if prop.terrainOffset == nil then prop.terrainOffset = prop.y - ground end
+            change.props[#change.props + 1] = {prop = prop, position = position, ground = ground}
+        end)
+        for _, tree in ipairs(falls) do collect(tree) end
+        for index = impactHead, impactTail do collect(impactQueue[index].tree) end
+        for index = pendingHead, pendingTail do collect(pending[index]) end
+        for _, tree in ipairs(sinking) do collect(tree) end
+
+        -- Wrecks are created after map setup, so the scenery index cannot own
+        -- them. Read the live prop registry for mobile and structure wrecks.
+        for _, wreck in pairs(__Entities.Props) do
+            if wreck.isWreckage and not wreck.dead and not wreck.deleted
+                and Engine.IsValidGlobalID(wreck.id) then
+                local code, position = Engine.GetGlobalEntityWorldPosition(wreck.id)
+                if code ~= EngineErrorCode.Success then
+                    error("Could not locate wreck: " .. tostring(code))
+                end
+                if inside(position.x, position.z) and wreckIsSettled(wreck, wreck.id) then
+                    change.wrecks[#change.wrecks + 1] = {wreck = wreck,
+                        id = {index = wreck.id.index, version = wreck.id.version},
+                        position = {x = position.x, y = position.y, z = position.z},
+                        ground = groundAt(position)}
+                end
+            end
+        end
+
+        -- Native alloy spots are created during synchronous map setup. Build
+        -- their index lazily so matrices are ready, then query affected cells.
+        if not resourceCells then
+            local index = {}
+            for _, spot in pairs(Import("common/resourceSpot.lua").resourceSpots) do
+                if spot.type == "alloys" and Engine.IsValidGlobalID(spot.id) then
+                    local code, position = Engine.GetGlobalEntityWorldPosition(spot.id)
+                    if code ~= EngineErrorCode.Success then
+                        error("Could not locate alloy point: " .. tostring(code))
+                    end
+                    local key = cellKey(position.x, position.z)
+                    local bucket = index[key] or {}
+                    index[key] = bucket
+                    bucket[#bucket + 1] = {id = spot.id, spot = spot,
+                        x = position.x, y = position.y, z = position.z}
+                end
+            end
+            resourceCells = index
+        end
+        collectCells(resourceCells, function(resource)
+            if not inside(resource.x, resource.z) then return end
+            local position = {x = resource.x, y = resource.y, z = resource.z}
+            local ground = groundAt(position)
+            if resource.spot.scomTerrainOffset == nil then
+                resource.spot.scomTerrainOffset = position.y - ground
+            end
+            change.resources[#change.resources + 1] = {resource = resource,
+                position = position, ground = ground}
+        end)
+        preparedTerrainChange = change
+    end
+
+    local function commitTerrainChange()
+        local change = preparedTerrainChange
+        preparedTerrainChange = nil
+        if not change then error("Missing prepared terrain reconciliation") end
+        local scenery = Import("common/systems/scoSceneryReclaim.lua")
+        local function groundAt(position)
+            local code, height = Engine.SampleTerrainHeight(position)
+            if code ~= EngineErrorCode.Success or not finite(height) then
+                error("Could not sample committed terrain: " .. tostring(code))
+            end
+            return height
+        end
+        for _, entry in ipairs(change.resources) do
+            local resource = entry.resource
+            local spot = resource.spot
+            if Engine.IsValidGlobalID(spot.id) then
+                local ground = groundAt(entry.position)
+                if math.abs(ground - entry.ground) > 0.00001 then
+                    entry.position.y = ground + spot.scomTerrainOffset
+                    local code = Engine.SetGlobalEntityPosition(spot.id, entry.position)
+                    if code ~= EngineErrorCode.Success then
+                        error("Could not reanchor alloy point: " .. tostring(code))
+                    end
+                    resource.y = entry.position.y
+                end
+            end
+        end
+        for _, entry in ipairs(change.props) do
+            local prop = entry.prop
+            if treeIsValid(prop) then
+                local ground = groundAt(entry.position)
+                if math.abs(ground - entry.ground) > 0.00001 then
+                    entry.position.y = ground + prop.terrainOffset
+                    local code = scenery.SetPosition(prop.id, entry.position)
+                    if code ~= EngineErrorCode.Success then
+                        error("Could not reanchor scenery prop: " .. tostring(code))
+                    end
+                    prop.y = entry.position.y
+                end
+            end
+        end
+        for _, entry in ipairs(change.wrecks) do
+            if wreckIsSettled(entry.wreck, entry.id) then
+                local code, position = Engine.GetGlobalEntityWorldPosition(entry.id)
+                if code ~= EngineErrorCode.Success then
+                    error("Could not locate settled wreck: " .. tostring(code))
+                end
+                -- A crash or another owner may have moved it between stages.
+                -- Never restore an obsolete pose or compete with that owner.
+                if position.x == entry.position.x and position.y == entry.position.y
+                    and position.z == entry.position.z then
+                    local delta = groundAt(entry.position) - entry.ground
+                    if math.abs(delta) > 0.00001 then
+                        entry.position.y = entry.position.y + delta
+                        code = Engine.SetGlobalEntityPosition(entry.id, entry.position)
+                        if code ~= EngineErrorCode.Success then
+                            error("Could not reanchor wreck: " .. tostring(code))
+                        end
+                    end
+                end
+            end
+        end
+        for _, entry in ipairs(change.trees) do
+            local tree = entry.tree
+            if treeIsValid(tree) then
+                local ground = groundAt(entry.position)
+                -- Ignore unchanged ground and raised crater rims. Accumulate the
+                -- smooth stages so tiny initial steps cannot hide lost support.
+                if ground < entry.ground - 0.00001 and ground < tree.terrainSupport - 0.05 then
+                    local removed = scenery.Delete(tree.id)
+                    local code = removed and EngineErrorCode.Success or Engine.DeletePrefabInstance(tree.id, false)
+                    if code ~= EngineErrorCode.Success then
+                        error("Could not remove unsupported tree: " .. tostring(code))
+                    end
+                    tree.terrainRemoved = true
+                end
+            end
+        end
+    end
+
+    SCOMTreeKnockdown = {Update = update, Impact = ordinaryImpact, NukeImpact = nukeImpact,
+        PrepareTerrainChange = prepareTerrainChange, CommitTerrainChange = commitTerrainChange}
     install()
 end
 
@@ -7398,7 +7881,7 @@ local SCO_CommanderBrightnessPaths = {
     ["VFX/" .. "SCOM/Source/psf0006/impact_land.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/a753f539e23e5049a925.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0006/ribbon_0.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/4e2f5e9fc1f1d5efd250.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0006/ribbon_particles.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/d3cab48804ab441af8f0.sanvfx",
-    ["VFX/" .. "SCOM/Source/psf0012/impact_land.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/9eb4aa17fc4bed62a378.sanvfx",
+    ["VFX/" .. "SCOM/Source/psf0012/impact_land.sanvfx"] = "VFX/SCOM/WS/9eb4aa17fc4bed62a378.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0015/impact_land.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/5847e76679a584338ad2.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0015/ribbon_1.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/9f3dd24a5ae411bf5eb7.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0015/ribbon_2.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/cc13dfe027f25df1d8e6.sanvfx",
@@ -7411,11 +7894,11 @@ local SCO_CommanderBrightnessPaths = {
     ["VFX/" .. "SCOM/Source/psf0033/ribbon_particles.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/e54f59cd41169573c73b.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0148/trail.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/4f754cd9e209ab6dd121.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0168/impact_land.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/3ad0ef98fef395a9f6c8.sanvfx",
-    ["VFX/" .. "SCOM/Source/pxd003/beam_end.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/d084b2aff6961fe6fa85.sanvfx",
-    ["VFX/" .. "SCOM/Source/ucl4002/muzzle_rightreactoncannon.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/1c80798ce6e7f387deb7.sanvfx",
-    ["VFX/" .. "SCOM/Source/uel5007/muzzle_rightheavyplasmacannon.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/c1809bf171bd828f4fb8.sanvfx",
-    ["VFX/" .. "SCOM/Source/ugl5004/muzzle_nmissile.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/65349bb416e05b0eb805.sanvfx",
-    ["VFX/" .. "SCOM/Source/usl4002/muzzle_lightchronatroncannon.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/67f193c0a63061c7fda6.sanvfx",
+    ["VFX/" .. "SCOM/Source/pxd003/beam_end.sanvfx"] = "VFX/SCOM/WS/d084b2aff6961fe6fa85.sanvfx",
+    ["VFX/" .. "SCOM/Source/ucl4002/muzzle_rightreactoncannon.sanvfx"] = "VFX/SCOM/WS/1c80798ce6e7f387deb7.sanvfx",
+    ["VFX/" .. "SCOM/Source/uel5007/muzzle_rightheavyplasmacannon.sanvfx"] = "VFX/SCOM/WS/c1809bf171bd828f4fb8.sanvfx",
+    ["VFX/" .. "SCOM/Source/ugl5004/muzzle_nmissile.sanvfx"] = "VFX/SCOM/WS/65349bb416e05b0eb805.sanvfx",
+    ["VFX/" .. "SCOM/Source/usl4002/muzzle_lightchronatroncannon.sanvfx"] = "VFX/SCOM/WS/67f193c0a63061c7fda6.sanvfx",
     ["VFX/" .. "SupremeCommanderOverhaul/Materials/Monkeylord/monkeylord_microwave_beam.sanmaterial"] = "VFX/SCOM/Source/CommanderBrightness/bf77ab57130f809e25e7.sanmaterial",
     ["VFX/" .. "Trails/vct1101_cannon_plasma_small_trail.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/73e106fbe835042423ce.sanvfx",
     ["VFX/" .. "Trails/vct1241_cannon_artillery_medium_trail.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/854b8003056d5750b3af.sanvfx",
@@ -19326,7 +19809,7 @@ if previous then previous(UnitTemplate) end
 -- Source interception owner; append after roster template generation.
 do
 local tp=UnitTemplate
-local c={["sourceId"]="UEB2305",["targetId"]="ues3102",["weapons"]={["NukeMissiles"]={["sourceIndex"]=1,["sourceLabel"]="NukeMissiles",["targetClass"]=nil,["projectile"]="psf0040",["damage"]=0,["rangeMin"]=0,["rangeMax"]=20000,["reload"]=1.0,["interval"]=0.5,["muzzleVelocity"]=0,["muzzles"]={"Muzzle"},["depthChargeRadius"]=nil,["counted"]=true}},["silo"]={["version"]="1.0.0",["sourceId"]="UEB2305",["role"]="launcher",["sourceStockpile"]=true,["autoIntercept"]=false,["sourceLabel"]="NukeMissiles",["initialAmmo"]=0,["maxAmmo"]=5,["buildPower"]=1080,["buildTime"]=324000,["cost"]={["alloys"]=12000,["energy"]=1350000},["projectile"]="psf0040",["muzzles"]={"Muzzle"},["damage"]=0,["damageRadius"]=0,["rangeMin"]=0,["rangeMax"]=20000,["reload"]=1.0,["cycleReload"]=0,["muzzleVelocity"]=0,["deployDuration"]=2.6666667461395264,["deployRate"]=1,["deployKey"]="sco_source_launch",["charge"]=0,["repackTimeout"]=17,["nukeRings"]={{["damage"]=70000,["radius"]=30,["ticks"]=24,["totalTime"]=0},{["damage"]=500,["radius"]=40,["ticks"]=20,["totalTime"]=0}},["launchAnimation"]={["clipName"]="FaUEB2305Aopen",["sanAnimationPath"]="Units/ues3102/LOD0/ues3102.sananimation",["playbackMode"]=0},["preserveAttack"]=false},["permanentOpen"]=nil}
+local c={["sourceId"]="UEB2305",["targetId"]="ues3102",["weapons"]={["NukeMissiles"]={["sourceIndex"]=1,["sourceLabel"]="NukeMissiles",["targetClass"]=nil,["projectile"]="psf0040",["damage"]=0,["rangeMin"]=0,["rangeMax"]=20000,["reload"]=1.0,["interval"]=0.5,["muzzleVelocity"]=0,["muzzles"]={"Muzzle"},["depthChargeRadius"]=nil,["counted"]=true}},["silo"]={["version"]="1.0.0",["sourceId"]="UEB2305",["role"]="launcher",["sourceStockpile"]=true,["autoIntercept"]=false,["sourceLabel"]="NukeMissiles",["initialAmmo"]=0,["maxAmmo"]=5,["buildPower"]=1080,["buildTime"]=324000,["cost"]={["alloys"]=12000,["energy"]=1350000},["projectile"]="psf0040",["muzzles"]={"Muzzle"},["damage"]=0,["damageRadius"]=0,["rangeMin"]=0,["rangeMax"]=20000,["reload"]=1.0,["cycleReload"]=0,["muzzleVelocity"]=0,["deployDuration"]=2.6666667461395264,["deployRate"]=1,["deployKey"]="sco_source_launch",["packedKey"]="rest",["charge"]=0,["repackTimeout"]=17,["nukeRings"]={{["damage"]=70000,["radius"]=30,["ticks"]=24,["totalTime"]=0},{["damage"]=500,["radius"]=40,["ticks"]=20,["totalTime"]=0}},["launchAnimation"]={["clipName"]="FaUEB2305Aopen",["sanAnimationPath"]="Units/ues3102/LOD0/ues3102.sananimation",["playbackMode"]=0},["preserveAttack"]=false},["permanentOpen"]=nil}
 tp.additions=tp.additions or {}
 tp.general.orders=tp.general.orders or {};tp.general.toggles=tp.general.toggles or {}
 tp.visuals=tp.visuals or {};tp.visuals.animations=tp.visuals.animations or {}
@@ -19519,7 +20002,7 @@ if previous then previous(UnitTemplate) end
 -- Source interception owner; append after roster template generation.
 do
 local tp=UnitTemplate
-local c={["sourceId"]="URB2305",["targetId"]="ugs5007",["weapons"]={["NukeMissiles"]={["sourceIndex"]=1,["sourceLabel"]="NukeMissiles",["targetClass"]=nil,["projectile"]="psf0020",["damage"]=0,["rangeMin"]=0,["rangeMax"]=20000,["reload"]=1.0,["interval"]=0.5,["muzzleVelocity"]=0,["muzzles"]={"Projectile"},["depthChargeRadius"]=nil,["counted"]=true}},["silo"]={["version"]="1.0.0",["sourceId"]="URB2305",["role"]="launcher",["sourceStockpile"]=true,["autoIntercept"]=false,["sourceLabel"]="NukeMissiles",["initialAmmo"]=0,["maxAmmo"]=5,["buildPower"]=1080,["buildTime"]=324000,["cost"]={["alloys"]=12000,["energy"]=1350000},["projectile"]="psf0020",["muzzles"]={"Projectile"},["damage"]=0,["damageRadius"]=0,["rangeMin"]=0,["rangeMax"]=20000,["reload"]=1.0,["cycleReload"]=0,["muzzleVelocity"]=0,["deployDuration"]=6.666666507720947,["deployRate"]=1,["deployKey"]="sco_source_launch",["charge"]=0,["repackTimeout"]=9.1,["nukeRings"]={{["damage"]=70000,["radius"]=30,["ticks"]=24,["totalTime"]=0},{["damage"]=500,["radius"]=40,["ticks"]=20,["totalTime"]=0}},["launchAnimation"]={["clipName"]="FaURB2305Aactivate",["sanAnimationPath"]="Units/ugs5007/LOD0/ugs5007.sananimation",["playbackMode"]=0},["preserveAttack"]=false},["permanentOpen"]=nil}
+local c={["sourceId"]="URB2305",["targetId"]="ugs5007",["weapons"]={["NukeMissiles"]={["sourceIndex"]=1,["sourceLabel"]="NukeMissiles",["targetClass"]=nil,["projectile"]="psf0020",["damage"]=0,["rangeMin"]=0,["rangeMax"]=20000,["reload"]=1.0,["interval"]=0.5,["muzzleVelocity"]=0,["muzzles"]={"Projectile"},["depthChargeRadius"]=nil,["counted"]=true}},["silo"]={["version"]="1.0.0",["sourceId"]="URB2305",["role"]="launcher",["sourceStockpile"]=true,["autoIntercept"]=false,["sourceLabel"]="NukeMissiles",["initialAmmo"]=0,["maxAmmo"]=5,["buildPower"]=1080,["buildTime"]=324000,["cost"]={["alloys"]=12000,["energy"]=1350000},["projectile"]="psf0020",["muzzles"]={"Projectile"},["damage"]=0,["damageRadius"]=0,["rangeMin"]=0,["rangeMax"]=20000,["reload"]=1.0,["cycleReload"]=0,["muzzleVelocity"]=0,["deployDuration"]=6.666666507720947,["deployRate"]=1,["deployKey"]="sco_source_launch",["packedKey"]="rest",["charge"]=0,["repackTimeout"]=9.1,["nukeRings"]={{["damage"]=70000,["radius"]=30,["ticks"]=24,["totalTime"]=0},{["damage"]=500,["radius"]=40,["ticks"]=20,["totalTime"]=0}},["launchAnimation"]={["clipName"]="FaURB2305Aactivate",["sanAnimationPath"]="Units/ugs5007/LOD0/ugs5007.sananimation",["playbackMode"]=0},["preserveAttack"]=false},["permanentOpen"]=nil}
 tp.additions=tp.additions or {}
 tp.general.orders=tp.general.orders or {};tp.general.toggles=tp.general.toggles or {}
 tp.visuals=tp.visuals or {};tp.visuals.animations=tp.visuals.animations or {}
@@ -31744,3 +32227,6 @@ function SCO_AhwassaAimHierarchy(tp, entityNameToHierarchyIndex, hierarchyEntiti
     for _ in pairs(seen) do count = count + 1 end
     assert(count == 4, "SCOM Ahwassa AA weapon count changed")
 end
+
+-- Connect authored HARVESTABLE map scenery before the next map setup.
+Import("common/systems/scoSceneryReclaim.lua").Install()

@@ -974,16 +974,21 @@ local function Reserve(state)
 end
 
 local function ReserveClearExit(state)
-    if state.air or state.naval or state.engineerTransfer or state.config.domain~="land" then
+    if state.air or state.engineerTransfer or (not state.naval and state.config.domain~="land") then
         return Reserve(state)
     end
-    -- Check every authored land exit before transit. A permanent obstruction
-    -- must not commit Seraphim or other factories to an unusable first route.
-    -- Keep the physical deck/ramp paths; never cut through factory geometry.
+    -- Recheck authored exits at departure: ships need both submerged terrain
+    -- and a free hull corridor, just as land products need a free deck/ramp.
     local chosen=state.route
-    local routes={chosen}
+    local routes={}
+    if not state.naval or NavalRouteClear(state.factory,state.config,state.frame,chosen,state.unit) then
+        routes[#routes+1]=chosen
+    end
     for _,route in ipairs(state.config.exitRoutes) do
-        if route~=chosen then routes[#routes+1]=route end
+        if route~=chosen and (not state.naval
+            or NavalRouteClear(state.factory,state.config,state.frame,route,state.unit)) then
+            routes[#routes+1]=route
+        end
     end
     for _,route in ipairs(routes) do
         local heading=route.headingDegrees or 0
@@ -996,7 +1001,7 @@ local function ReserveClearExit(state)
         assert(length>.001,"Factory clearance route has no horizontal exit")
         local probe={factory=state.factory,unit=state.unit,config=state.config,frame=state.frame,
             spawnLocal=state.spawnLocal,extentX=extentX,extentZ=extentZ,
-            route=route,surfaceClearance=state.surfaceClearance,
+            route=route,surfaceClearance=state.surfaceClearance,naval=state.naval,
             worldCollisionBounds=bounds,identityRotation=state.identityRotation}
         local direction={x=dx/length,z=dz/length}
         local distance=UsesEngineerReleasePoint(state) and EngineerReleaseDistance(probe,direction)
@@ -1316,8 +1321,7 @@ local function Driver(unit,state)
                 routeReady=state.clearanceReady or not Alive(state.factory)
             end
             if routeReady then
-                local waterClear=not state.naval or NavalRouteClear(state.factory,state.config,state.frame,state.route,unit)
-                if waterClear and (state.air or ReserveClearExit(state) or ReserveStructureExit(state)) then
+                if state.air or ReserveClearExit(state) or ReserveStructureExit(state) then
                     state.phaseBlockedSince=nil
                     state.egressing=true
                     PostureGoal(state,1,true)

@@ -55,7 +55,7 @@ nonUniformScale = { x = 1, y = 1, z = 1 },
 } },
 ["persistantEffects"] = { {
 ["effects"] = { {
-["particleName"] = "VFX/SCOM/Source/psf0018/trail.sanvfx",
+["particleName"] = "VFX/Trails/TrailRocket_01.sanvfx",
 } },
 } },
 ["scoProjectileMesh"] = {
@@ -69,22 +69,3 @@ nonUniformScale = { x = 1, y = 1, z = 1 },
 },
 },
 }
--- SCOM optional roster resource ScomFieldFixes.Roster.ProjectileVisuals.psf0018.lua
--- Source ribbon owner repair; projectile simulation and impact fields preserved.
-do
-local tp=ProjectileTemplate
-assert(tp.general.tpId=="psf0018")
-tp.visuals.persistantEffects={ {
-["effects"] = { {
-["boneName"] = "SCO_SourceRibbon_0",
-["particleName"] = "VFX/SCOM/Source/psf0018/ribbon_0.sanvfx",
-}, {
-["boneName"] = "SCO_SourceParticles",
-["particleName"] = "VFX/SCOM/Source/psf0018/ribbon_particles.sanvfx",
-} },
-} }
-tp.visuals.scoTrailOwners={
-["SCO_SourceParticles"] = "VFX/SCOM/Source/psf0018/ribbon_particles.sanvfx",
-["SCO_SourceRibbon_0"] = "VFX/SCOM/Source/psf0018/ribbon_0.sanvfx",
-}
-end

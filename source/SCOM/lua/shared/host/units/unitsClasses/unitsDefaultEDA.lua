@@ -292,6 +292,7 @@ function EDAUefEngineer:OnStopBuildRoutine(targetUnit)
     local result = EDAEngineer.OnStopBuildRoutine(self, targetUnit)
     if not self:IsRepairRoutineEnabled()
         and not self:IsReclaimRoutineEnabled()
+        and not self:IsCaptureRoutineEnabled()
     then
         self:SCO_SetBuildAnimationState(false)
     end
@@ -312,6 +313,7 @@ function EDAUefEngineer:OnStopRepairRoutine(targetUnit)
     local result = EDAEngineer.OnStopRepairRoutine(self, targetUnit)
     if not self:IsBuildRoutineEnabled()
         and not self:IsReclaimRoutineEnabled()
+        and not self:IsCaptureRoutineEnabled()
     then
         self:SCO_SetBuildAnimationState(false)
     end
@@ -328,6 +330,25 @@ function EDAUefEngineer:OnStopReclaimRoutine(targetUnit)
     local result = EDAEngineer.OnStopReclaimRoutine(self, targetUnit)
     if not self:IsBuildRoutineEnabled()
         and not self:IsRepairRoutineEnabled()
+        and not self:IsCaptureRoutineEnabled()
+    then
+        self:SCO_SetBuildAnimationState(false)
+    end
+    return result
+end
+
+-- Capture has its own native work routine and never enters the build hook.
+function EDAUefEngineer:OnStartCaptureRoutine(targetUnit)
+    local result = EDAEngineer.OnStartCaptureRoutine(self, targetUnit)
+    self:SCO_SetBuildAnimationState(true)
+    return result
+end
+
+function EDAUefEngineer:OnStopCaptureRoutine(targetUnit)
+    local result = EDAEngineer.OnStopCaptureRoutine(self, targetUnit)
+    if not self:IsBuildRoutineEnabled()
+        and not self:IsRepairRoutineEnabled()
+        and not self:IsReclaimRoutineEnabled()
     then
         self:SCO_SetBuildAnimationState(false)
     end

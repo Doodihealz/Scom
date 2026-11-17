@@ -2,11 +2,12 @@
 -- Use native orders only: preserve live attacks/routes, repair missing orders
 -- per aircraft, and queue flight legs after an attack so target death does not
 -- leave an empty queue. Never change flight flags, weapon stats or visibility.
-Version = "9.0.20-rc21"
+Version = "9.1.1"
 local BomberPass = Import("AI/mods/AI-Scom/RushBomberPass.lua")
 local HeavyPolicy = Import("AI/mods/AI-Scom/RushHeavyPolicy.lua")
 local AF = Import("AI/AIFunctions.lua")
 local Orders = Import("host/managers/orders/hostOrderManager.lua")
+local Intel=Import("AI/mods/AI-Scom/RushCombatIntel.lua")
 local Tasks = Import("common/commonOrders.lua").OrderTasks
 local ACK_SECONDS, GROUND_SECONDS, WAKE_SECONDS = 2, 3, 8
 local function Now() return GetGameTimeSeconds() end
@@ -43,10 +44,7 @@ local function Controlled(p,u)
             and not u.productionBehaviorTargetUnit.dead)
 end
 function Visible(p,target)
-    return Live(p) and target and not target.dead and not target.deleted
-        and not target.CaptureInProgress and not target.ReclaimInProgress and target.army and p.army:IsEnemy(target.army)
-        and ((type(target.IsIntelVisionVisible)=="function" and target:IsIntelVisionVisible(p.army))
-            or (type(target.IsIntelRadarVisible)=="function" and target:IsIntelRadarVisible(p.army))) or false
+    return Live(p) and Intel.Detected(p.army,target) or false
 end
 local function Current(p,u,r)
     return r and Controlled(p,u) and r.platoon==p and r.platoonAI==p.ai and r.unitAI==u.ai
@@ -98,7 +96,7 @@ local function SameId(a,b)
 end
 local function Matches(order,target,r)
     if not order or order.orderTask~=Tasks.ATTACKUNIT then return false end
-    if order.targetUnit then return order.targetUnit==target end
+    if order.targetUnit then return Intel.SameTarget(order.targetUnit,target) end
     if order.targetGlobalId then return SameId(order.targetGlobalId,target.id) end
     -- Some host versions expose the task but resolve its target internally.
     return r.target==target
@@ -205,7 +203,7 @@ function CommittedTarget(p)
         if Controlled(p,u) then
             local r=u.ai.rushAirOrders;local s=r and r.bomberPass
             if Current(p,u,r) and s and s.phase~="Search" then
-                local target=s.requested or s.target
+                local target=Intel.Contact(p.army,s.requested or s.target)
                 if Visible(p,target) then return target end
             end
         end
@@ -214,7 +212,32 @@ end
 function RemainingPassRoute(p,u)
     if not Controlled(p,u) then return nil end
     local r=u.ai.rushAirOrders
-    return Current(p,u,r) and BomberPass.RemainingRoute(u,r) or nil
+    if not Current(p,u,r) or not OrdersOwned(u,r) then return nil end
+    local route=BomberPass.RemainingRoute(u,r)
+    if route then return route end
+    local target=r.target
+    if not Visible(p,target) then return nil end
+    -- Read only accepted, still-owned approach legs. Stop at the attack so
+    -- the target-loss flight continuation does not become an ingress route.
+    route={Copy(u:GetPosition())}
+    local function append(order)
+        if not order or not (r.ownedOrders and r.ownedOrders[order]) then return nil end
+        if Matches(order,target,r) then
+            route[#route+1]=Copy(target:GetPosition());return true
+        end
+        if order.orderTask~=Tasks.MOVE or not Valid(order.positionFloat3) then return nil end
+        route[#route+1]=Copy(order.positionFloat3);return false
+    end
+    local orders=u.orders or {}
+    local found=append(orders.activeOrder)
+    if found==nil then return nil end
+    if found then return route end
+    for _,order in ipairs(orders.queuedOrders or {}) do
+        found=append(order)
+        if found==nil then return nil end
+        if found then return route end
+    end
+    return nil
 end
 -- Count only native attacks or their accepted, still-owned turn legs in a
 -- coordinated salvo. A rejected order is never additional covering firepower.

@@ -3,6 +3,16 @@
 -- Explicit ranges control range rings; coordinate them with weapon range edits.
 -- host.lua and client.lua own behavior and class inheritance.
 UnitTemplate = {
+    ["audio"] = {
+        ["engine"] = {
+            ["looping"] = true,
+            ["name"] = "aelu1400",
+        },
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "aeod0000",
+        },
+    },
     ["additions"] = {
         ["buildBeamBones"] = {
             [1] = "Arm_Right_Build",
@@ -577,6 +587,7 @@ UnitTemplate = {
                 ["sanAnimationPath"] = "Units/uel5007/LOD0/uel5007.sananimation",
             },
             ["run"] = {
+                ["startSpeed"] = 0.05,
                 ["authoredSpeed"] = 0.6875,
                 ["clipName"] = "FaUEL0301Awalk01",
                 ["sanAnimationPath"] = "Units/uel5007/LOD0/uel5007.sananimation",
@@ -731,7 +742,7 @@ UnitTemplate = {
             ["damageRadius"] = 0,
             ["damageType"] = "Normal",
             ["effects"] = {
-                ["onFire"] = "VFX/SCOM/Source/CommanderBrightness/c1809bf171bd828f4fb8.sanvfx",
+                ["onFire"] = "VFX/SCOM/WS/c1809bf171bd828f4fb8.sanvfx",
             },
             ["firingRandomness"] = 0,
             ["layerTargetLimits"] = {

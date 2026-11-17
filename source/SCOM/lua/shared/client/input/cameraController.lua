@@ -710,6 +710,7 @@ function Update()
 
     Engine.SetCameraFieldOfView(settings.fieldOfView)
     Engine.SetCameraFocusDistance(math3D.length(cameraLocalPosition))
+    position, rotation = Import('common/systems/scoNuclearPresentation.lua').ApplyCamera(position, rotation)
     Engine.SetCameraTransform(position, rotation)
 end
 

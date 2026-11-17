@@ -1,3 +1,4 @@
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
 -- Runtime faction rosters and capability-based heavy investment. Native menus,
 -- availability, prices and host construction permissions remain authoritative.
 Version = "9.0.7-rc8"
@@ -219,7 +220,7 @@ local function Own(a,u)
         and a.units and a.units[u.id.index]==u
 end
 local function Paused(u)
-    return u.toggles and u.toggles.Pause or type(u.GetPause)=="function" and u:GetPause()
+    return RushUnitState.IsPaused(u)
 end
 local function Experimental(tp) return IsExperimental(tp) end
 local function FirstState(a)

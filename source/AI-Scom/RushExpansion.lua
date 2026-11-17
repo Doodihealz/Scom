@@ -1,12 +1,14 @@
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
 -- RC15: persistent, bounded Alloy expansion across all four factions.
 -- Native field generation, faction permissions, placement and pathfinding are
 -- retained. Reservations describe OWN builders, never hidden enemy positions.
-Version = "9.0.21-rc22"
+Version = "10.0.0"
 local AF=Import("AI/AIFunctions.lua")
 local Movement=Import("AI/mods/AI-Scom/RushMovement.lua")
 local MG=Import("AI/AIMarkerGenerator.lua")
 local TM=Import("AI/AITargetManager.lua")
 local R=Import("AI/mods/AI-Scom/RushReliability.lua")
+local Economy=Import("AI/mods/AI-Scom/RushEconomyPolicy.lua")
 local Log=Import("AI/debugUtilities.lua").AILog
 local Factions={"EDA","CHOSEN","GUARD","SERAPHIM"}
 local OWNER="alloy-expansion"
@@ -29,6 +31,113 @@ local function State(army)
     army.ai.rushExpansion=army.ai.rushExpansion or {nextScan=0,nextRecall=0,active=0,wanted=0,
         safe=0,requests={},owned={},blocked={},routes={},lastReport=-100}
     return army.ai.rushExpansion
+end
+-- One workforce ledger is populated by the controller's existing own-unit
+-- census. Every native and persistent extractor owner shares the same budget.
+function ObserveWorkforce(s,army,u)
+    if not R.Own(army,u) or not u:IsCompleted() or not R.Has(u.tp,"ENGINEER")
+        or not R.Has(u.tp,"MOBILE") or R.Has(u.tp,"COMMAND") or R.Has(u.tp,"TECH4")
+        or R.Has(u.tp,"EXPERIMENTAL") or u.scoCommanderPodOwner or u.scoSourcePodOwner then return end
+    local p=u.platoon;local f=p and p.ai and p.ai.formerTable
+    local base=army.ai.bases and army.ai.bases.MAIN
+    local pos=u:GetPosition()
+    if f and not p.dead and f.AIPlan=="planEngineerCapAlloySpot"
+        and u.ai and u.ai.eState~="Disband" then
+        s.expansionBuilders=(s.expansionBuilders or 0)+1
+        s.expansionWorkers=s.expansionWorkers or {}
+        s.expansionWorkers[#s.expansionWorkers+1]={unit=u,platoon=p,ai=u.ai,
+            distance=base and Valid(pos) and D2(pos,base.position) or 0}
+    elseif f and not p.dead and f.AIPlan=="planReclaimMap" then
+        s.reclaimBuilders=(s.reclaimBuilders or 0)+1
+    elseif base and Valid(pos) and u.assignedToBase=="MAIN"
+        and D2(pos,base.position)<=(base.radius+50)^2 then
+        s.homeBuildersComplete=(s.homeBuildersComplete or 0)+1
+    elseif f and not p.dead and (not u.ai or u.ai.eState~="Disband") then
+        s.otherBuilders=(s.otherBuilders or 0)+1
+    else
+        -- Released workers returning to MAIN already occupy its reserved
+        -- labor share; charging them as another project would release every
+        -- remaining extractor worker on the next census.
+        s.returningBuilders=(s.returningBuilders or 0)+1
+    end
+end
+function FinishWorkforce(s)
+    -- Keep distant workers productive; release the nearest excess worker at
+    -- the next unpaid job boundary so it can return to home construction.
+    table.sort(s.expansionWorkers or {},function(a,b)
+        if a.distance~=b.distance then return a.distance>b.distance end
+        return a.unit.id.index<b.unit.id.index
+    end)
+end
+local function ExpansionGoal(s)
+    local goal=math.min(6,2+math.floor((s.extractors or 0)/8))
+    if s.mainRaid or s.mainBombardment or s.localLandThreat then goal=1
+    elseif s.strategy and s.strategy.mode=="recover" then goal=math.min(goal,2) end
+    return goal
+end
+function WorkforceGoal(army,s)
+    local home=Economy.HomeBuilderGoal(army,s)
+    local state=army and army.ai and army.ai.rushExpansion
+    local expansion=ExpansionGoal(s)
+    if state and state.at and state.safe==0 and state.active==0 then expansion=0 end
+    local salvage=(s.extractors or 0)>=8 and 2 or (s.extractors or 0)>=3 and 1 or 0
+    local technical=(s.engineersByTier and ((s.engineersByTier[2] or 0)+(s.engineersByTier[3] or 0)) or 0)>0 and 1 or 0
+    return math.min(24,math.max(4,home+expansion+salvage+technical))
+end
+function Slots(army,s)
+    local constructors=s.engineersComplete or (s.completeRoles and s.completeRoles.engineer) or 0
+    if (s.extractors or 0)<1 then return math.min(1,constructors) end
+    if (s.completeFactories or 0)<1 then return 0 end
+    local e=s.energy
+    if e and e.ratio<0.12 and e.balance-(e.reserved or 0)<0 then return 0 end
+    local home=Economy.HomeBuilderGoal(army,s)
+    local reserve=(s.extractors or 0)<4 and math.min(home,1) or home
+    local salvage=math.max(s.reclaimBuilders or 0,constructors>=home+3 and 1 or 0)
+    return math.max(0,math.min(ExpansionGoal(s),constructors-reserve-salvage-(s.otherBuilders or 0)))
+end
+function ReclaimAllowed(army,s)
+    local goal=(s.extractors or 0)>=8 and 2 or 1
+    local home=s.homeBuildersComplete or s.engineersComplete or 0
+    return (s.reclaimBuilders or 0)<goal and home>Economy.HomeBuilderGoal(army,s)
+end
+local function CurrentWorkforce(army)
+    local controller=army.ai.rushController
+    local s=controller and controller.snapshot
+    if not s or not s.time or Now()<s.time or Now()-s.time>6 then return nil end
+    return s
+end
+local function LiveExpansion(army,s)
+    local workers={}
+    for _,entry in ipairs(s.expansionWorkers or {}) do
+        local u,p=entry.unit,entry.platoon
+        if R.Own(army,u) and u.ai==entry.ai and u.platoon==p and not p.dead
+            and u.ai.eState~="Disband" then workers[#workers+1]=u end
+    end
+    return workers
+end
+function BeginNextJob(army,builder,platoon)
+    if not Profile(army) then return true end
+    if not R.Own(army,builder) or builder.platoon~=platoon then return false end
+    if R.Has(builder.tp,"COMMAND") then return true end -- native local bootstrap/recovery
+    local s=CurrentWorkforce(army)
+    if not s then return true end
+    local slots=Slots(army,s)
+    local workers=LiveExpansion(army,s)
+    for rank,u in ipairs(workers) do if u==builder then return rank<=slots end end
+    -- Newly dispatched owners may not be in the one-second census yet.
+    -- Their permission was already checked immediately before dispatch.
+    return slots>0
+end
+function RecruitLimit(army,platoon,maximum)
+    if not Profile(army) then return maximum end
+    local count=0
+    for _,u in ipairs(platoon:GetUnits()) do
+        if R.Own(army,u) and u.platoon==platoon then count=count+1 end
+    end
+    if count>0 then return math.min(maximum,1) end
+    local s=CurrentWorkforce(army)
+    if not s or #LiveExpansion(army,s)>=Slots(army,s) then return 0 end
+    return math.min(maximum,1)
 end
 local function Extractor(army,builders,state)
     local previous=state.extractor;local builder=state.extractorBuilder
@@ -61,8 +170,7 @@ local function IdleBuilder(army,u,recallOwner)
         or R.Has(u.tp,"COMMAND") or R.Has(u.tp,"TECH4") or R.Has(u.tp,"EXPERIMENTAL")
         or R.Has(u.tp,"SCFA_EXPERIMENTAL") or u.scoCommanderPodOwner or u.scoSourcePodOwner
         or u.CaptureInProgress or u.ReclaimInProgress or R.Working(u) or u.buildBehaviorIsActive
-        or u.reclaimBehaviorIsActive or u.toggles and u.toggles.Pause
-        or type(u.GetPause)=="function" and u:GetPause() then return nil end
+        or u.reclaimBehaviorIsActive or RushUnitState.IsPaused(u) then return nil end
     local tier=u.tp.general and u.tp.general.techNumber
     local construction=u.construction
     if Finite(tier) and (tier<1 or tier>3) or not construction
@@ -264,10 +372,7 @@ function Refresh(army,snapshot,force)
     for i=1,math.min(12,n) do inspect((offset+i-1)%n+1) end
     state.offset=n>0 and (offset+12)%n or 0
     local constructors=snapshot.engineersComplete or (snapshot.roles and snapshot.roles.engineer) or 0
-    local slots=math.min(3,math.max(1,math.floor((constructors-1)/2)))
-    if (snapshot.completeFactories or 0)<1 or (snapshot.extractors or 0)<1 then slots=0 end
-    if constructors<=1 and (snapshot.extractors or 0)>=4 then slots=0 end
-    if snapshot.energy and snapshot.energy.ratio<0.12 and snapshot.energy.balance<0 then slots=0 end
+    local slots=Slots(army,snapshot)
     state.wanted=math.min(slots,state.active+state.safe)
     if now-state.lastReport>=30 then
         state.lastReport=now
@@ -374,7 +479,8 @@ function Builders(army,baseName,former,units,tags)
 end
 function Needed(army,snapshot)
     local state=Refresh(army,snapshot)
-    return state and state.safe>0 and state.active<state.wanted or false
+    local active=math.max(state and state.active or 0,snapshot.expansionBuilders or 0)
+    return state and state.safe>0 and active<math.min(state.wanted,Slots(army,snapshot)) or false
 end
 function Maintain(army,snapshot)
     local state=Refresh(army,snapshot)
@@ -393,7 +499,7 @@ function AddFormer(army,formers)
         if f.RushPersistentExpansion then State(army).former=f;return formers end
     end
     local former={FormerName="R15 persistent Alloy expansion",AIPlan="planEngineerCapAlloySpot",
-        Priority=9430,FormNumInstances=3,RushDevelopment=true,RushPersistentExpansion=true,
+        Priority=9430,FormNumInstances=6,RushDevelopment=true,RushPersistentExpansion=true,
         RushBuilderRecallOwner=OWNER,DebugPlatoon=false,AIdifficulty={easy=true,medium=true,hard=true},
         RunOnBaseType={MAIN=true,EXPANSION=false,OUTPOST=false,NAVAL=false},RunWithStrategyName={},
         AIPlanData={SearchInnerRing=0,SearchOuterRing=1500},

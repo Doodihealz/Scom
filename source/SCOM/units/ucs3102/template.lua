@@ -154,7 +154,7 @@ UnitTemplate = {
             ["initialProjectileSpeed"] = 1,
             ["innerDamage"] = {
                 ["amount"] = 140000,
-                ["radius"] = 60,
+                ["radius"] = 30,
                 ["ticks"] = 24,
                 ["totalTime"] = 0,
             },
@@ -170,7 +170,7 @@ UnitTemplate = {
             ["muzzle"] = "Turret_Muzzle01",
             ["outerDamage"] = {
                 ["amount"] = 1000,
-                ["radius"] = 80,
+                ["radius"] = 40,
                 ["ticks"] = 20,
                 ["totalTime"] = 0,
             },

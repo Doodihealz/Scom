@@ -3,6 +3,16 @@
 -- Explicit ranges control range rings; coordinate them with weapon range edits.
 -- host.lua and client.lua own behavior and class inheritance.
 UnitTemplate = {
+    ["audio"] = {
+        ["engine"] = {
+            ["looping"] = true,
+            ["name"] = "aglu1130",
+        },
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "agod1130",
+        },
+    },
     ["additions"] = {
         ["faSourceContract"] = {
             ["animations"] = {

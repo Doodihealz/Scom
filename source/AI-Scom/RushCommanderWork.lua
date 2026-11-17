@@ -1,3 +1,4 @@
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
 -- Idle ACU construction, repair and salvage remain owned by its combat platoon.
 -- Native orders dispatch shoulder pods; no pod is created or directly retasked.
 Version = "9.0.25-rc30"
@@ -10,6 +11,17 @@ local Tasks=Import("common/commonOrders.lua").OrderTasks
 local R=Import("AI/mods/AI-Scom/RushReliability.lua")
 local Safe=Import("AI/mods/AI-Scom/RushExpansion.lua").Safe
 local Log=Import("AI/debugUtilities.lua").AILog
+local Diagnostics=Import("AI/mods/AI-Scom/RushDiagnostics.lua")
+local EconomyPolicy=Import("AI/mods/AI-Scom/RushEconomyPolicy.lua")
+local function NewAssistAllowed(army,product)
+    if not R.Has(product.tp,"ALLOYS_EXTRACTION") or not product.upgrader then return true end
+    local controller=army.ai and army.ai.rushController
+    return controller and controller.snapshot
+        and EconomyPolicy.ExtractorInvestmentReady(army,controller.snapshot) or false
+end
+local function Blocker(unit,reason,detail)
+    if unit and unit.army then Diagnostics.Count(unit.army,"commander-service",reason,detail) end
+end
 local function Now() return GetGameTimeSeconds() end
 local function D2(a,b) return (a.x-b.x)^2+(a.z-b.z)^2 end
 local function Copy(p) return {x=p.x,y=p.y or 0,z=p.z} end
@@ -48,18 +60,22 @@ local function ActiveWork(target)
     if not Valid(target) or target.CaptureInProgress or target.ReclaimInProgress
         or target.scoCommanderPodOwner or target.scoSourcePodOwner then return nil end
     local factory=target:IsCompleted() and R.Has(target.tp,"FACTORY") and R.Has(target.tp,"STRUCTURE")
-    local product
+    local product,upgrade
     if factory then
-        if R.UpgradeTarget(target) or target.upgradeBehaviorIsActive
-            or type(target.GetPause)=="function" and target:GetPause() then return nil end
-        product=target.productionBehaviorIsActive and target.productionBehaviorTargetUnit or target.unitBeingBuilt
+        if RushUnitState.IsPaused(target) then return nil end
+        if target.upgradeBehaviorIsActive then
+            -- Native AssistBehavior follows this exact promoted upgrade target.
+            product=target.upgradeBehaviorTargetUnit
+            upgrade=true
+        elseif R.UpgradeTarget(target) then return nil
+        else product=target.productionBehaviorIsActive and target.productionBehaviorTargetUnit or target.unitBeingBuilt end
     elseif not target:IsCompleted() and (R.Has(target.tp,"STRUCTURE") or HeavyPolicy.IsFirstTarget(target))
         and not (R.Has(target.tp,"FACTORY") and target.upgrader) then product=target
     end
     if not Rules.Own(target.army,product) or product:IsCompleted()
         or product.hasBeenPromotedFromPlacementGhost~=true then return nil end
     local tp=product.tp
-    if not factory then return (R.Has(tp,"STRUCTURE") or HeavyPolicy.IsFirstTarget(product)) and product or nil end
+    if not factory or upgrade then return (R.Has(tp,"STRUCTURE") or HeavyPolicy.IsFirstTarget(product)) and product or nil end
     if not R.Has(tp,"MOBILE") or R.Has(tp,"COMMAND")
         or R.Has(tp,"SCOUT") or R.Has(tp,"TRANSPORT") then return nil end
     if R.Has(tp,"ENGINEER") then return product end
@@ -184,6 +200,7 @@ function Stop(platoon,unit,reason,expectedAI)
         data.commanderProductionAssistObservedUnit=nil
     end
     if not record then return false end
+    Blocker(unit,"stop-"..tostring(reason),record.target and record.target.tpId)
     -- The reservation belongs to the old record even after a platoon handoff.
     ClearReservation(unit,record)
     if owned then
@@ -300,24 +317,25 @@ function Update(platoon,unit,sheltered)
     local abilities=unit.scoCommanderAbilities
     local enhancing=unit.scoCommanderEnhancements and unit.scoCommanderEnhancements.active
     if enhancing or (abilities and (abilities.teleport or abilities.missileLaunch)) then
-        Stop(platoon,unit,"ability",data);return false
+        Blocker(unit,"ability");Stop(platoon,unit,"ability",data);return false
     end
-    local paused=type(unit.GetPause)=="function" and unit:GetPause()
+    local paused=RushUnitState.IsPaused(unit)
     if data.commanderFacesLethalDamage or data.commanderIsInImmediateDanger or data.commanderWithdrawalPhase
         or not (data.formerTable.AIPlanData or {}).AssistProductionWhenIdle then
-        Stop(platoon,unit,"defence",data);return false
+        Blocker(unit,"defence");Stop(platoon,unit,"defence",data);return false
     end
     local base=data.basePosition;local pos=Copy(unit:GetPosition())
     local baseRadius=data.baseRadius or 60
     if not base or D2(pos,base)>baseRadius^2 or not Safe(army,pos) then
-        Stop(platoon,unit,"unsafe",data);return false
+        Blocker(unit,"unsafe");Stop(platoon,unit,"unsafe",data);return false
     end
     local range=math.max(1,((unit.construction and unit.construction.range)
         or (unit.tp.construction and unit.tp.construction.range) or 10)-0.5)
     local travel=sheltered and range or math.max(range,math.min(60,baseRadius))
     local mass,energy=Rules.Resources(army,unit)
-    local function inArea(target,product,checkRoute)
-        local targetPos=Copy(target:GetPosition());local workPos=Copy(product:GetPosition())
+    local function inArea(target,product,checkRoute,reclaimPosition)
+        local targetPos=Copy(reclaimPosition or target:GetPosition())
+        local workPos=reclaimPosition and targetPos or Copy(product:GetPosition())
         local distance=D2(pos,workPos)
         if distance>travel^2 or D2(pos,targetPos)>travel^2
             or D2(base,targetPos)>baseRadius^2 or D2(base,workPos)>baseRadius^2
@@ -408,14 +426,18 @@ function Update(platoon,unit,sheltered)
         -- deferred. Native cleanup may need a tick before another order is legal.
     end
     if R.Working(unit) or Busy(unit) or unit.buildBehaviorIsActive then return true end
-    if paused or Now()<(unitAI.rushServiceRetry or 0) then return false end
-    if unitAI.reservedEco or army.ai.ecoReserve and army.ai.ecoReserve[unit.id.index] then return false end
+    if paused then Blocker(unit,"paused");return false end
+    if Now()<(unitAI.rushServiceRetry or 0) then return false end
+    if unitAI.reservedEco or army.ai.ecoReserve and army.ai.ecoReserve[unit.id.index] then
+        Blocker(unit,"reserved");return false
+    end
     local candidates={}
+    local activeWork,unfunded,investmentBlocked=0,0,0
     local repairs,reclaims=ClaimedWork(army,unit)
     local canRepair=type(unit.CanConstructOthers)=="function" and unit:CanConstructOthers()
-    local function add(kind,target,product,score,finish,first)
+    local function add(kind,target,product,score,finish,first,reclaimPosition)
         if Blocked(unit,target,product) then return end
-        local allowed,distance=inArea(target,product,true)
+        local allowed,distance=inArea(target,product,true,reclaimPosition)
         if allowed then candidates[#candidates+1]={kind=kind,target=target,product=product,first=first,
             finish=first and 2 or finish and distance<=range^2 and 1 or 0,
             score=score+(distance<=range^2 and 100 or 0)-math.sqrt(distance)*4} end
@@ -427,8 +449,11 @@ function Update(platoon,unit,sheltered)
         if target~=unit and Rules.Own(army,target) then
             local product=ActiveWork(target)
             local tp=product and product.tp
+            if product then activeWork=activeWork+1 end
             local first=product and HeavyPolicy.IsFirstTarget(product)
-            if product and CanAssist(unit,target) and (first and product==target and HeavyPolicy.FirstAssistAffordable(unit,product)
+            local allowed=product and NewAssistAllowed(army,product)
+            if product and not allowed then investmentBlocked=investmentBlocked+1 end
+            if allowed and CanAssist(unit,target) and (first and product==target and HeavyPolicy.FirstAssistAffordable(unit,product)
                 or not first and Affordable(unit,product,mass,energy)) then
                 local power=R.Has(tp,"ENERGY_PRODUCTION") and not R.Has(tp,"ALLOYS_EXTRACTION")
                 local economy=R.Has(tp,"ALLOYS_EXTRACTION")
@@ -439,7 +464,7 @@ function Update(platoon,unit,sheltered)
                     or economy and 900 or R.Has(tp,"FACTORY") and 860
                     or power and 810 or R.Has(tp,"TECH4") and 800 or R.Has(tp,"TECH3") and 740 or 650)
                     +math.max(0,math.min(1,fraction))*80,target==product and fraction>=0.90,first)
-            end
+            elseif allowed and CanAssist(unit,target) then unfunded=unfunded+1 end
             if canRepair and not repairs[target] and NeedsRepair(army,target)
                 and Affordable(unit,target,mass,energy,true) then
                 local fraction=target:GetHealth()/math.max(1,target:GetMaxHealth())
@@ -467,9 +492,17 @@ function Update(platoon,unit,sheltered)
         for _,prop in pairs(__Entities and __Entities.Props or {}) do
             local value=ReclaimValue(prop,mass)
             if value>0 and not (prop.reclaimers and next(prop.reclaimers)) then
-                local clear=true;local position=prop:GetPosition()
-                for _,claimed in ipairs(reclaims) do if D2(position,claimed)<=100 then clear=false;break end end
-                if clear then add("reclaim",prop,prop,500+math.min(160,math.sqrt(value)*8)) end
+                local position=prop:GetPosition()
+                -- Most map props are outside this commander's work area. Apply
+                -- the same distance bounds as inArea before checking every
+                -- allied builder's salvage claim; keep all safety/path checks.
+                if D2(pos,position)<=travel^2 and D2(base,position)<=baseRadius^2 then
+                    local clear=true
+                    for _,claimed in ipairs(reclaims) do if D2(position,claimed)<=100 then clear=false;break end end
+                    if clear then
+                        add("reclaim",prop,prop,500+math.min(160,math.sqrt(value)*8),nil,nil,position)
+                    end
+                end
             end
         end
     end
@@ -485,7 +518,7 @@ function Update(platoon,unit,sheltered)
         mass,energy=Rules.Resources(army,unit)
         pos=Copy(unit:GetPosition())
         local eligible=kind=="assist" and (candidate.first and HeavyPolicy.CanAssistFirst(army,target)
-            or not candidate.first and Rules.Own(army,target)) and ActiveWork(target)==product and CanAssist(unit,target)
+            or not candidate.first and Rules.Own(army,target)) and ActiveWork(target)==product and CanAssist(unit,target) and NewAssistAllowed(army,product)
             or kind=="repair" and NeedsRepair(army,target)
             or kind=="reclaim" and ReclaimValue(target,mass)>0 and not (target.reclaimers and next(target.reclaimers))
         if eligible and (kind=="reclaim" or not savingUpgrade()) and inArea(target,product,false) then
@@ -516,6 +549,9 @@ function Update(platoon,unit,sheltered)
                         data.commanderProductionAssistFactory=target
                         data.commanderProductionAssistObservedUnit=product
                     end
+                    Diagnostics.Event(army,"commander-service",{unit=unit.id.index,kind=kind,
+                        target=target.id.index,targetType=target.tpId,product=product.tpId,
+                        upgrade=target.upgradeBehaviorIsActive==true},"commander-service-"..unit.id.index,10)
                     Log("[RushV9] army="..army.id.." commander useful "..kind.."="..tostring(target.tpId)
                         .." unit="..target.id.index,true)
                     return true
@@ -528,6 +564,9 @@ function Update(platoon,unit,sheltered)
         end
         Block(unit,target,product,8)
     end
+    Blocker(unit,savingUpgrade() and "saving-enhancement" or investmentBlocked>0 and "extractor-investment"
+        or unfunded>0 and "unfunded"
+        or activeWork>0 and "no-safe-eligible-work" or "no-active-work",activeWork)
     unitAI.rushServiceRetry=Now()+3
     return false
 end

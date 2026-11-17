@@ -4,7 +4,7 @@ A **Supreme Commander: Forged Alliance** overhaul for **Sanctuary: Shattered Sun
 
 **For full transparency, this mod is 100% vibe coded and made with ChatGPT Astra. I am very open and honest about that.**
 
-**[Download SCOM 1.0.1](https://github.com/Doodihealz/Scom/releases/download/V1.0/ScomInstaller.zip)** · [Releases](https://github.com/Doodihealz/Scom/releases) · [Discord community](https://discord.gg/quqwHcDb3A) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
+**[Download SCOM 1.3.0](https://github.com/Doodihealz/Scom/releases/download/V1.3.0/ScomInstaller.zip)** · [Releases](https://github.com/Doodihealz/Scom/releases) · [Discord community](https://discord.gg/quqwHcDb3A) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
 
 ## Features
 
@@ -59,11 +59,11 @@ Browse the readable source directly in this repository:
 
 - [Unit index](source/SCOM/units/index.lua): find units by name, then open their `template.lua`, `host.lua`, or `client.lua`.
 - [Shared SCOM Lua](source/SCOM/lua): shared gameplay, client, host, native movement settings, and the loader's `source-manifest.tsv`.
-- [AI-Scom](source/AI-Scom): the complete installed AI profile, currently `9.0.25-rc30`.
+- [AI-Scom](source/AI-Scom): the complete installed AI profile, currently `10.0.0`.
 - [Managed components](source/managed): recovered C# for the SCOM patcher, its embedded runtimes, loader, UI, and movement/tree components.
 - [Installer](installer): the setup scripts and exact release payload manifest.
 
-The Lua and installer files come directly from the installed mod and installer. C# is decompiled from the shipped mod assemblies because the original projects were unavailable; comments and original project structure are not recoverable. `source/managed/provenance.json` identifies the binaries and decompiler. Recovered projects are for inspection and are not verified as buildable replacements.
+The Lua and installer files match the 1.3.0 release. Editable menu/UI source and rebuild tools are in [source/menu-ui](source/menu-ui). C# is decompiled from the shipped mod assemblies because the original projects were unavailable; comments and original project structure are not recoverable. `source/managed/provenance.json` identifies the binaries and decompiler. The managed recovery is a historical 2026-10-28 snapshot, with its original binary hashes recorded in the provenance file; it is not the complete 1.3.0 managed source. The managed recovery is a historical 2026-10-28 snapshot, with its original binary hashes recorded in the provenance file; it is not the complete 1.3.0 managed source. Recovered projects are for inspection and are not verified as buildable replacements.
 
 The asset pack and compiled runtime dependencies remain in the release download. They are not duplicated in the source tree, and no `.sanpack` extraction is required to read the code. Preserve the relative Lua paths and `source-manifest.tsv` when editing an installation.
 

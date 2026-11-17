@@ -2,13 +2,15 @@
 -- path finding and host enhancement validation remain authoritative.
 -- Design references: M28AI's separate economic investment and construction-power
 -- policies. This is an independent Sanctuary implementation, not an M28AI port.
-Version = "9.0.25-rc30"
+Version = "10.0.0"
+local UnitState=Import("AI/mods/AI-Scom/RushUnitState.lua")
 local Rules=Import("AI/mods/AI-Scom/RushBalance.lua")
 local AF = Import("AI/AIFunctions.lua")
 local MG = Import("AI/AIMarkerGenerator.lua")
 local TM = Import("AI/AITargetManager.lua")
 local Orders = Import("host/managers/orders/hostOrderManager.lua")
 local Log = Import("AI/debugUtilities.lua").AILog
+local Diagnostics=Import("AI/mods/AI-Scom/RushDiagnostics.lua")
 local Factions = {"EDA", "CHOSEN", "GUARD", "SERAPHIM"}
 local Availability=Import("common/units/availableUnits.lua").AvailableUnits
 local Reliability = Import("AI/mods/AI-Scom/RushReliability.lua")
@@ -18,6 +20,7 @@ local HeavyPolicy = Import("AI/mods/AI-Scom/RushHeavyPolicy.lua")
 local EconomyPolicy=Import("AI/mods/AI-Scom/RushEconomyPolicy.lua")
 local MassFabrication=Import("AI/mods/AI-Scom/RushMassFabrication.lua")
 local Expansion=Import("AI/mods/AI-Scom/RushExpansion.lua")
+local NavalConstruction=Import("AI/mods/AI-Scom/RushNavalConstruction.lua")
 local CommanderWork=Import("AI/mods/AI-Scom/RushCommanderWork.lua")
 local Controller
 function Configure(controller)
@@ -179,8 +182,9 @@ function LandT2UpgradeFieldReady(army,snapshot)
     end
     if SupportLandTech(army,snapshot) then return true end
     return EconomyPolicy.LandEnabled(army)
-        and (snapshot.landFactories or 0)>=Rules.Config.TechLandFactories
-        and EconomyPolicy.GroundTransitionReady(snapshot,2)
+        and (EconomyPolicy.FirstLandTechOpportunity(snapshot)
+            or (snapshot.landFactories or 0)>=2
+                and EconomyPolicy.GroundTransitionReady(snapshot,2))
 end
 -- Product metadata is static during a match; the readiness check itself only
 -- inspects the controller's cached snapshot and completed-factory list.
@@ -222,7 +226,7 @@ local function ReleasedProduction(unit)
     local target=unit.unitBeingBuilt
     if unit.productionBehaviorIsActive and Own(unit.army,target) and not target:IsCompleted()
         and not Reliability.UpgradeTarget(unit)
-        and not (type(unit.GetPause)=="function" and unit:GetPause()) then
+        and not (UnitState.IsPaused(unit)) then
         return Rules.RegisteredBuildRates(unit)
     end
     return 0,0
@@ -271,7 +275,7 @@ local function LeaseOwned(army,lease)
     local unit=lease and lease.unit
     return lease and lease.armyAI==army.ai and Own(army,unit) and unit.ai==lease.unitAI
         and unit.tpId==lease.fromId and not unit.CaptureInProgress and not unit.ReclaimInProgress
-        and not (type(unit.GetPause)=="function" and unit:GetPause())
+        and not (UnitState.IsPaused(unit))
         and Availability[lease.id]==true
         and type(unit.GetUpgradeTpId)=="function" and unit:GetUpgradeTpId()==lease.id
 end
@@ -313,7 +317,7 @@ end
 function CanFundFactoryUpgrade(unit,snapshot)
     if not Controller or not unit or not Own(unit.army,unit) or not unit:IsCompleted() or unit.isSlaveFactory
         or unit.CaptureInProgress or unit.ReclaimInProgress or AF.IsUnderAttack(unit)
-        or type(unit.GetPause)=="function" and unit:GetPause()
+        or UnitState.IsPaused(unit)
         or not Has(unit.tp,"FACTORY") or type(unit.GetUpgradeTpId)~="function" then return false end
     local id=unit:GetUpgradeTpId()
     if not id or not Template(id) or NativeUpgradeFunded(unit,id) then return false end
@@ -349,7 +353,7 @@ local function AirTechDefenseReady(army,snapshot,selected,tier)
             and not factory.CaptureInProgress and not factory.ReclaimInProgress
             and not Reliability.UpgradeTarget(factory) and not (factory.ai and factory.ai.rushUpgradeId)
             and not AF.IsUnderAttack(factory)
-            and not (type(factory.GetPause)=="function" and factory:GetPause()) then remaining=remaining+1 end
+            and not (UnitState.IsPaused(factory)) then remaining=remaining+1 end
     end
     return remaining>=(selected and 1 or 2)
 end
@@ -362,7 +366,7 @@ AirT3Ready=function(army,snapshot,selectedFactory)
         if (not selectedFactory or factory==selectedFactory)
             and Own(army,factory) and Tier(factory.tp)==2 and Has(factory.tp,"AIR_FACTORY")
             and not factory.CaptureInProgress and not factory.ReclaimInProgress
-            and not (type(factory.GetPause)=="function" and factory:GetPause())
+            and not (UnitState.IsPaused(factory))
             and not Reliability.UpgradeTarget(factory)
             and type(factory.GetUpgradeTpId)=="function" then
             local products=AirT3Products(factory.factionTag)
@@ -407,11 +411,15 @@ local function AssignedUpgrade(unit)
         and former.AIPlan=="planUpgradeStructure"
 end
 local function OtherFactoryUpgrade(army,snapshot,selected)
+    local count=0
     for _,unit in ipairs(snapshot.globalFactories or snapshot.factories or {}) do
         if unit~=selected and Own(army,unit) and (Reliability.UpgradeTarget(unit)
-            or unit.ai and unit.ai.rushUpgradeId or AssignedUpgrade(unit)) then return true end
+            or unit.ai and unit.ai.rushUpgradeId or AssignedUpgrade(unit)) then count=count+1 end
     end
-    return false
+    local a,e=snapshot.alloy or {},snapshot.energy or {}
+    local limit=math.max(1,math.min(3,math.floor((snapshot.completeFactories or 0)/4),
+        math.floor((a.income or 0)/20),math.floor((e.income or 0)/200)))
+    return count>=limit
 end
 local function OtherProductionReady(army,snapshot,domain,selected,minTier)
     local count=0
@@ -421,9 +429,11 @@ local function OtherProductionReady(army,snapshot,domain,selected,minTier)
             and not unit.CaptureInProgress and not unit.ReclaimInProgress
             and not Reliability.UpgradeTarget(unit) and not (unit.ai and unit.ai.rushUpgradeId)
             and not AssignedUpgrade(unit) and not AF.IsUnderAttack(unit)
-            and not (type(unit.GetPause)=="function" and unit:GetPause()) then count=count+1 end
+            and not (UnitState.IsPaused(unit)) then count=count+1 end
     end
-    local required=not minTier and domain=="land" and (snapshot.landPressure or snapshot.landPanic) and 2 or 1
+    local localAttack=snapshot.mainRaid or snapshot.mainBombardment or snapshot.localLandThreat
+    local preserveTwo=localAttack
+    local required=not minTier and domain=="land" and preserveTwo and 2 or 1
     return count>=required+(selected and 0 or 1)
 end
 local function TechFieldReady(army,c,snapshot,tier,domain,factory)
@@ -441,9 +451,9 @@ local function TechFieldReady(army,c,snapshot,tier,domain,factory)
     -- to advanced engineers when only one land factory is useful.
     if domain=="land" and not support then
         if not OtherProductionReady(army,snapshot,domain,factory) then return false end
-        -- The first T3 upgrade must leave an advanced combat line producing;
-        -- surviving T2 troops alone cannot replace that production during it.
-        if tier==3 and not OtherProductionReady(army,snapshot,domain,factory,2) then return false end
+        -- Existing T2 troops and another real combat line cover the first T3
+        -- transition. Requiring a second T2 factory here formed a cycle with
+        -- the old rollout rule's large completed-T2 army requirement.
     end
     -- Let the first advanced factory deliver the engineer that turns its
     -- unlock into economy and power before taking that same line offline again.
@@ -472,9 +482,10 @@ local function RolloutShare(c,tier,domain)
 end
 local function NeedRolloutAt(army,c,snapshot,tier,domain,factory)
     if domain=="land" then
-        if not (snapshot.rushBeachheadBase or EconomyPolicy.LandEnabled(army))
-            or not EconomyPolicy.GroundReplacementReady(snapshot,tier) then return false end
-        if (snapshot.landPressure or snapshot.landPanic) and EconomyPolicy.NeedsGroundRecovery(army,snapshot) then return false end
+        if not (snapshot.rushBeachheadBase or EconomyPolicy.LandEnabled(army)) then return false end
+        local localAttack=snapshot.mainRaid or snapshot.mainBombardment or snapshot.localLandThreat
+        local minimum=localAttack and math.max(4,math.min(8,EconomyPolicy.GroundFloor(snapshot))) or 4
+        if EconomyPolicy.GroundStrength(snapshot)<minimum then return false end
     end
     local advanced,goal=RolloutShare(c,tier,domain)
     return advanced>=1 and advanced<goal
@@ -523,6 +534,42 @@ function FactoryUpgradePriority(snapshot,domain,tier,rollout)
     return priority+math.floor(deficit*40)+(tier==3 and 4 or 0)
 end
 
+-- Construction needs a small paid workforce even when a wide panic zone
+-- stays active. Only actual local attacks block this priority; native product
+-- funding still applies, and a queued engineer prevents duplicate requests.
+function HomeWorkforceNeeded(snapshot,idle,army)
+    local ready=snapshot.homeBuildersComplete
+    if ready==nil then ready=snapshot.engineersComplete or (snapshot.completeRoles or {}).engineer or 0 end
+    local queued=snapshot.homeBuildersQueued
+    if queued==nil then queued=snapshot.engineersQueued or 0 end
+    local goal=army and EconomyPolicy.HomeBuilderGoal(army,snapshot)
+        or math.min(6,math.max(4,(snapshot.landFactories or 0)+3))
+    local a,e=snapshot.alloy,snapshot.energy
+    if ready>=goal or queued>0 or (idle or snapshot.engineersIdle or 0)>0
+        or snapshot.mainRaid or snapshot.mainBombardment or snapshot.localLandThreat
+        or snapshot.airRaid or not a or not e then return false end
+    local screen=math.max(3,math.min(6,EconomyPolicy.GroundFloor(snapshot)))
+    return (snapshot.landDisconnected or EconomyPolicy.GroundReady(snapshot)>=screen)
+        and not EconomyPolicy.AlloyStalled(snapshot) and a.income>0 and e.income>0
+        and e.ratio>=0.15 and (Rules.Balance(e)>=0 or e.current>=-Rules.Balance(e)*30)
+end
+
+function FirstAirOpportunity(army,snapshot)
+    return not snapshot.mainRaid and not snapshot.mainBombardment and not snapshot.localLandThreat
+        and EconomyPolicy.GroundReady(snapshot)>=math.max(4,math.min(8,EconomyPolicy.GroundFloor(snapshot)))
+        and ((snapshot.factoryPending or {}).air or 0)==0 and Bombers.WantsOpening(army,snapshot)
+end
+
+-- Protect the second completed land factory, then let the native selector
+-- allocate one actually idle, legal builder. Requiring a second local engineer
+-- here excluded navy while spare workers were already committed elsewhere.
+-- No idle worker is held back waiting for an unfundable or unreachable yard.
+function FirstNavalFactoryReady(army,snapshot,baseName)
+    local layers=army.ai.settings and army.ai.settings.useLayer
+    return snapshot.landDisconnected or layers and layers.land==false or snapshot.navalPanic
+        or (snapshot.landFactories or 0)>=2
+end
+
 -- Parallel capacity uses spare builders and real committed resources. Native
 -- selection still prices the chosen factory with its actual builders.
 function CapacityLimit(snapshot,domain)
@@ -530,8 +577,8 @@ function CapacityLimit(snapshot,domain)
     if not a or not e or (snapshot[domain.."Factories"] or 0)<2 then return 1 end
     local mass=Rules.Balance(a)+math.max(0,a.current-a.storage*0.30)/30
     local energy=Rules.Balance(e)+math.max(0,e.current-e.storage*0.30)/30
-    return math.max(1,math.min(3,1+math.floor(math.max(0,(snapshot.engineersIdle or 0)-1)/2),
-        1+math.floor(math.max(0,mass)/12),1+math.floor(math.max(0,energy)/150)))
+    return math.max(1,math.min(4,1+math.floor(math.max(0,(snapshot.engineersIdle or 0)-1)/2),
+        1+math.floor(math.max(0,mass)/10),1+math.floor(math.max(0,energy)/100)))
 end
 
 function Check(armyIndex, baseName, kind, tier, domain)
@@ -553,32 +600,28 @@ function Check(armyIndex, baseName, kind, tier, domain)
     elseif kind=="power" then
         local techPower,techHeadroom=NeedsTechPower(army,snapshot)
         local first=tier==Rules.FirstPowerTier(snapshot)
-        if first then return (snapshot.powerPending and snapshot.powerPending[tier] or 0)==0
-            and (EconomyPolicy.NeedsPower(snapshot) or techPower) end
+        local projects=EconomyPolicy.PowerProjects(army,snapshot)
+        if first then return EconomyPolicy.PowerProjectCount(army,snapshot,tier,projects)==0
+            and (EconomyPolicy.NeedsPower(snapshot) or techPower)
+            and not EconomyPolicy.PowerProjectsCover(army,snapshot,
+                EconomyPolicy.PowerPlanningHeadroom(snapshot,techHeadroom,tier),tier,projects) end
         if not EconomyPolicy.NeedsPower(snapshot) and not techPower then return false end
         -- A bounded T1 bridge remains available during the first advanced plant.
         local bridge=tier==1 and ((c.power[2] or 0)+(c.power[3] or 0)==0)
             and ((snapshot.tiers["engineer:2"] or 0)+(snapshot.tiers["engineer:3"] or 0)>0)
             and Rules.Balance(e)<0
         if not bridge and tier~=HighestEngineer(c) then return false end
-        if (snapshot.powerPending and snapshot.powerPending[tier] or 0)>= (bridge and 1 or math.min(3,1+math.floor(c.constructors/4))) then return false end
-        -- Keep the same forecast through the dispatch gate: a smaller local
-        -- margin must not discard the anticipated cost of spending stored Alloy.
-        local headroom=math.max(40, e.income*0.25, c.totalFactories*18,
-            EconomyPolicy.PowerHeadroom(snapshot),techHeadroom)
-        -- Provision the first paid bomber line before it consumes its buffer.
-        -- This is real generator demand, not a production pause or resource grant.
-        if (snapshot.airFactories or 0)+(snapshot.airFactoriesBuilding or 0)>0
-            and (snapshot.roles.bomber or 0)<2 and c.totalFactories>=1 then
-            headroom=math.max(headroom,90)
-        end
-        if tier>=2 and (c.power[tier] or 0)<1 then headroom=math.max(headroom,e.income*0.40) end
+        if EconomyPolicy.PowerProjectCount(army,snapshot,tier,projects)>= (bridge and 1 or math.min(3,1+math.floor(c.constructors/4))) then return false end
+        -- Use the same future-supply target at both admission and dispatch.
+        local headroom=EconomyPolicy.PowerPlanningHeadroom(snapshot,techHeadroom,tier)
+        if EconomyPolicy.PowerProjectsCover(army,snapshot,headroom,tier,projects) then return false end
         local bank=(c.power[tier] or 0)<(tier==1 and Pressure.GeneratorGoal(c.totalFactories) or math.max(2,math.ceil(c.totalFactories/4)))
         -- Bank targets do not commandeer the Alloy budget when power is already ample.
         local bankBudget=bank and a.ratio>=0.55 and a.balance>=math.max(2,a.income*0.10)
             and e.balance<math.max(headroom,e.income*0.50)
         return bankBudget or e.ratio<0.65 or e.balance-e.reserved<headroom
     elseif kind=="mex" then
+        if not EconomyPolicy.ExtractorInvestmentReady(army,snapshot) then return false end
         if c.mexUpgrades>=math.max(1,math.min(3,math.floor(a.income/25))) or not EnergyHealthy(e) then return false end
         if (c.mex[tier-1] or 0)==0 then return false end
         local main=army.ai.bases[baseName]
@@ -591,34 +634,27 @@ function Check(armyIndex, baseName, kind, tier, domain)
         if shore then snapshot,c=shore,shore.development end
         if rebuildSupport then snapshot,c=support,support.development end
         if domain=="land" and snapshot.landDisconnected and not rebuildSupport then return false end
-        if not EconomyPolicy.CanAddCapacity(army,snapshot,domain) or not EnergyHealthy(e) then return false end
+        if not EconomyPolicy.CanAddCapacity(army,snapshot,domain) then return false end
         local pending=snapshot.factoryPending and snapshot.factoryPending[domain] or 0
         if pending>=CapacityLimit(snapshot,domain) then return false end
-        local current=c[domain.."Factories"]
-        if current>0 and (snapshot.idleFactoriesByDomain and snapshot.idleFactoriesByDomain[domain] or 0)>0 then return false end
         if domain=="naval" then
-            local navalState=army.ai.rushNavalConstruction and army.ai.rushNavalConstruction[baseName]
-            if navalState and Now()<(navalState.retryAt or 0) then return false end
-            if current==0 then
-                return c.totalFactories>=1 and c.constructors>=2
-                    and a.income>=5 and e.income>=60 and a.ratio>=0.15
-                    and (Rules.Balance(a)>=0 or a.current>=100)
-            end
-            if c.naval<math.min(4,current*2) and not snapshot.navalPanic then return false end
-        elseif domain=="air" and not snapshot.landDisconnected
-            and c.landFactories<3 and not snapshot.airPanic then return false end
-        if domain=="land" and current<2 then return true end
-        -- Once existing lines are occupied, let actual surplus and stored
-        -- resources fund expansion instead of a fixed shipyard/airfield ceiling.
-        local mass=Rules.Balance(a)+math.max(0,a.current-a.storage*0.30)/45
-        local energy=Rules.Balance(e)+math.max(0,e.current-e.storage*0.30)/45
-        return mass>=math.max(2,a.income*0.08) and energy>=math.max(20,e.income*0.05)
+            if not NavalConstruction.Ready(army,baseName) then return false end
+            if c.navalFactories==0 then return FirstNavalFactoryReady(army,snapshot,baseName)
+                and c.totalFactories>=1 and c.constructors>=2 end
+        end
+        -- The planner supplies useful demand; the native chosen builder's
+        -- CapacityAffordable check prices the foundation. A second surplus,
+        -- full-storage, army-count or fixed-factory threshold here would make
+        -- the new plan unreachable again.
+        return true
     elseif kind=="experimental" then
         if snapshot.landDisconnected then return false end
         if (c.engineer[3] or 0)<1 or c.experimentalBuilding>0 or not EconomyPolicy.CanStartTech(army,snapshot) then return false end
         local wanted=math.max(1,math.min(6,math.floor(a.income/45)))
         return c.experimental<wanted and EnergyHealthy(e) and a.income>=30 and e.income>=900
-            and (a.current>=100 or a.balance>=5) and not (snapshot.landPanic and c.military<12)
+            and (a.current>=100 or a.balance>=5)
+            and not ((snapshot.mainRaid or snapshot.mainBombardment or snapshot.localLandThreat or snapshot.airRaid)
+                and c.military<12)
     elseif kind=="station" or kind=="stationUpgrade" then
         if army.faction~=1 and army.faction~=3 then return false end
         if HighestEngineer(c)<2 or not EnergyHealthy(e) or a.income<16 or e.income<300 then return false end
@@ -742,7 +778,7 @@ local function CanLeaseFactory(army,u,tier,domain,retaining)
         or not Has(u.tp,domain=="land" and "LAND_FACTORY" or domain=="air" and "AIR_FACTORY" or "NAVAL_FACTORY")
         or u.CaptureInProgress or u.ReclaimInProgress
         or Reliability.UpgradeTarget(u) or (u.ai and u.ai.rushUpgradeId)
-        or type(u.GetPause)=="function" and u:GetPause()
+        or UnitState.IsPaused(u)
         or Now()<(u.ai and u.ai.rushUpgradeRetry or 0)
         or type(u.GetUpgradeTpId)~="function" then return false end
     -- Only our owned serial production can promise its future cycle. An
@@ -791,6 +827,15 @@ function TechCommitment(army,snapshot)
     local function finish(lease,forecast)
         state.factoryLease,state.factoryForecast=lease,forecast
         PublishTechPower(army,snapshot,lease or forecast)
+        local project=lease or forecast
+        Diagnostics.Event(army,"technology",{status=lease and (lease.ready and "ready" or "committed")
+            or forecast and "needs-power" or "no-project",domain=project and project.domain,tier=project and project.tier,
+            factory=project and project.unit and project.unit.id.index,target=project and project.id,
+            firstLandOpportunity=EconomyPolicy.FirstLandTechOpportunity(snapshot),
+            standardGroundReady=EconomyPolicy.GroundTransitionReady(snapshot,2),groundReady=EconomyPolicy.GroundReady(snapshot),
+            groundFloor=EconomyPolicy.GroundFloor(snapshot),techGroundMinimum=snapshot.adaptive and snapshot.adaptive.techGroundMinimum,
+            landFactories=snapshot.landFactories,mainRaid=snapshot.mainRaid,mainBombardment=snapshot.mainBombardment,
+            mass=project and project.mass,energy=project and project.energy},"technology",10)
         return lease
     end
     if not c or not EconomyUsable(snapshot) then return finish(nil,nil) end
@@ -1003,8 +1048,11 @@ local function ShieldBudget(army,state,e)
     local free,resumed=Rules.Balance(e),0
     local units={}
     for _,u in pairs(army.units) do
-        if Own(army,u) and u:IsCompleted() and Has(u.tp,"MOBILE") and Has(u.tp,"SHIELD")
-            and not Has(u.tp,"COMMAND") and type(u.GetShieldToggle)=="function"
+        local enhancement=u.scoCommanderEnhancements
+        local commanderShield=Has(u.tp,"COMMAND") and enhancement and enhancement._activeShieldId~=nil
+        if Own(army,u) and u:IsCompleted() and Has(u.tp,"MOBILE")
+            and (commanderShield or Has(u.tp,"SHIELD") and not Has(u.tp,"COMMAND"))
+            and type(u.GetShieldToggle)=="function"
             and type(u.SetShieldToggle)=="function" and type(u.CheckShieldState)=="function" then units[#units+1]=u end
     end
     table.sort(units,function(a,b) return a.id.index<b.id.index end)
@@ -1016,7 +1064,12 @@ local function ShieldBudget(army,state,e)
         local wantOff=e.ratio<0.04 and (free<0 or army.economy.isEnergyDown==true)
         if wantOff then record.lowSince=record.lowSince or Now()
         elseif e.ratio>=0.12 then record.lowSince=nil end
-        local drain=math.max(0,((u.tp.economy or {}).maintenanceConsumption or {}).energy or 0)
+        -- Enhancement shields expose runtime upkeep, not a static SHIELD tag
+        -- or template maintenance cost. Their native energy-down watcher keeps
+        -- requesting upkeep until this toggle is explicitly switched off.
+        local enhancement=u.scoCommanderEnhancements
+        local drain=math.max(0,Has(u.tp,"COMMAND") and enhancement and enhancement._activeShieldId
+            and enhancement._shieldMaintenance or ((u.tp.economy or {}).maintenanceConsumption or {}).energy or 0)
         -- Debounce power starvation, never refresh shield health or bypass recharge.
         if u:GetShieldToggle() and record.lowSince and Now()-record.lowSince>=3
             and Now()-record.last>=15 then
@@ -1038,8 +1091,8 @@ local function ReleaseRecoveryPauses(army,state,c,snapshot)
     local need=c.constructors==0 or (c.totalFactories==0 and c.constructors<2)
     for key,record in pairs(records) do
         local factory,commander=record.unit,record.commander
-        if not Own(army,factory) then records[key]=nil
-        elseif not factory:GetPause() then records[key]=nil
+        if not Own(army,factory) or not UnitState.CanPause(factory) then records[key]=nil
+        elseif not UnitState.IsPaused(factory) then records[key]=nil
         else
             local product=factory.unitBeingBuilt or factory.productionBehaviorTargetUnit
             local queued=factory.buildQueue and factory.buildQueue[1]
@@ -1069,17 +1122,14 @@ function EnergyRecoveryBudget(army,snapshot)
     local free=Rules.Balance(e);local list={}
     local low=e.ratio<0.08 and free < -math.max(10,e.income*0.05)
     for _,u in ipairs(snapshot.factories or {}) do
-        if Own(army,u) and not u.deleted and type(u.GetPause)=="function" and type(u.SetPause)=="function" then
+        if Own(army,u) and not u.deleted and UnitState.CanPause(u) then
             local product=u.unitBeingBuilt or u.productionBehaviorTargetUnit
             local queue=u.buildQueue and u.buildQueue[1]
             local tp=product and product.tp or queue and Template(queue.tpId)
             local lease=state.factoryLease
             local protected=Reliability.UpgradeTarget(u) or u.ai and u.ai.rushUpgradeId
                 or lease and lease.unit==u and lease.expires>Now()
-                or Has(u.tp,"LAND_FACTORY")
                 or (Has(u.tp,"AIR_FACTORY") and snapshot.airRaid and Has(tp,"FIGHTER"))
-                or (Has(u.tp,"AIR_FACTORY") and Bombers.IsBomber(tp)
-                    and ((snapshot.roles and snapshot.roles.bomber) or 0)<=2)
                 or not tp or Has(tp,"ENGINEER") or HeavyPolicy.IsT4(tp) or not Has(tp,"MOBILE")
             local record=records[u.id.index]
             if record and record.unit~=u then records[u.id.index]=nil;record=nil end
@@ -1090,10 +1140,15 @@ function EnergyRecoveryBudget(army,snapshot)
             local bp=u.construction and u.construction.buildPower
             local drain=work and work>0 and bp and bp>0 and (eco.cost and eco.cost.energy or 0)*bp/work or 0
             if record and (protected or army.ai.isAlive==false) then
-                if u:GetPause() then u:SetPause(false);free=free-drain end
+                if UnitState.IsPaused(u) then u:SetPause(false);free=free-drain end
                 records[u.id.index]=nil;record=nil
             end
-            if not protected and not recoveryOwned and drain>0 then list[#list+1]={unit=u,drain=drain} end
+            if not protected and not recoveryOwned and drain>0 then
+                -- Pausing saves only this factory's registered native demand;
+                -- use the projected rate solely to budget a later resumption.
+                local _,activeDrain=Rules.RegisteredBuildRates(u)
+                list[#list+1]={unit=u,drain=drain,activeDrain=activeDrain}
+            end
         end
     end
     table.sort(list,function(x,y)
@@ -1103,26 +1158,26 @@ function EnergyRecoveryBudget(army,snapshot)
     -- and engineer queues are protected independently of these combat choices.
     local keepLand,keepAir
     for i=#list,1,-1 do local u=list[i].unit
-        if (not u:GetPause() or records[u.id.index]) and snapshot.landPanic and Has(u.tp,"LAND_FACTORY") and not keepLand then keepLand=u end
-        if (not u:GetPause() or records[u.id.index]) and snapshot.airPanic and Has(u.tp,"AIR_FACTORY") and not keepAir then keepAir=u end
+        if (not UnitState.IsPaused(u) or records[u.id.index]) and snapshot.landPanic and Has(u.tp,"LAND_FACTORY") and not keepLand then keepLand=u end
+        if (not UnitState.IsPaused(u) or records[u.id.index]) and snapshot.airPanic and Has(u.tp,"AIR_FACTORY") and not keepAir then keepAir=u end
     end
     for _,item in ipairs(list) do
         local u,drain=item.unit,item.drain;local record=records[u.id.index]
         if u==keepLand or u==keepAir then
             if record then
-                if u:GetPause() then u:SetPause(false);free=free-drain end
+                if UnitState.IsPaused(u) then u:SetPause(false);free=free-drain end
                 records[u.id.index]=nil
             end
-        elseif low and free<math.max(10,e.income*0.1) and not u:GetPause() then
-            u:SetPause(true);records[u.id.index]={unit=u,since=Now()};free=free+drain
+        elseif low and free<math.max(10,e.income*0.1) and not UnitState.IsPaused(u) and item.activeDrain>0 then
+            u:SetPause(true);records[u.id.index]={unit=u,since=Now()};free=free+item.activeDrain
             Log("[RushWork] army="..tostring(army.id).." event=energy-production-paused factory="..u.id.index,true)
         elseif record and Now()-record.since>=15 and e.ratio>=0.35 and free>=drain*1.1+10 then
-            if u:GetPause() then u:SetPause(false);free=free-drain end
+            if UnitState.IsPaused(u) then u:SetPause(false);free=free-drain end
             records[u.id.index]=nil
             Log("[RushWork] army="..tostring(army.id).." event=energy-production-resumed factory="..u.id.index,true)
         end
     end
-    for key,r in pairs(records) do if not Own(army,r.unit) or r.unit.deleted then records[key]=nil end end
+    for key,r in pairs(records) do if not Own(army,r.unit) or not UnitState.CanPause(r.unit) then records[key]=nil end end
 end
 
 function Maintenance(army, plans)
@@ -1149,6 +1204,7 @@ function Maintenance(army, plans)
         snapshot=adjusted
     end
     EnergyRecoveryBudget(army,snapshot)
+    Import("AI/mods/AI-Scom/RushFireSupport.lua").Tick(army,snapshot)
     for _,u in pairs(army.units) do
         if Own(army,u) and Has(u.tp,"ENGINEER") and not HeavyPolicy.IsT4(u.tp) and u:IsCompleted()
             and not u.scoCommanderPodOwner and not u.scoSourcePodOwner then
@@ -1260,9 +1316,21 @@ local function EnhancementScore(role,traits)
     for kind,weight in pairs(weights) do if traits[kind] then score=math.max(score,weight) end end
     return score
 end
+local function CommanderInvestmentContext(snapshot)
+    if snapshot and (snapshot.mainRaid or snapshot.mainBombardment) then return "combat" end
+    if snapshot and (snapshot.landDisconnected or Pressure.SurvivalMap()) then return "rear" end
+    return "balanced"
+end
 local function CommanderContext(snapshot)
     if snapshot and (snapshot.landDisconnected or Pressure.SurvivalMap()) then return "support" end
-    if snapshot and snapshot.landPressure and (snapshot.groundReady or 0)>=6 then return "offense" end
+    if snapshot and (snapshot.mainRaid or snapshot.mainBombardment) and (snapshot.groundReady or 0)>=6 then
+        return "offense"
+    end
+    if snapshot then
+        local mass,energy=snapshot.alloy,snapshot.energy
+        if mass and (mass.ratio or 1)<0.35 and Rules.Balance(mass)<0
+            or energy and (energy.ratio or 1)<0.35 and Rules.Balance(energy)<0 then return "support" end
+    end
     return "default"
 end
 -- A commander commits to a compatible native build, not an affordable sequence
@@ -1281,7 +1349,8 @@ function CommanderRole(unit,snapshot)
     local same=old and old.owner==unit.army and old.state==state and old.contract==contract and old.commander==commander
         and old.rules==commander.enhancements and old.capabilities==state.capabilities
     if same and SameValues(state.installed,old.installed) and SameValues(state.slots,old.slots)
-        and (old.locked or not snapshot or old.context==CommanderContext(snapshot)) then return old end
+        and (not snapshot or old.context==CommanderContext(snapshot)
+            and old.investmentContext==CommanderInvestmentContext(snapshot)) then return old end
     if type(api.supports)~="function" then return nil end
     local nodes,ready={},{}
     for id,rule in pairs(commander.enhancements or {}) do
@@ -1298,6 +1367,7 @@ function CommanderRole(unit,snapshot)
     snapshot=snapshot or Controller and Controller.Snapshot(unit.army)
     local locked=same and old.locked
     local context=CommanderContext(snapshot)
+    local investmentContext=CommanderInvestmentContext(snapshot)
     local role=locked and old.role or context~="default" and context or CommanderRoles[unit.tpId]
     if not locked then
         if ready.laser or ready.weapon and not ready.engineering and not ready.aura then role="offense"
@@ -1306,6 +1376,10 @@ function CommanderRole(unit,snapshot)
     local candidates={}
     for id,node in pairs(nodes) do
         local score=EnhancementScore(role,node.traits)
+        -- Unoccupied slots can adapt to a safe rear economy or a combat role.
+        -- Installed and active purchases still anchor the compatible graph.
+        if investmentContext=="rear" and node.traits.economy then score=score+75 end
+        if investmentContext=="combat" and (node.traits.shield or node.traits.resilience) then score=score+25 end
         if score>0 then candidates[#candidates+1]={id=id,score=score} end
     end
     table.sort(candidates,function(a,b) return a.score>b.score or a.score==b.score and a.id<b.id end)
@@ -1351,12 +1425,17 @@ function CommanderRole(unit,snapshot)
         or planned.engineering and "engineer" or planned.shield and "shield" or "support"
     local profile={owner=unit.army,state=state,contract=contract,commander=commander,rules=commander.enhancements,
         capabilities=state.capabilities,installed=CopyValues(state.installed),slots=CopyValues(state.slots),
-        context=context,locked=locked,
-        role=role,niche=niche,steps=steps,selected=selected,ready={}}
+        context=context,investmentContext=investmentContext,locked=locked,
+        role=role,niche=niche,steps=steps,selected=selected,nodes=nodes,ready={}}
     for _,kind in ipairs({"weapon","laser","shield","aura","engineering","resilience"}) do
         if ready[kind] then profile.ready[kind]=true end
     end
     unit.ai.rushCommanderRole=profile
+    Import("AI/mods/AI-Scom/RushDiagnostics.lua").Event(unit.army,"commander-role",
+        {unit=unit.id.index,role=role,niche=niche,context=context,investment=investmentContext,
+            locked=locked==true,mainRaid=snapshot and snapshot.mainRaid==true,
+            bombardment=snapshot and snapshot.mainBombardment==true,
+            landPressure=snapshot and snapshot.landPressure==true},"commander-role-"..unit.id.index,30)
     return profile
 end
 local function EnhancementFrame()
@@ -1388,7 +1467,7 @@ function PendingCommanderReserve(army,except,sample)
     if not lease or not EnhancementIntentCurrent(army,lease) or Now()>=lease.expires
         or lease.phase=="return" then return 0,0 end
     local unit=lease.unit
-    if type(unit.GetPause)=="function" and unit:GetPause() then return 0,0 end
+    if UnitState.IsPaused(unit) then return 0,0 end
     if unit==except then return 0,0,unit,lease.id end
     local mass,energy=lease.mass,lease.energy
     if lease.phase=="active" then
@@ -1483,7 +1562,7 @@ local function EnhancementResources(unit,snapshot,creditAssist)
 end
 local function EnhancementFieldReady(unit,snapshot)
     if not EconomyUsable(snapshot) or (snapshot.completeFactories or 0)<2
-        or (snapshot.engineersComplete or 0)<1 or snapshot.mainRaid
+        or (snapshot.engineersComplete or 0)<1 or snapshot.mainRaid or snapshot.mainBombardment
         or EconomyPolicy.NeedsGroundRecovery(unit.army,snapshot) then return false end
     local roles=snapshot.completeRoles or {}
     if EconomyPolicy.LandEnabled(unit.army) and not snapshot.landDisconnected then
@@ -1517,7 +1596,11 @@ local function ShieldMaintenanceDelta(unit,rule)
 end
 local function EnhancementOffer(unit,snapshot,id,profile)
     local api=NativeEnhancement(unit);local state=unit.scoCommanderEnhancements
-    local rule=api and api.allowed(state,profile.commander,id)
+    if not api or api.retryAt and Now()<api.retryAt(id) then return nil end
+    local retry=unit.ai and unit.ai.rushEnhanceFailures
+    retry=retry and retry.state==state and retry.ids[id]
+    if retry and Now()<retry.retryAt then return nil end
+    local rule=api.allowed(state,profile.commander,id)
     if not rule or not profile.selected[id] or not api.supports(rule) then return nil end
     local cost=api.validate(rule,false)
     if not cost then return nil end
@@ -1532,21 +1615,61 @@ local function EnhancementOffer(unit,snapshot,id,profile)
     if upkeep>0 and Rules.Balance(e)<upkeep+math.max(15,e.income*0.03) then return nil end
     return {id=id,cost=cost,mass=mass,energy=energy,seconds=seconds,authored=authored,upkeep=upkeep}
 end
+local function EnhancementFunded(snapshot,offer)
+    local a,e=snapshot.alloy,snapshot.energy
+    return e.ratio>=0.25
+        and Rules.Balance(a)+math.max(0,a.current-a.storage*0.20)/offer.seconds>=offer.mass
+        and Rules.Balance(e)+math.max(0,e.current-e.storage*0.20)/offer.seconds>=offer.energy+offer.upkeep
+end
+local function EnhancementUtility(unit,profile,offer,snapshot)
+    local node=profile.nodes[offer.id]
+    local score=EnhancementScore(profile.role,node.traits)
+    -- Secure an effective basic loadout before committing to its expensive
+    -- refinements. Compare paid completion time, not authored build time.
+    if node.rule.prerequisite then score=score*0.80 else score=score*1.15 end
+    if profile.role=="offense" and node.traits.gun and not profile.ready.weapon then score=score+40 end
+    if profile.role=="support" and (node.traits.aura and not profile.ready.aura
+        or node.traits.engineering and not profile.ready.engineering) then score=score+25 end
+    if node.traits.resilience and unit:GetHealth()<unit:GetMaxHealth()*0.90 then score=score+20 end
+    if snapshot.landPressure then
+        if node.traits.gun or node.traits.shield or node.traits.aura or node.traits.resilience then score=score+30 end
+        if node.traits.economy then score=score*0.70 end
+    end
+    local engineering=node.rule.effects and node.rule.effects.engineering
+    local constructors=snapshot.development and snapshot.development.engineer or {}
+    if engineering and (engineering.tier or 1)>1 and (constructors[engineering.tier] or 0)==0
+        and (engineering.tier==3 or (constructors[3] or 0)==0) then score=score+20 end
+    return score/math.sqrt(30+offer.seconds)
+end
 function ChooseEnhancement(unit,snapshot,planning)
     local profile=CommanderRole(unit,snapshot)
     if not profile or not EnhancementFieldReady(unit,snapshot) then return nil end
-    local a,e=snapshot.alloy,snapshot.energy
+    local best,bestScore,bestFunded
     for _,id in ipairs(profile.steps) do
         local offer=EnhancementOffer(unit,snapshot,id,profile)
         if offer then
-            local seconds=offer.seconds
-            local funded=e.ratio>=0.25
-                and Rules.Balance(a)+math.max(0,a.current-a.storage*0.20)/seconds>=offer.mass
-                and Rules.Balance(e)+math.max(0,e.current-e.storage*0.20)/seconds>=offer.energy+offer.upkeep
-            if planning or funded then return id,seconds,offer end
+            local funded=EnhancementFunded(snapshot,offer)
+            if planning or funded then
+                local score=EnhancementUtility(unit,profile,offer,snapshot)
+                if not best or funded and not bestFunded or funded==bestFunded and
+                    (score>bestScore or score==bestScore and id<best.id) then
+                    best,bestScore,bestFunded=offer,score,funded
+                end
+            end
         end
     end
+    if best then return best.id,best.seconds,best end
     return nil
+end
+local function DeferEnhancement(unit,id,seconds)
+    local state=unit.scoCommanderEnhancements
+    local failures=unit.ai.rushEnhanceFailures
+    if not failures or failures.state~=state then
+        failures={state=state,ids={}};unit.ai.rushEnhanceFailures=failures
+    end
+    local previous=failures.ids[id]
+    local attempts=math.min(5,(previous and previous.attempts or 0)+1)
+    failures.ids[id]={attempts=attempts,retryAt=Now()+math.min(600,seconds*2^(attempts-1))}
 end
 local function TrustedCommander(unit)
     if IsHost~=true or not unit or not unit.army or not Controller
@@ -1619,7 +1742,9 @@ function CommanderStep(platoon,unit,danger,prepare)
     if active~=nil and (type(active)~="table" or not Finite(active.progress)
         or not Finite(active.buildTime) or active.buildTime<=0) then return false end
     if active then
-        local abandon=danger
+        local unsafe=danger or data.commanderIsInImmediateDanger==true
+            or data.commanderUnderAttack and unit:GetHealth()<unit:GetMaxHealth()*0.85
+        local abandon=unsafe
         local abortReason
         local now=Now()
         local progress=active.progress or 0
@@ -1630,7 +1755,7 @@ function CommanderStep(platoon,unit,danger,prepare)
         elseif progress>watch.progress+0.001 then
             watch.progress=progress;watch.advanced=now
         end
-        local paused=active.paused==true or unit:GetPause()==true
+        local paused=active.paused==true or UnitState.IsPaused(unit)==true
         if paused then
             watch.pausedAt=watch.pausedAt or now
         elseif watch.pausedAt then
@@ -1657,10 +1782,11 @@ function CommanderStep(platoon,unit,danger,prepare)
                     Log(("[RushV9] commander=%s enhancement=%s cancelled reason=%s progress=%.2f/%.2f")
                         :format(unit.tpId,active.id,abortReason,active.progress or 0,active.buildTime or 0),true)
                 end
+                if abortReason then DeferEnhancement(unit,active.id,90) end
                 ReleaseEnhancementIntent(army,unit.ai,unit.ai.rushEnhanceIntent)
                 unit.ai.rushEnhanceWatch=nil;unit.ai.rushEnhancing=nil
-                unit.ai.rushEnhanceExpectedSeconds=nil;unit.ai.rushEnhanceRetry=Now()+(danger and 30 or 45)
-                platoon.ai.eState=danger and "StartWithdraw" or "SelectMainTarget"
+                unit.ai.rushEnhanceExpectedSeconds=nil;unit.ai.rushEnhanceRetry=Now()+(unsafe and 30 or 45)
+                platoon.ai.eState=unsafe and "StartWithdraw" or "SelectMainTarget"
                 return false
             end
         end
@@ -1683,7 +1809,7 @@ function CommanderStep(platoon,unit,danger,prepare)
         ReleaseEnhancementIntent(army,unitAI,intent,replacedHome and 0 or 15);intent=nil
     end
     if danger or type(start)~="function" or type(clientID)~="number"
-        or type(unit.GetPause)=="function" and unit:GetPause() then
+        or UnitState.IsPaused(unit) then
         ReleaseEnhancementIntent(army,unitAI,intent);return false
     end
     if CommanderWork.ConstructionTarget(unit) then
@@ -1691,7 +1817,8 @@ function CommanderStep(platoon,unit,danger,prepare)
     end
     local pos=unit:GetPosition();local home=army.ai.bases and army.ai.bases.MAIN
     if not home or not home.position or data.commanderUnderAttack
-        or unit:GetHealth()<unit:GetMaxHealth()*0.70 or not Expansion.Safe(army,pos) then
+        or unit:GetHealth()<unit:GetMaxHealth()*0.70 or not Expansion.Safe(army,pos)
+        or not Expansion.Safe(army,home.position) then
         ReleaseEnhancementIntent(army,unitAI,intent);return false
     end
     for _,weapon in ipairs(unit.weapons or {}) do
@@ -1779,10 +1906,14 @@ function CommanderStep(platoon,unit,danger,prepare)
     -- Read fresh native totals after the released assist has left the economy.
     -- Never rerun this handoff against the stale one-second census balance.
     snapshot=EnhancementResources(unit,snapshot,false)
-    local a,e=snapshot and snapshot.alloy,snapshot and snapshot.energy
-    local funded=a and e and e.ratio>=0.25
-        and Rules.Balance(a)+math.max(0,a.current-a.storage*0.20)/expectedSeconds>=offer.mass
-        and Rules.Balance(e)+math.max(0,e.current-e.storage*0.20)/expectedSeconds>=offer.energy+offer.upkeep
+    local profile=snapshot and CommanderRole(unit,snapshot)
+    offer=profile and EnhancementOffer(unit,snapshot,id,profile)
+    if not current() or not offer then
+        ReleaseEnhancementIntent(army,unitAI,intent,10);return current()
+    end
+    expectedSeconds=offer.seconds
+    intent.mass,intent.energy,intent.upkeep,intent.expected=offer.mass,offer.energy,offer.upkeep,expectedSeconds
+    local funded=EnhancementFunded(snapshot,offer)
     if not funded then
         if intent.phase=="start" then intent.phase="funding" end
         data.eState="SelectMainTarget"
@@ -1814,6 +1945,7 @@ function CommanderStep(platoon,unit,danger,prepare)
         Log("[RushV9] commander="..unit.tpId.." enhancement="..id.." started",true)
         return true
     end
+    DeferEnhancement(unit,id,30)
     ReleaseEnhancementIntent(army,unitAI,intent)
     Log("[RushV9] commander enhancement deferred: "..tostring(ok and reason or accepted),true)
     return false
@@ -1849,13 +1981,13 @@ function CommanderRecoveryStep(platoon,unit,danger,prepare)
     if need and EconomyUsable(snapshot) then
         for _,factory in pairs(army.units) do
             if Rules.Own(army,factory) and Has(factory.tp,"FACTORY") and Has(factory.tp,"STRUCTURE")
-                and type(factory.SetPause)=="function" and type(factory.GetPause)=="function" then
+                and UnitState.CanPause(factory) then
                 local product=factory.unitBeingBuilt
                 local queued=factory.buildQueue and factory.buildQueue[1]
                 local tp=product and product.tp or (queued and Template(queued.tpId))
                 local energy=state.energyPaused and state.energyPaused[factory.id.index]
                 if tp and Has(tp,"MOBILE") and not Has(tp,"ENGINEER") and not Has(tp,"COMMAND")
-                    and not Reliability.UpgradeTarget(factory) and not factory:GetPause()
+                    and not Reliability.UpgradeTarget(factory) and not UnitState.IsPaused(factory)
                     and (not energy or energy.unit~=factory)
                     and (snapshot.energy.ratio<0.2 or snapshot.alloy.income<5) then
                     factory:SetPause(true)
@@ -1906,7 +2038,7 @@ function CommanderRecoveryStep(platoon,unit,danger,prepare)
             or not constructing and distance<work.bestDistance-1 then
             work.progress,work.bestDistance,work.progressAt=progress,math.min(distance,work.bestDistance),Now()
         end
-        local paused=type(unit.GetPause)=="function" and unit:GetPause()
+        local paused=UnitState.IsPaused(unit)
         if paused then work.pausedAt=work.pausedAt or Now()
         elseif work.pausedAt then
             work.progressAt=math.min(Now(),work.progressAt+math.max(0,Now()-work.pausedAt))
@@ -1925,7 +2057,7 @@ function CommanderRecoveryStep(platoon,unit,danger,prepare)
         unit.ai.rushRecoveryWork=nil;unit.ai.rushRecoveryRetry=Now()+5
         platoon.ai.eState="SelectMainTarget"
     end
-    if not need or danger or type(unit.GetPause)=="function" and unit:GetPause()
+    if not need or danger or UnitState.IsPaused(unit)
         or Now()<(unit.ai.rushRecoveryRetry or 0) then return false end
     if unit.scoCommanderEnhancements and unit.scoCommanderEnhancements.active then
         CancelAIEnhancement(unit)

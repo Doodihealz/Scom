@@ -1,10 +1,11 @@
--- Per-base industrial districts with varied shapes, sizes and open factory exits.
+-- Factory districts with uniform T1 generator banks and open production exits.
 -- Layout preferences never replace the engine's build/grid/terrain validators.
-Version = "9.0.25-rc30"
+Version = "9.0.26-scom-fix"
 local AF = Import("AI/AIFunctions.lua")
 local MG = Import("AI/AIMarkerGenerator.lua")
 local TM = Import("AI/AITargetManager.lua")
 local R = Import("AI/mods/AI-Scom/RushReliability.lua")
+local UnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
 local Profiles = Import("AI/mods/AI-Scom/RushLayoutProfile.lua")
 local EconomyPolicy = Import("AI/mods/AI-Scom/RushEconomyPolicy.lua")
 local Rules = Import("AI/mods/AI-Scom/RushBalance.lua")
@@ -380,35 +381,120 @@ function FactoryExits(tp,position,unit)
     local f=R.Footprint(tp)
     return f and Exits({tp=tp,pos=position,x=f.x,z=f.y,unit=unit}) or {}
 end
+-- A placement search may test over a thousand sites against the same geometry.
+-- Index footprints once for that search, retaining the exact narrow-phase
+-- overlap rules. The index owns no live unit state and never survives Find.
+local OVERLAP_CELL=16
+local function OverlapIndex(records)
+    if #records<16 then return {records=records} end
+    local index={cells={},seen={},serial=0,maxPadding=0}
+    for _,record in ipairs(records) do
+        index.maxPadding=math.max(index.maxPadding,record.padding or 0)
+        local left,right=math.floor((record.pos.x-record.x/2)/OVERLAP_CELL),math.floor((record.pos.x+record.x/2)/OVERLAP_CELL)
+        local top,bottom=math.floor((record.pos.z-record.z/2)/OVERLAP_CELL),math.floor((record.pos.z+record.z/2)/OVERLAP_CELL)
+        for x=left,right do
+            local column=index.cells[x]
+            if not column then column={};index.cells[x]=column end
+            for z=top,bottom do
+                local bucket=column[z]
+                if not bucket then bucket={};column[z]=bucket end
+                bucket[#bucket+1]=record
+            end
+        end
+    end
+    return index
+end
+local function IndexedOverlap(index,p,x,z,gap)
+    if index.records then
+        for _,record in ipairs(index.records) do
+            if Overlap(p,x,z,record.pos,record.x,record.z,record.padding or gap) then return true end
+        end
+        return false
+    end
+    local padding=math.max(gap,index.maxPadding)
+    local left,right=math.floor((p.x-x/2-padding)/OVERLAP_CELL),math.floor((p.x+x/2+padding)/OVERLAP_CELL)
+    local top,bottom=math.floor((p.z-z/2-padding)/OVERLAP_CELL),math.floor((p.z+z/2+padding)/OVERLAP_CELL)
+    index.serial=index.serial+1
+    local serial=index.serial
+    for cx=left,right do
+        local column=index.cells[cx]
+        if column then
+            for cz=top,bottom do
+                local bucket=column[cz]
+                if bucket then
+                    for _,record in ipairs(bucket) do
+                        if index.seen[record]~=serial then
+                            index.seen[record]=serial
+                            if Overlap(p,x,z,record.pos,record.x,record.z,record.padding or gap) then return true end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+local function PrepareCandidateIndex(tp,g)
+    local solids,clearances={},{}
+    for _,record in ipairs(g.structures) do solids[#solids+1]=record end
+    for _,record in ipairs(g.pending) do solids[#solids+1]=record end
+    local function clearance(record,padding)
+        clearances[#clearances+1]={pos=record.pos,x=record.x,z=record.z,padding=padding}
+    end
+    for _,slot in ipairs(g.rings) do
+        local compatible=slot.kind=="mass" and IsMassStorage(tp)
+            or slot.kind=="energy" and (IsEnergyStorage(tp) or UsesPower(tp))
+        if not compatible then clearance(slot,0) end
+    end
+    for _,mobile in ipairs(g.mobiles) do clearance(mobile,mobile.clearance or 1.5) end
+    for _,factory in ipairs(g.factories) do
+        for _,exit in ipairs(factory.exits or Exits(factory)) do clearance(exit,0.5) end
+    end
+    for _,factory in ipairs(g.pending) do
+        if IsFactory(factory.tp) or g.hiveFactories and IsHiveFactory(factory.tp) then
+            for _,exit in ipairs(factory.exits or Exits(factory)) do clearance(exit,0.5) end
+        end
+    end
+    g.solidIndex=OverlapIndex(solids);g.clearanceIndex=OverlapIndex(clearances)
+end
+local function SolidOverlap(g,p,x,z,gap)
+    if g.solidIndex then return IndexedOverlap(g.solidIndex,p,x,z,gap) end
+    for _,record in ipairs(g.structures) do
+        if Overlap(p,x,z,record.pos,record.x,record.z,gap) then return true end
+    end
+    for _,record in ipairs(g.pending) do
+        if Overlap(p,x,z,record.pos,record.x,record.z,gap) then return true end
+    end
+    return false
+end
 local function ClearCandidate(army,tp,p,geometry,gap,avoid)
     local f=R.Footprint(tp)
     if not f or not Position(p) or not Finite(p.y) or not R.Inside(p,math.max(f.x,f.y)/2+0.5) or Avoid(p,geometry) then return false end
     if BlocksBeachheadLane(p,f,geometry.beachheadLanes) then return false end
-    for _,s in ipairs(geometry.structures) do
-        if Overlap(p,f.x,f.y,s.pos,s.x,s.z,gap) then return false end
-    end
-    for _,s in ipairs(geometry.pending) do
-        if Overlap(p,f.x,f.y,s.pos,s.x,s.z,gap) then return false end
-    end
-    -- Reserve useful storage faces as industry grows. Power consumers may
-    -- still share a generator edge; their native adjacency has value too.
-    for _,slot in ipairs(geometry.rings) do
-        local compatible=slot.kind=="mass" and IsMassStorage(tp)
-            or slot.kind=="energy" and (IsEnergyStorage(tp) or UsesPower(tp))
-        if not compatible and Overlap(p,f.x,f.y,slot.pos,slot.x,slot.z,0) then return false end
-    end
-    for _,m in ipairs(geometry.mobiles) do
-        if Overlap(p,f.x,f.y,m.pos,m.x,m.z,m.clearance or 1.5) then return false end
-    end
-    for _,factory in ipairs(geometry.factories) do
-        for _,exit in ipairs(factory.exits or Exits(factory)) do
-            if Overlap(p,f.x,f.y,exit.pos,exit.x,exit.z,0.5) then return false end
+    if SolidOverlap(geometry,p,f.x,f.y,gap) then return false end
+    if geometry.clearanceIndex then
+        if IndexedOverlap(geometry.clearanceIndex,p,f.x,f.y,0) then return false end
+    else
+        -- Reserve useful storage faces as industry grows. Power consumers may
+        -- still share a generator edge; their native adjacency has value too.
+        for _,slot in ipairs(geometry.rings) do
+            local compatible=slot.kind=="mass" and IsMassStorage(tp)
+                or slot.kind=="energy" and (IsEnergyStorage(tp) or UsesPower(tp))
+            if not compatible and Overlap(p,f.x,f.y,slot.pos,slot.x,slot.z,0) then return false end
         end
-    end
-    for _,factory in ipairs(geometry.pending) do
-        if IsFactory(factory.tp) or geometry.hiveFactories and IsHiveFactory(factory.tp) then
+        for _,m in ipairs(geometry.mobiles) do
+            if Overlap(p,f.x,f.y,m.pos,m.x,m.z,m.clearance or 1.5) then return false end
+        end
+        for _,factory in ipairs(geometry.factories) do
             for _,exit in ipairs(factory.exits or Exits(factory)) do
                 if Overlap(p,f.x,f.y,exit.pos,exit.x,exit.z,0.5) then return false end
+            end
+        end
+        for _,factory in ipairs(geometry.pending) do
+            if IsFactory(factory.tp) or geometry.hiveFactories and IsHiveFactory(factory.tp) then
+                for _,exit in ipairs(factory.exits or Exits(factory)) do
+                    if Overlap(p,f.x,f.y,exit.pos,exit.x,exit.z,0.5) then return false end
+                end
             end
         end
     end
@@ -420,16 +506,7 @@ local function ClearCandidate(army,tp,p,geometry,gap,avoid)
         for _,exit in ipairs(Exits(candidate)) do
             local ep,ex,ez=exit.pos,exit.x,exit.z
             local clear=R.Inside(ep,math.max(ex,ez)/2+0.5)
-            if clear then
-                for _,s in ipairs(geometry.structures) do
-                    if Overlap(ep,ex,ez,s.pos,s.x,s.z,0.5) then clear=false;break end
-                end
-            end
-            if clear then
-                for _,s in ipairs(geometry.pending) do
-                    if Overlap(ep,ex,ez,s.pos,s.x,s.z,0.5) then clear=false;break end
-                end
-            end
+            if clear and SolidOverlap(geometry,ep,ex,ez,0.5) then clear=false end
             if clear then
                 for _,step in ipairs(EXIT_PROBES) do
                     local probe={x=p.x,y=p.y,z=p.z}
@@ -570,6 +647,71 @@ local function ProtectionValue(p,g)
     end
     return score
 end
+-- T1 power has one stable layout policy. Generic adjacency can prefer hives,
+-- storage or maintenance consumers; those are useful for advanced power but
+-- must not pull early generators away from their production factory.
+local function FactoryPowerHubs(g,center,radius,footprint)
+    local hubs,seen={},{}
+    local reach=radius+math.sqrt(footprint.x^2+footprint.y^2)/2
+    local function add(factory)
+        if not IsFactory(factory.tp) or D2(factory.pos,center)>
+            (reach+math.sqrt(factory.x^2+factory.z^2)/2)^2 then return end
+        local key=factory.pos.x..":"..factory.pos.z..":"..factory.x..":"..factory.z
+        if seen[key] then return end
+        seen[key]=true;hubs[#hubs+1]=factory
+    end
+    for _,factory in ipairs(g.factories) do add(factory) end
+    for _,factory in ipairs(g.pending) do add(factory) end
+    table.sort(hubs,function(a,b)
+        local da,db=D2(a.pos,center),D2(b.pos,center)
+        if da~=db then return da<db end
+        if a.pos.x~=b.pos.x then return a.pos.x<b.pos.x end
+        if a.pos.z~=b.pos.z then return a.pos.z<b.pos.z end
+        return tostring(a.id)<tostring(b.id)
+    end)
+    return hubs
+end
+local function FindFactoryPower(tp,g,center,radius,try,adjacentOnly)
+    local f=R.Footprint(tp)
+    local hubs=FactoryPowerHubs(g,center,radius,f)
+    g.powerHubs=hubs
+    local checked=0
+    -- Complete the touching row around every factory before adding outer rows.
+    -- No permanent claims: live structures and queued sites reserve each slot.
+    for row=1,(adjacentOnly and 1 or 3) do
+        for _,factory in ipairs(hubs) do
+            for face=1,4 do
+                local xAxis=face<=2
+                local direction=face%2==1 and 1 or -1
+                local span=xAxis and factory.x or factory.z
+                local across=xAxis and factory.z or factory.x
+                local size=xAxis and f.x or f.y
+                local crossSize=xAxis and f.y or f.x
+                local pitch=math.ceil(crossSize)+1
+                local columns=math.max(1,math.floor((across+1)/pitch))
+                local crossCenter=xAxis and factory.pos.z or factory.pos.x
+                local first=Round(crossCenter-(columns-1)*pitch/2,crossSize)
+                local edge=(xAxis and factory.pos.x or factory.pos.z)
+                    +direction*(span/2+size/2+(row-1)*(math.ceil(size)+1))
+                local sequence={}
+                for i=0,columns-1 do sequence[#sequence+1]=first+i*pitch end
+                table.sort(sequence,function(a,b)
+                    local da,db=math.abs(a-crossCenter),math.abs(b-crossCenter)
+                    return da==db and a<b or da<db
+                end)
+                for _,cross in ipairs(sequence) do
+                    checked=checked+1
+                    if checked>600 then return nil end
+                    local p={x=xAxis and edge or cross,y=center.y or 0,z=xAxis and cross or edge}
+                    -- The touching row needs zero skirt gap for native adjacency.
+                    -- Other rows have one whole grid tile between generators.
+                    local position=try(p,row==1 and 0 or 0.5)
+                    if position then return position end
+                end
+            end
+        end
+    end
+end
 local function Candidates(army,id,center,radius,g,profile)
     local tp=Template(id);local f=R.Footprint(tp)
     local choices,seen={},{}
@@ -596,52 +738,14 @@ local function Candidates(army,id,center,radius,g,profile)
         end
     end
     if IsPower(tp) then
-        local hubs={}
-        for _,factory in ipairs(g.factories) do
-            if D2(factory.pos,center)<(radius+12)^2 then hubs[#hubs+1]=factory end
-        end
-        -- A paid/planned factory is also a hub before the host creates its unit.
-        for _,pending in ipairs(g.pending) do
-            if IsFactory(pending.tp) and D2(pending.pos,center)<radius^2 then
-                local duplicate=false
-                for _,hub in ipairs(hubs) do if D2(hub.pos,pending.pos)<1 then duplicate=true;break end end
-                if not duplicate then hubs[#hubs+1]=pending end
-            end
-        end
-        table.sort(hubs,function(a,b)
-            local da,db=D2(a.pos,profile.home),D2(b.pos,profile.home)
-            if da~=db then return da<db end
-            if a.pos.x~=b.pos.x then return a.pos.x<b.pos.x end
-            return a.pos.z<b.pos.z
-        end)
-        for rank,factory in ipairs(hubs) do
-            if rank>8 then break end
-            for order=0,3 do
-                local bank=(profile.bankStart+order*profile.bankDirection)%4
-                local side=bank%2==0 and 1 or -1
-                local axis=bank<2 and "x" or "z"
-                local span=axis=="x" and factory.x or factory.z
-                local transverse=axis=="x" and factory.z or factory.x
-                local size=axis=="x" and f.x or f.y
-                local crossSize=axis=="x" and f.y or f.x
-                local columns=math.min(profile.bankColumns,math.max(2,math.floor(transverse/(crossSize+0.5))))
-                for row=1,profile.bankRows do for i=1,columns do
-                    local forward=side*(span/2+size/2+profile.bankGap+(row-1)*(size+0.5))
-                    local cross=(i-(columns+1)/2)*(crossSize+0.5)
-                    local x=factory.pos.x+(axis=="x" and forward or cross)
-                    local z=factory.pos.z+(axis=="x" and cross or forward)
-                    add(x,z,(rank-1)*100+order*16+row*5+i*0.1)
-                end end
-            end
-        end
-        -- Extra banks stay near the existing industry, rather than reverting to
-        -- a universal north/south strip. Empty-base reserve banks use the profile.
-        local anchor=hubs[1] and hubs[1].pos or profile.home
-        local sx,sz=f.x+1,f.y+1
-        for band=0,5 do for side=-1,1,2 do for column=1,profile.reserveWidth do
-            local x,z=Profiles.Transform(profile,(column-(profile.reserveWidth+1)/2)*sx,
-                side*(14+band*sz))
-            add(anchor.x+x,anchor.z+z,1500+band*24+(side==profile.mirror and 0 or 8)+column)
+        -- Factory banks have already been exhausted. Keep reserve power on a
+        -- whole-grid lattice near the closest industry, even in a recovery base
+        -- without a factory. Profile rotation/shear must not scramble its rows.
+        local anchor=g.powerHubs and g.powerHubs[1] and g.powerHubs[1].pos or center
+        local sx,sz=math.ceil(f.x)+1,math.ceil(f.y)+1
+        for band=0,5 do for side=-1,1,2 do for column=-2,2 do
+            add(anchor.x+column*sx,anchor.z+side*(14+band*sz),
+                1500+band*24+(side<0 and 0 or 8)+math.abs(column))
         end end end
     else
         local sites = Profiles.FactorySites(profile,f)
@@ -792,7 +896,8 @@ function Find(index,id,center,spacing,adjacency,radius,avoid,developedOnly,optio
     if not army or not tp or not (IsPower(tp) or IsFactory(tp)
         or massStorage or energyStorage or generator or massFabricator or adjacencyConsumer or hive
         or IsProtection(tp) or (Has(tp,"STRUCTURE") or Has(tp,"SCFA_STRUCTURE"))
-            and (Has(tp,"WALL") or Has(tp,"ARTILLERY") or Has(tp,"SCFA_ARTILLERY") or HeavyPolicy.IsExperimental(tp))) then return nil,false end
+            and (Has(tp,"WALL") or Has(tp,"ARTILLERY") or Has(tp,"SCFA_ARTILLERY")
+                or Has(tp,"SCFA_TACTICALMISSILEPLATFORM") or HeavyPolicy.IsExperimental(tp))) then return nil,false end
     if not Position(center) or not R.Footprint(tp) then return false,true end
     -- Respect small marker/recovery radii exactly; never enlarge a caller's cap.
     radius=Finite(radius) and math.max(0,math.min(160,radius)) or 80
@@ -829,6 +934,7 @@ function Find(index,id,center,spacing,adjacency,radius,avoid,developedOnly,optio
             end
         end
     end
+    PrepareCandidateIndex(tp,g)
     local examined,visited=0,{}
     local function try(p,placementGap)
         p.x,p.z=Round(p.x,f.x),Round(p.z,f.y);p.y=0
@@ -898,7 +1004,11 @@ function Find(index,id,center,spacing,adjacency,radius,avoid,developedOnly,optio
             end
         end
     end
-    if generator or massStorage or energyStorage or massFabricator or adjacencyConsumer or hive then
+    if IsPower(tp) then
+        local power=FindFactoryPower(tp,g,center,radius,try,options and options.adjacentOnly)
+        if power then return power,true end
+    end
+    if not IsPower(tp) and (generator or massStorage or energyStorage or massFabricator or adjacencyConsumer or hive) then
         local adjacent=FindAdjacent(tp,g,center,radius,try,developedOnly or developedStorage)
         if adjacent then return adjacent,true end
         -- A caller restricted to developed extractors must retain that
@@ -1298,7 +1408,7 @@ local function GroundIdle(army,u)
         and not (orders and (orders.activeOrder or next(orders.queuedOrders or {})))
         and not (u.ai and (u.ai.reservedEco or u.ai.eState=="RepairHome"))
         and not (army.ai.ecoReserve and army.ai.ecoReserve[u.id.index])
-        and not R.BuilderRecallReserved(u) and not (u.GetPause and u:GetPause())
+        and not R.BuilderRecallReserved(u) and not UnitState.IsPaused(u)
 end
 local function GroundRecruitable(army,entry)
     local base=army.ai.bases[entry.name];local u=entry.unit

@@ -320,8 +320,16 @@ function ShortenPath(p,start,path,layer,maximum,request)
 end
 function Suffix(position,path,p,layer,maximum,request)
     if not Valid(position) then return nil end
-    path=CopyPath(path)
-    if #path==0 then return nil end
+    -- This route is read-only during the no-yield suffix search. Validate
+    -- the same contiguous prefix now; copy only the suffix actually returned.
+    local count=0
+    if type(path)=="table" then
+        for _,node in ipairs(path) do
+            if not Valid(node) then return nil end
+            count=count+1
+        end
+    end
+    if count==0 then return nil end
     local c=RouteContext(p,layer,maximum,request)
     if not c then return nil end
     local candidates={}
@@ -335,18 +343,18 @@ function Suffix(position,path,p,layer,maximum,request)
         if #candidates>8 then table.remove(candidates) end
     end
     add(1,D2(position,path[1]))
-    for i=2,#path do
+    for i=2,count do
         local a,b=path[i-1],path[i];local dx,dz=b.x-a.x,b.z-a.z
         local length=dx*dx+dz*dz
         local t=length>0 and math.max(0,math.min(1,((position.x-a.x)*dx+(position.z-a.z)*dz)/length)) or 1
-        local projection={x=a.x+dx*t,z=a.z+dz*t}
-        add(t>0 and i or i-1,D2(position,projection))
+        local distance=(position.x-(a.x+dx*t))^2+(position.z-(a.z+dz*t))^2
+        add(t>0 and i or i-1,distance)
     end
     for _,candidate in ipairs(candidates) do
         local first=candidate.index
         if SafeChord(c,position,path[first],path,math.max(1,first-1),first) then
             local result={}
-            for i=first,#path do result[#result+1]=path[i] end
+            for i=first,count do result[#result+1]=Copy(path[i]) end
             return result
         end
     end

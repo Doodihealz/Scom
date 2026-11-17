@@ -1,3 +1,4 @@
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
 -- One native amphibious construction detachment establishes a coastal base.
 -- Native queues own travel, paid construction and recovery; no transport API is assumed.
 local AF=Import("AI/AIFunctions.lua")
@@ -191,7 +192,7 @@ function CanFund(builder,id)
     if not Enabled(army) or not R.Own(army,builder) or not builder:IsCompleted()
         or builder.CaptureInProgress or builder.ReclaimInProgress or not Kind(tp)
         or not R.AllowedTarget(id,false) or not R.CanBuilderBuild(builder,id)
-        or type(builder.GetPause)=="function" and builder:GetPause() then return false end
+        or RushUnitState.IsPaused(builder) then return false end
     local mass,energy,duration=Rules.ProjectRates(builder,id)
     if not mass or not duration or duration<=0 then return false end
     local a,e=Rules.Resources(army,builder)
@@ -237,7 +238,7 @@ local function Recruitable(army,baseName,u)
         and not R.Has(u.tp,"TECH4") and not u.scoCommanderPodOwner and not u.scoSourcePodOwner
         and not u.platoon and not R.Working(u) and not HasOrders(u) and not AF.IsUnderAttack(u)
         and not u.CaptureInProgress and not u.ReclaimInProgress
-        and not (type(u.GetPause)=="function" and u:GetPause())
+        and not (RushUnitState.IsPaused(u))
         and not (army.ai.ecoReserve and army.ai.ecoReserve[u.id.index])
         and u.assignedToBase==baseName and D2(u:GetPosition(),base.position)<=base.radius^2
         and (layer=="Hover" or layer=="Seabed")

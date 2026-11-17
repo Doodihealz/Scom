@@ -3,6 +3,16 @@
 -- Explicit ranges control range rings; coordinate them with weapon range edits.
 -- host.lua and client.lua own behavior and class inheritance.
 UnitTemplate = {
+    ["audio"] = {
+        ["engine"] = {
+            ["looping"] = true,
+            ["name"] = "aclu1110",
+        },
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "acod1110",
+        },
+    },
     ["additions"] = {
         ["faSourceContract"] = {
             ["fuelIntentionallyOmitted"] = false,
@@ -263,6 +273,11 @@ UnitTemplate = {
         [17] = "SCFA_TECH3",
         [18] = "SCFA_VISIBLETORECON",
         [19] = "TECH3",
+        -- Native role selectors also need the imported SCFA category roles.
+        [20] = "TANK",
+        [21] = "DIRECT_FIRE",
+        [22] = "ANTI_SURFACE",
+        [23] = "HOVER",
     },
     ["visuals"] = {
         ["animations"] = {

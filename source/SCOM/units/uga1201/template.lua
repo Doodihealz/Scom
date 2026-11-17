@@ -449,7 +449,7 @@ UnitTemplate = {
         ["effectsPersistent"] = {
             [1] = {
                 ["boneName"] = "Exhaust",
-                ["particleName"] = "VFX/SCOM/Prowler/exhaust_cruise.sanvfx",
+                ["particleName"] = "VFX/SCOM/WS/exhaust_cruise.sanvfx",
             },
             [2] = {
                 ["boneName"] = "__Head",

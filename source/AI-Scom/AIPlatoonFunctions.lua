@@ -1,3 +1,5 @@
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
+Version = "10.0.0"
 local RushBalance = Import("AI/mods/AI-Scom/RushBalance.lua")
 local RushBombers = Import("AI/mods/AI-Scom/RushBomberHarassment.lua")
 local RushAirOrdersV19 = Import("AI/mods/AI-Scom/RushAirOrders.lua")
@@ -10,6 +12,7 @@ local RushDevelopmentV8 = Import("AI/mods/AI-Scom/RushDevelopment.lua")
 local RushReliability = Import("AI/mods/AI-Scom/RushReliability.lua")
 local RushBaseLayout = Import("AI/mods/AI-Scom/RushBaseLayout.lua")
 local RushExpansion = Import("AI/mods/AI-Scom/RushExpansion.lua")
+local RushCommanderDiagnostics = Import("AI/mods/AI-Scom/RushDiagnostics.lua")
 local RushTacticsV8 = Import("AI/mods/AI-Scom/RushTactics.lua")
 local RushCommanderWork = Import("AI/mods/AI-Scom/RushCommanderWork.lua")
 local RushCommanderPressure = Import("AI/mods/AI-Scom/RushPressure.lua")
@@ -270,11 +273,7 @@ local function IsHydrocarbonTemplateId(templateId)
 end
 
 local function IsSanctuaryRushArmy(armyIndex)
-    local army = Armies and Armies[armyIndex]
-    local settings = army and army.ai and army.ai.settings
-    local directory = settings and settings.modDirectory
-    return type(directory) == "string"
-        and string.match(string.gsub(directory, "\\", "/"), "([^/]+)/?$") == "AI-Scom"
+    return RushBalance.Enabled(Armies and Armies[armyIndex])
 end
 
 local function IsHardSanctuaryRushArmy(armyIndex)
@@ -733,19 +732,24 @@ local function GetLandMicroUnitIntelRadius(unit)
     return math.max(intel.visionRadius or 0, intel.radarRadius or 0)
 end
 
----Checks whether a support unit currently provides target intel coverage.
----@param platoonUnits table Platoon unit list
----@param targetPosition table Target position formatted as {x, y, z}
----@return boolean Returns true when a support unit covers the target position
-local function HasLandMicroSupportIntelCoverage(platoonUnits, targetPosition)
+---Samples support intel once inside the current no-yield micro decision.
+local function LandMicroSupportIntel(platoonUnits)
+    local coverage = {}
     for _, unit in ipairs(platoonUnits) do
         if not unit.dead and unit.ai.IsShieldOnlyUnit then
-            local intelRadius = GetLandMicroUnitIntelRadius(unit) - LAND_MICRO_INTEL_POSITION_MARGIN
-            if intelRadius > 0 then
-                local unitPosition = unit:GetPosition()
-                if Distance2DSquared(unitPosition.x, unitPosition.z, targetPosition.x, targetPosition.z) <= intelRadius * intelRadius then return true end
-            end
+            local radius = GetLandMicroUnitIntelRadius(unit) - LAND_MICRO_INTEL_POSITION_MARGIN
+            if radius > 0 then coverage[#coverage + 1] = {unit = unit, radiusSquared = radius * radius} end
         end
+    end
+    return coverage
+end
+local function HasLandMicroSupportIntelCoverage(coverage, targetPosition)
+    for _, intel in ipairs(coverage) do
+        if intel.x == nil then
+            local pos = intel.unit:GetPosition()
+            intel.x, intel.z = pos.x, pos.z
+        end
+        if Distance2DSquared(intel.x, intel.z, targetPosition.x, targetPosition.z) <= intel.radiusSquared then return true end
     end
     return false
 end
@@ -830,6 +834,7 @@ local function CheckCachedLandMicroBlockingTerrain(unit, target, rangeRingType, 
     terrainCache.target = target
     terrainCache.rangeRingType = rangeRingType
     terrainCache.blocked = terrainBlocked
+    terrainCache.checkedAt = GetGameTimeSeconds()
     terrainCache.remainingTurns = (terrainBlocked and LAND_MICRO_TERRAIN_BLOCKED_RECHECK_TURNS or LAND_MICRO_TERRAIN_UNBLOCKED_RECHECK_TURNS) - 1
     terrainCache.unitPositionX = unitPosition.x
     terrainCache.unitPositionZ = unitPosition.z
@@ -973,38 +978,57 @@ local function MoveLandMicroFormationUnits(platoon, platoonUnits, targetPlatoonC
     return unitsToCover
 end
 
----Advances a formed land platoon without changing its unit offsets until the first weapon contact.
+---Ends formation setup as soon as an enabled compatible gun has weapon contact.
 ---@param platoon table Platoon class table
 ---@param platoonUnits table Platoon units
----@param targetPlatoonCenterPosition table Current enemy group center
----@param cachedTargetUnits table Cached enemy units
+---@param cachedTargetUnits table Cached observed enemy units
 ---@param cachedTargetPositions table Cached enemy positions keyed by unit
 ---@param cachedTargetCount integer Number of cached enemy units
----@return table|nil unitsToCover Attack units and their protected positions
 ---@return boolean weaponContactReached Whether individual combat movement may begin
-local function AdvanceLandMicroFormationUnits(platoon, platoonUnits, targetPlatoonCenterPosition, cachedTargetUnits, cachedTargetPositions, cachedTargetCount)
+local function BeginLandMicroFormationEngagement(platoon, platoonUnits, cachedTargetUnits, cachedTargetPositions, cachedTargetCount)
     local formationData = platoon.ai.landMicroFormationData
     for _, unit in pairs(platoonUnits) do
         if unit.ai.eState == "PlatoonControlled" and not unit.dead and not unit.ai.IsShieldOnlyUnit and unit.ai.landMicroFormationPosition then
-            local maximumWeaponRange = unit.ai.maxWeaponRange or 0
-            if maximumWeaponRange > 0 then
-                local unitPosition = unit:GetPosition()
-                for targetIndex = 1, cachedTargetCount do
-                    local targetPosition = cachedTargetPositions[cachedTargetUnits[targetIndex]]
-                    if targetPosition and Distance2DSquared(unitPosition.x, unitPosition.z, targetPosition.x, targetPosition.z) <= maximumWeaponRange * maximumWeaponRange then
-                        formationData.phase = "Engaging"
-                        for _, formationUnit in pairs(platoonUnits) do
-                            if formationUnit.ai then formationUnit.ai.landMicroFormationOrderedPosition = nil end
+            local unitPosition = unit:GetPosition()
+            for targetIndex = 1, cachedTargetCount do
+                local target = cachedTargetUnits[targetIndex]
+                local targetPosition = cachedTargetPositions[target]
+                local contact = false
+                if targetPosition and target and not target.dead and not target.deleted
+                    and not target.CaptureInProgress and not target.ReclaimInProgress then
+                    local distanceSquared = Distance2DSquared(unitPosition.x, unitPosition.z, targetPosition.x, targetPosition.z)
+                    -- Formation's untargeted primary can be a short-range gun.
+                    -- Hand off to per-unit micro when any legal gun can fire.
+                    for _, weapon in ipairs(unit.weapons or {}) do
+                        local tp = weapon.tp or weapon
+                        if weapon.enabled and not weapon.isDeathExplosion
+                            and (AIFunctions.GetWeaponDamagePerSecond(tp) or 0)>0
+                            and distanceSquared >= (tp.rangeMin or 0)^2
+                            and RushCombatIntel.CanShootAt(unit.army,weapon,target) and RushCombatIntel.IsTargetInRange(unit.army,weapon,target) then
+                            contact = true;break
                         end
-                        if lobbyOptionsAI.debugGameTelemetry then
-                            AILog(" --- TacticalLandFormation [A:"..platoon.army.id.."][P:"..platoon.id.."] Phase:Engaging Reason:WeaponContact PlatoonUnits:"..tostring(table.getn(platoonUnits)))
-                        end
-                        return nil, true
                     end
+                end
+                if contact then
+                    formationData.phase = "Engaging"
+                    for _, formationUnit in pairs(platoonUnits) do
+                        if formationUnit.ai then formationUnit.ai.landMicroFormationOrderedPosition = nil end
+                    end
+                    if lobbyOptionsAI.debugGameTelemetry then
+                        AILog(" --- TacticalLandFormation [A:"..platoon.army.id.."][P:"..platoon.id.."] Phase:Engaging Reason:WeaponContact PlatoonUnits:"..tostring(table.getn(platoonUnits)))
+                    end
+                    return true
                 end
             end
         end
     end
+    return false
+end
+
+-- The same contact transition also applies while units are still forming.
+local function AdvanceLandMicroFormationUnits(platoon, platoonUnits, targetPlatoonCenterPosition, cachedTargetUnits, cachedTargetPositions, cachedTargetCount)
+    if BeginLandMicroFormationEngagement(platoon,platoonUnits,cachedTargetUnits,cachedTargetPositions,cachedTargetCount) then return nil,true end
+    local formationData=platoon.ai.landMicroFormationData
     local forwardDirectionX = formationData.forwardDirectionX
     local forwardDirectionZ = formationData.forwardDirectionZ
     local minimumAdvanceDistance
@@ -1083,10 +1107,11 @@ end
 ---@param targetAssignmentIndex integer One-based assignment index for this target
 ---@param targetAssignmentCount integer Number of units assigned to this target
 ---@param formationUnitSpacing number Minimum position spacing
+---@param minimumAttackRadius number Minimum firing distance from the target
 ---@param maximumAttackRadius number Maximum distance from the target
 ---@param smartAttackPosition table Reusable output position
 ---@return nil
-local function SetLandMicroAttackPosition(unit, unitPosition, targetPosition, retreatDirectionX, retreatDirectionZ, targetAssignmentIndex, targetAssignmentCount, formationUnitSpacing, maximumAttackRadius, smartAttackPosition)
+local function SetLandMicroAttackPosition(unit, unitPosition, targetPosition, retreatDirectionX, retreatDirectionZ, targetAssignmentIndex, targetAssignmentCount, formationUnitSpacing, minimumAttackRadius, maximumAttackRadius, smartAttackPosition)
     if retreatDirectionX == 0 and retreatDirectionZ == 0 then
         retreatDirectionX = unitPosition.x - targetPosition.x
         retreatDirectionZ = unitPosition.z - targetPosition.z
@@ -1100,10 +1125,11 @@ local function SetLandMicroAttackPosition(unit, unitPosition, targetPosition, re
         end
     end
     maximumAttackRadius = math.max(1, maximumAttackRadius)
+    minimumAttackRadius = math.min(maximumAttackRadius, math.max(1, minimumAttackRadius))
     local remainingTargetAssignmentIndex = targetAssignmentIndex
     local remainingTargetAssignmentCount = targetAssignmentCount
     local attackRadius = maximumAttackRadius
-    while attackRadius >= 1 do
+    while attackRadius >= minimumAttackRadius do
         local chordRatio = math.min(1, formationUnitSpacing / (2 * attackRadius))
         local angularSpacing = 2 * math.asin(chordRatio)
         local firingArcCapacity = math.max(1, math.floor(LAND_MICRO_ATTACK_ARC_ANGLE / angularSpacing) + 1)
@@ -1156,11 +1182,11 @@ end
 ---@param targetUnit table|nil Candidate target
 ---@return boolean canShoot Target can be attacked by a real platoon weapon
 local function CanPlatoonShootTarget(platoon, targetUnit)
-    if not IsAttackTargetAvailable(targetUnit) then return false end
+    if not IsAttackTargetAvailable(targetUnit) or not RushCombatIntel.Detected(platoon.army,targetUnit) then return false end
     for _, unit in pairs(platoon.units or {}) do
         if not unit.dead then
             for _, weapon in ipairs(unit.weapons or {}) do
-                if weapon.enabled and not weapon.isDeathExplosion and weapon:CanShootAt(targetUnit) then return true end
+                if weapon.enabled and not weapon.isDeathExplosion and RushCombatIntel.CanShootAt(platoon.army,weapon,targetUnit) then return true end
             end
         end
     end
@@ -1179,10 +1205,13 @@ local function GetClosestShootableEnemy(platoon, position, maximumRange, tags)
     local blocked,now=platoon.ai.commanderBlockedTargets,GetGameTimeSeconds()
     for _, enemyUnit in pairs(AIFunctions.GetEnemyUnitsOnMap(platoon.army.id)) do
         if (not blocked or not blocked[enemyUnit] or blocked[enemyUnit]<=now)
-            and not enemyUnit.dead and enemyUnit:IsCompleted() and enemyUnit:HasTags(tags) and CanPlatoonShootTarget(platoon, enemyUnit) then
+            and not enemyUnit.dead and enemyUnit:IsCompleted() and enemyUnit:HasTags(tags) then
             local enemyPosition = enemyUnit:GetPosition()
             local distanceSquared = Distance2DSquared(position.x, position.z, enemyPosition.x, enemyPosition.z)
-            if distanceSquared <= closestDistanceSquared and AIMarkerGenerator.CanGraphAreaTo(position, enemyPosition, platoon.ai.movementLayer) then
+            -- Weapon eligibility walks the platoon's live weapons. Only a
+            -- closer in-range candidate can replace the current selection.
+            if distanceSquared <= closestDistanceSquared and CanPlatoonShootTarget(platoon, enemyUnit)
+                and AIMarkerGenerator.CanGraphAreaTo(position, enemyPosition, platoon.ai.movementLayer) then
                 closestTarget = enemyUnit
                 closestDistanceSquared = distanceSquared
             end
@@ -1302,6 +1331,9 @@ local function GetLoadedBuildableTech4Structures(builders, formerTable)
     if not domainTag then return nil end
 
     local factionBuilds = {}
+    -- Candidate diversity uses one live census per owner in this non-yielding
+    -- selection, rather than scanning the whole army for every T4 template.
+    local ownedCountsByArmy = {}
     for _, builder in ipairs(builders or {}) do
         local factionTag = builder.factionTag
         local factionTemplates = factionTag and Tags[factionTag]
@@ -1337,10 +1369,16 @@ local function GetLoadedBuildableTech4Structures(builders, formerTable)
                     and RushReliability.CanBuilderBuild(builder, tpId)
                     and (formerTable.AllowEcoStorageDrain or AIFunctions.IsBuildableWithoutEconStorageDrain(builder.army.id, builder.tpId, tpId))
                 then
-                    local ownedCount = 0
-                    for _, unit in pairs(Armies[builder.army.id].units or {}) do
-                        if not unit.dead and unit.tpId == tpId then ownedCount = ownedCount + 1 end
+                    local owner = Armies[builder.army.id]
+                    local ownedCounts = ownedCountsByArmy[owner]
+                    if not ownedCounts then
+                        ownedCounts = {}
+                        for _, unit in pairs(owner.units or {}) do
+                            if not unit.dead and unit.tpId then ownedCounts[unit.tpId] = (ownedCounts[unit.tpId] or 0) + 1 end
+                        end
+                        ownedCountsByArmy[owner] = ownedCounts
                     end
+                    local ownedCount = ownedCounts[tpId] or 0
                     candidates[#candidates + 1] = {
                         id = tpId,
                         private = availability == nil,
@@ -1468,11 +1506,13 @@ function planBuildWithEngineer(platoon, armyIndex, baseName, formerTable)
     -- Naval construction must not enter the land builder's centre-MOVE/retry loop.
     -- Retain native selection above and the normal idempotent cleanup on exit.
     if formerTable.BuildNavalFactory then
-        RushNavalConstruction.Run(platoon, unitBuildList[1], {
-            reserveCallback = ClearReserveEcoCallback,
-            clearReservation = ClearConstructionBuilderEconomyReservation,
-        })
-        ExitPlatoon(platoon)
+        local navalArmy, navalArmyAI, navalAI = platoon.army, platoon.army.ai, platoon.ai
+        RushNavalConstruction.Run(platoon, unitBuildList[1])
+        -- Native placement and path work can yield. An old job must not disband
+        -- a replacement controller or erase its engineer's accepted orders.
+        if platoon.army == navalArmy and navalArmy.ai == navalArmyAI and platoon.ai == navalAI then
+            ExitPlatoon(platoon)
+        end
         return
     end
     -- Let the host advance accepted BUILD orders directly. Planning uses a
@@ -1486,7 +1526,9 @@ function planBuildWithEngineer(platoon, armyIndex, baseName, formerTable)
             view.ai.nextBuildingtpId,view.ai.constructionSpacing=getNextbuildingAndSpacing(view)
             view.ai.nextBuildingtpId=ids[lead.factionTag]
             local position
-            if formerTable.RushEmergencyShield then
+            if formerTable.RushFireSupport then
+                position=Import("AI/mods/AI-Scom/RushFireSupport.lua").FindPosition(platoon,lead,view.ai.nextBuildingtpId)
+            elseif formerTable.RushEmergencyShield then
                 position=RushBaseLayout.FindEmergencyShield(platoon,lead,view.ai.nextBuildingtpId)
             elseif formerTable.RushGroundDefense then
                 -- Site claims belong to the live construction assignment, not
@@ -1497,9 +1539,10 @@ function planBuildWithEngineer(platoon, armyIndex, baseName, formerTable)
             else position=FindNextConstructionPosition(view,lead) end
             return position,view.ai.constructionSpacing
         end,
-        valid=(formerTable.RushGroundDefense or formerTable.RushAdjacencyStorage or formerTable.RushMassFabrication
+        valid=(formerTable.RushFireSupport or formerTable.RushGroundDefense or formerTable.RushAdjacencyStorage or formerTable.RushMassFabrication
             or formerTable.RushEmergencyShield)
             and function(id,position,lead)
+                if formerTable.RushFireSupport then return Import("AI/mods/AI-Scom/RushFireSupport.lua").ValidateBuild(platoon,lead,id,position) end
                 if formerTable.RushEmergencyShield then return RushBaseLayout.ValidateEmergencyShield(platoon,lead,id,position) end
                 if formerTable.RushGroundDefense then return RushBaseLayout.ValidateGroundDefense(platoon,lead,id,position) end
                 if formerTable.RushAdjacencyStorage then return RushBaseLayout.ValidateStorage(platoon,lead,id,position) end
@@ -1907,8 +1950,9 @@ end
 ---@param unit table Unit class table. Contains functions and data for a unit
 ---@param placeToBuild table Position formated as {x=0,y=0,z=0}
 ---@param reserveEcoTpId string Unit tpId for eco reserving while moving to the destination
+---@param reclaimHandoff boolean? Skip the settle wait after a completed map reclaim
 ---@return string Returns the next e(xecute)State for the unit
-function subPlanStartMoveToDestination(unit, placeToBuild, reserveEcoTpId)
+function subPlanStartMoveToDestination(unit, placeToBuild, reserveEcoTpId, reclaimHandoff)
     local owner,assignment,unitAI=unit.army,unit.platoon,unit.ai
     local assignmentAI=assignment and assignment.ai
     if not RushReliability.CurrentAssignment(unit,owner,assignment,unitAI,assignmentAI) then return "Disband" end
@@ -1927,8 +1971,11 @@ function subPlanStartMoveToDestination(unit, placeToBuild, reserveEcoTpId)
             AILog("* Fn subPlanStartMoveToDestination():[A:"..unit.army.id.."][P:"..unit.platoon.id.."][U:"..unit.id.index.."] start moving path to destination.")
         end
         HostClearOrder(UnitAsArray(unit))
-        WaitTicks(3)
+        if not reclaimHandoff then WaitTicks(3) end
         if not RushReliability.CurrentAssignment(unit,owner,assignment,unitAI,assignmentAI) then return "Disband" end
+        if reclaimHandoff and (unit.orders.activeOrder or next(unit.orders.queuedOrders)) then
+            return "StartMoveToDestination"
+        end
         for z, nodePos in pairs(path) do
             HostIssueOrder(OrderTasks.MOVE, UnitAsArray(unit), true, nodePos, nil) --orderTask, unitsArray, append, position, payload
         end
@@ -3056,6 +3103,7 @@ end
 ---@return string Next execute state
 function subPlanSetClosestAlloyField(platoon, builder)
     local army,unitAI,planAI=builder.army,builder.ai,platoon.ai
+    if not RushExpansion.BeginNextJob(army,builder,platoon) then return "Disband" end
     local guarded=planAI.formerTable.RushPersistentExpansion==true
     -- runtime measurement start for profiling and statistics
     local START = os.clock()
@@ -3130,6 +3178,12 @@ function subPlanSetClosestAlloyField(platoon, builder)
             else
                 -- Try spots independently because Hover-clustered fields can straddle disconnected Land graphs.
                 local excludedSpots = {}
+                -- A failed opening approach must not immediately reclaim the
+                -- same spot when the commander is assigned another alloy job.
+                for key,expires in pairs(unitAI.rushCommanderAlloyDeferred or {}) do
+                    if GetGameTimeSeconds()>=expires then unitAI.rushCommanderAlloyDeferred[key]=nil
+                    else excludedSpots[key]=true end
+                end
                 local closestAlloySpot = GetClosestAlloySpotInCaptureRange(platoon, field, builderPos, reservedAlloySpots, excludedSpots)
                 if not closestAlloySpot then
                     outOfRadius = outOfRadius + 1
@@ -3256,9 +3310,78 @@ end
 ---Sub function to set move orders along waypoints to the alloy filed
 ---@param builder table Unit class table. Contains functions and data for a unit
 ---@return string Returns the next e(xecute)State for the builder
+-- Let the native BUILD behavior handle the final footprint-sized approach.
+-- Its construction detector, not a center-to-center approximation, determines
+-- firing/build range; no direct movement or placement bypass is introduced.
+local function CommanderAlloyNear(builder,destination)
+    if not builder:HasTags(Tags.COMMAND) or not destination then return false end
+    local data=builder.platoon and builder.platoon.ai
+    local map=data and data.nextBuildingtpId
+    local id=type(map)=="table" and map[builder.factionTag]
+    local tp=id and UnitTemplates[id]
+    local footprint=tp and (tp.skirtSize or tp.footprint)
+    if not footprint or type(footprint.x)~="number" or type(footprint.y)~="number" then return false end
+    local margin=math.min(4,math.sqrt(footprint.x^2+footprint.y^2)/2)
+    local range=(builder.ai and builder.ai.buildRange) or builder.tp.construction.range or 6
+    local pos=builder:GetPosition()
+    return Distance2DSquared(pos.x,pos.z,destination.x,destination.z)<=(range+margin)^2
+        and AIMarkerGenerator.CanGraphAreaTo(pos,destination,data.movementLayer)
+end
+local function CommanderAlloyAcceptedWork(builder,destination)
+    if not builder:HasTags(Tags.COMMAND) then return nil end
+    local target=builder.unitBeingBuilt or builder.buildBehaviorActualUnit
+    if target and not target.dead and not target.deleted and target.army==builder.army then
+        local pos=target:GetPosition()
+        if Distance2DSquared(pos.x,pos.z,destination.x,destination.z)<4 then
+            builder.ai.alloyConstructionTarget=target
+            return "WaitBuildingAlloyField"
+        end
+    end
+    if RushReliability.Working(builder) or builder.buildBehaviorIsActive then return builder.ai.eState end
+end
+local function CommanderAlloyTravel(builder,destination,currentPosition)
+    if not builder:HasTags(Tags.COMMAND) then return nil end
+    local data=builder.ai;local army,platoon=builder.army,builder.platoon;local planAI=platoon.ai
+    local now=GetGameTimeSeconds();local distance=math.sqrt(Distance2DSquared(currentPosition.x,currentPosition.z,destination.x,destination.z))
+    local watch=data.rushCommanderAlloyTravel
+    if not watch or watch.platoon~=platoon or now<watch.at
+        or Distance2DSquared(watch.position.x,watch.position.z,destination.x,destination.z)>0.01 then
+        watch={platoon=platoon,position={x=destination.x,y=destination.y,z=destination.z},
+            best=distance,progressAt=now,at=now,retries=0};data.rushCommanderAlloyTravel=watch
+    end
+    watch.at=now
+    if distance<=watch.best-0.5 then watch.best=distance;watch.progressAt=now end
+    if now-watch.progressAt<12 then return nil end
+    local function release(reason)
+        data.rushCommanderAlloyDeferred=data.rushCommanderAlloyDeferred or {}
+        data.rushCommanderAlloyDeferred[math.floor(destination.x).."-"..math.floor(destination.z)]=GetGameTimeSeconds()+60
+        RushCommanderDiagnostics.Event(army,"commander_alloy_route",{unit=builder.id.index,reason=reason,
+            retries=watch.retries,distance=distance,x=destination.x,z=destination.z})
+        HostClearOrder(UnitAsArray(builder));data.rushCommanderAlloyTravel=nil
+        return "Disband"
+    end
+    if watch.retries>=2 then return release("no-goal-progress") end
+    local path=AIMarkerGenerator.GeneratePathTo(army.id,currentPosition,destination,planAI.movementLayer,true,
+        AIFunctions.GetUnitThreatValueByLayer(builder,"Land"))
+    if not RushReliability.CurrentAssignment(builder,army,platoon,data,planAI) then return "Disband" end
+    local work=CommanderAlloyAcceptedWork(builder,destination)
+    if work then return work end
+    if type(path)~="table" or not next(path) then return release("no-native-path") end
+    watch.retries=watch.retries+1;watch.progressAt=GetGameTimeSeconds()
+    data.path=path;data.lastPosition=false;data.highestDist=false;data.stuckCount=0
+    RushCommanderDiagnostics.Event(army,"commander_alloy_route",{unit=builder.id.index,reason="repath",
+        retries=watch.retries,distance=distance,x=destination.x,z=destination.z})
+    return "StartMoveToAlloyField"
+end
 function subPlanStartMoveToAlloyField(builder)
     local army,platoon,unitAI=builder.army,builder.platoon,builder.ai
     local planAI=platoon and platoon.ai
+    local destination=unitAI.nextResourceSpot and unitAI.nextResourceSpot.position or unitAI.nextResourceField
+    if destination then
+        local work=CommanderAlloyAcceptedWork(builder,destination)
+        if work then return work end
+        if CommanderAlloyNear(builder,destination) then return "StartBuildAlloyField" end
+    end
     if builder.ai.path then
         local path = AIMarkerGenerator.StraightenPath(builder.ai.path)
         if builder.platoon.ai.formerTable.DebugPlatoon then
@@ -3314,7 +3437,9 @@ function subPlanMovingToAlloyField(builder)
     local destinationPosition = builder.ai.nextResourceSpot and builder.ai.nextResourceSpot.position or builder.ai.nextResourceField
     local distToDestination = Distance2DSquared(currentPosition.x, currentPosition.z, destinationPosition.x, destinationPosition.z)
     local buildRangeSquared = builder.ai.buildRange * builder.ai.buildRange
-    if distToDestination <= buildRangeSquared then
+    local work=CommanderAlloyAcceptedWork(builder,destinationPosition)
+    if work then return work end
+    if distToDestination <= buildRangeSquared or CommanderAlloyNear(builder,destinationPosition) then
         if builder.platoon.ai.formerTable.DebugPlatoon then
             AILog("* Fn subPlanMovingToAlloyField():[A:"..builder.army.id.."][P:"..builder.platoon.id.."][U:"..builder.id.index.."] distToDestination < builder.ai.buildRange -> StartToBuild")
         end
@@ -3322,6 +3447,9 @@ function subPlanMovingToAlloyField(builder)
         return "StartBuildAlloyField"
     end
     if not BuilderObservationDue(builder) then return builder.ai.eState end
+    if builder:HasTags(Tags.COMMAND) and not guarded then
+        return CommanderAlloyTravel(builder,destinationPosition,currentPosition) or builder.ai.eState
+    end
     if builder.platoon.ai.formerTable.DebugPlatoon then
         AILog("* Fn subPlanMovingToAlloyField():[A:"..builder.army.id.."][P:"..builder.platoon.id.."][U:"..builder.id.index.."] Builder is out of range and moving to the alloy spot...")
     end
@@ -3455,7 +3583,8 @@ function subPlanStartBuildAlloyField(builder)
         -- Approach each new spot through the same path and stuck recovery used for the first spot.
         local builderPosition = builder:GetPosition()
         local buildRange = builder.ai.buildRange or 6
-        if Distance2DSquared(builderPosition.x, builderPosition.z, closestAlloySpotPOS.x, closestAlloySpotPOS.z) > buildRange * buildRange then
+        if Distance2DSquared(builderPosition.x, builderPosition.z, closestAlloySpotPOS.x, closestAlloySpotPOS.z) > buildRange * buildRange
+            and not CommanderAlloyNear(builder,closestAlloySpotPOS) then
             local builderThreat = AIFunctions.GetUnitThreatValueByLayer(builder, "Land")
             local path = AIMarkerGenerator.GeneratePathTo(army.id, builderPosition, closestAlloySpotPOS, planAI.movementLayer, true, builderThreat)
             if not RushReliability.CurrentAssignment(builder,army,platoon,unitAI,planAI) then return "Disband" end
@@ -3536,7 +3665,15 @@ end
 function subPlanWaitBuildAlloyField(builder)
     local constructionTarget = builder.ai.alloyConstructionTarget
     if constructionTarget and (constructionTarget.dead or constructionTarget:IsCompleted()) then
-        if not constructionTarget.dead then RemoveSpotFromList(builder, builder.ai.closestAlloySpot) end
+        if not constructionTarget.dead then
+            RemoveSpotFromList(builder, builder.ai.closestAlloySpot)
+            if builder:HasTags(Tags.COMMAND) then
+                -- A fast native build can finish between plan observations. Use
+                -- the same completed-work handoff as the ordinary build state.
+                if builder.unitBeingBuilt then return builder.ai.eState end
+                return subPlanBuildingAlloyField(builder)
+            end
+        end
         builder.ai.alloyConstructionTarget = nil
         return "StartBuildAlloyField"
     end
@@ -3576,6 +3713,30 @@ function subPlanBuildingAlloyField(builder)
         return builder.ai.eState
     end
     if not builder.unitBeingBuilt then
+        local handoff=false
+        if constructionTarget and not constructionTarget.dead and not constructionTarget.deleted
+            and constructionTarget:IsCompleted() and builder:HasTags(Tags.COMMAND) then
+            local army,platoon,unitAI=builder.army,builder.platoon,builder.ai
+            local planAI=platoon.ai
+            local accepted={}
+            local orders=builder.orders or {}
+            if orders.activeOrder then accepted[orders.activeOrder]=true end
+            for _,order in pairs(orders.queuedOrders or {}) do accepted[order]=true end
+            local controller=Import("AI/mods/AI-Scom/RushController.lua")
+            local snapshot=controller.Snapshot(army,true)
+            local role=RushDevelopmentV8.CommanderRole(builder,snapshot)
+            handoff=role and role.role=="support" and (snapshot.extractors or 0)>=2
+                and controller.CommanderOwnerReady(army,snapshot,"MAIN")
+            if not RushReliability.CurrentAssignment(builder,army,platoon,unitAI,planAI) then
+                return builder.ai and builder.ai.eState or "Disband"
+            end
+            orders=builder.orders or {}
+            if RushCommanderWork.ConstructionTarget(builder)
+                or orders.activeOrder and not accepted[orders.activeOrder] then return builder.ai.eState end
+            for _,order in pairs(orders.queuedOrders or {}) do
+                if not accepted[order] then return builder.ai.eState end
+            end
+        end
         if lobbyOptionsAI.debugUnitEState then
             builder.ai.orderText = "Finished build ["..builder.platoon.ai.nextBuildingtpId[builder.factionTag].."], "..UnitTemplates[ builder.platoon.ai.nextBuildingtpId[builder.factionTag] ].general.unitTypeName
         end
@@ -3585,6 +3746,11 @@ function subPlanBuildingAlloyField(builder)
         end
         -- get the nest spot inside the alloy field
         builder.ai.alloyConstructionTarget = nil
+        if handoff then
+            RushCommanderDiagnostics.Event(builder.army,"commander-opening-handoff",
+                {unit=builder.id.index,completed=constructionTarget.id.index},"commander-opening",10)
+            return "Disband"
+        end
         return "StartBuildAlloyField"
     end
     if builder.platoon.ai.formerTable.DebugPlatoon then
@@ -3770,6 +3936,8 @@ end
 ---@param maxUnits integer Number of units that can be assigned to the alloy cap platoon
 ---@return nil
 function subPlanGetMoreAlloyBuilders(platoon, maxUnits)
+    maxUnits=RushExpansion.RecruitLimit(platoon.army,platoon,maxUnits)
+    if maxUnits<=0 then return end
     local unAssignedCount = 0
     local platoonUnits = platoon:GetUnits()
     local platoonUnitCount = #platoonUnits
@@ -3833,7 +4001,7 @@ end
 local function RushExtractorAvailable(platoon,unit)
     if not RushBalance.Own(platoon.army,unit) or not unit:IsCompleted()
         or unit.platoon and unit.platoon~=platoon or RushReliability.Working(unit)
-        or type(unit.GetPause)=="function" and unit:GetPause() then return false end
+        or RushUnitState.IsPaused(unit) then return false end
     local orders=unit.orders
     return not orders or not orders.activeOrder and not (orders.queuedOrders and next(orders.queuedOrders))
 end
@@ -5966,6 +6134,9 @@ local function ResetMapReclaimBuilderTarget(builder)
     builder.ai.targetProgress = nil
     builder.ai.logStuckState = nil
     builder.ai.rushGenericMove = nil
+    builder.ai.mapReclaimOrder = nil
+    builder.ai.mapReclaimHandoffTick = nil
+    builder.ai.mapReclaimHandoffPlan = nil
 end
 
 ---Builds a list of positions reserved by assigned or active reclaim targets.
@@ -5985,10 +6156,16 @@ local function GetReservedMapReclaimTargetPositions(platoon)
             end
         end
     end
-    for _, reclaimProp in pairs(__Entities.Props) do
-        if not reclaimProp.dead and reclaimProp.reclaimers and next(reclaimProp.reclaimers) then
-            local reclaimTargetPosition = reclaimProp:GetPosition()
-            reclaimTargetPositions[#reclaimTargetPositions + 1] = { x = reclaimTargetPosition.x, z = reclaimTargetPosition.z }
+    -- The native reclaim routine tracks the same active beam on the unit and prop.
+    local activeProps = {}
+    local props = __Entities.Props
+    for _, reclaimer in pairs(__Entities.Units) do
+        local prop = reclaimer.unitBeingReclaimed
+        if prop and not prop.dead and not activeProps[prop] and props[prop.id.index] == prop
+            and prop.reclaimers and next(prop.reclaimers) then
+            activeProps[prop] = true
+            local position = prop:GetPosition()
+            reclaimTargetPositions[#reclaimTargetPositions + 1] = { x = position.x, z = position.z }
         end
     end
     return reclaimTargetPositions
@@ -6005,6 +6182,56 @@ local function IsMapReclaimTargetPositionAvailable(platoon, reclaimTargetPositio
         end
     end
     return true
+end
+
+local function IsCompletedMapReclaim(builder)
+    local unitAI = builder.ai
+    local target = builder.unitToReclaim
+    if not unitAI or unitAI.eState ~= "Reclaiming" or not target or not (target.dead or target.deleted) then
+        return false
+    end
+    local order = builder.orders and builder.orders.activeOrder
+    return (not order or order == unitAI.mapReclaimOrder)
+        and target.IsReclaimProcessComplete and target:IsReclaimProcessComplete()
+end
+
+local function ContinueMapReclaim(builder, platoon, refreshReservations)
+    ResetMapReclaimBuilderTarget(builder)
+    local unitAI, planAI = builder.ai, platoon.ai
+    unitAI.mapReclaimHandoffTick = Tick
+    unitAI.mapReclaimHandoffPlan = planAI
+
+    -- Simultaneous completions share a fresh reservation scan. The selector
+    -- appends each accepted target before the next engineer searches.
+    if refreshReservations then
+        planAI.reclaimTargetPositions = GetReservedMapReclaimTargetPositions(platoon)
+    end
+    if not RushReliability.ApplyBuilderStep(builder, platoon, subPlanSetMapReclaimTarget) then return end
+
+    if unitAI.eState == "StartMoveToDestination" then
+        RushReliability.ApplyBuilderStep(builder, platoon, subPlanStartMoveToDestination,
+            builder.unitToReclaim:GetPosition(), nil, true)
+    else
+        HostClearOrder(UnitAsArray(builder))
+    end
+end
+
+local function WatchMapReclaimCompletions(platoon, army, planAI, planThread)
+    -- The main plan can yield while a different engineer starts its beam.
+    -- Poll only for completed work here so that yield cannot delay the next move.
+    while platoon.ai == planAI and platoon.aiThread == planThread and coroutine.status(planThread) ~= "dead"
+        and not platoon.dead and Armies[army.id] == army and army.ai and army.ai.isAlive ~= false do
+        local refreshReservations = true
+        for _, builder in pairs(platoon.units) do
+            if IsCompletedMapReclaim(builder) and IsValidPlatoonUnit(builder)
+                and RushReliability.CurrentAssignment(builder, army, platoon, builder.ai, planAI)
+                and not RushReliability.ReleaseRecalledBuilder(builder, platoon) then
+                ContinueMapReclaim(builder, platoon, refreshReservations)
+                refreshReservations = false
+            end
+        end
+        WaitTicks(1)
+    end
 end
 
 ---Executing reclaim orders for engineers. Engineers remain in the platoon until no living props remain on the map.
@@ -6054,6 +6281,9 @@ function planReclaimMap(platoon, armyIndex, baseName, formerTable)
     if formerTable.DebugPlatoon then
         AILog("* Fn planReclaimMap():[A:"..armyIndex.."][P:"..platoon.id.."] Set platoon movement layer to: "..platoon.ai.movementLayer)
     end
+    if platoon.aiThread then
+        platoon:NewThread(WatchMapReclaimCompletions, Armies[armyIndex], planAI, platoon.aiThread)
+    end
     while platoon.ai==planAI and Armies[armyIndex].ai.isAlive~=false and Armies[armyIndex]:PlatoonExists(platoon) and AIFunctions.HasReclaimablePropsOnMap() do
         if formerTable.DebugPlatoon then
             AILog("* Fn planReclaimMap():[A:"..armyIndex.."][P:"..platoon.id.."] REPEAT ------------------------------------------- platoon units: "..platoon:GetNumOfUnits())
@@ -6085,6 +6315,10 @@ function planReclaimMap(platoon, armyIndex, baseName, formerTable)
                 -- A stale snapshot must not issue orders for another owner.
             elseif RushReliability.ReleaseRecalledBuilder(builder, platoon) then
                 -- Cooperative release reserves this T3 for its requesting director.
+            elseif builder.ai.mapReclaimHandoffTick == Tick and builder.ai.mapReclaimHandoffPlan == planAI then
+                -- The completion thread already advanced this engineer this tick.
+            elseif IsCompletedMapReclaim(builder) then
+                ContinueMapReclaim(builder, platoon, true)
             elseif builder.ai.eState == "Disband" then
                 -- Generic movement has exhausted its checked route retries.
                 -- Retire this prop temporarily instead of immediately selecting
@@ -6196,7 +6430,8 @@ function subPlanStartMapReclaim(builder)
     end
     HostClearOrder(UnitAsArray(builder))
     HostIssueOrder(OrderTasks.RECLAIM, UnitAsArray(builder), false, reclaimTarget:GetPosition(), { targetGlobalId = reclaimTarget.id })
-    local workState = WaitForEngineerOrderWork(builder, reclaimTarget, builder.orders and builder.orders.activeOrder)
+    local reclaimOrder = builder.orders and builder.orders.activeOrder
+    local workState = WaitForEngineerOrderWork(builder, reclaimTarget, reclaimOrder)
     if not RushReliability.CurrentAssignment(builder,owner,platoon,unitAI,platoonAI) then
         if isPlatoonDebugEnabled then
             AILog("* Fn subPlanStartMapReclaim():[A:"..builder.army.id.."][P:"..platoon.id.."][U:"..builder.id.index.."] builder was destroyed or removed before reclaim started")
@@ -6210,6 +6445,7 @@ function subPlanStartMapReclaim(builder)
         if lobbyOptionsAI.debugUnitEState then
             builder.ai.orderText = "reclaiming map prop ["..reclaimTarget.tpId.."]"
         end
+        unitAI.mapReclaimOrder = reclaimOrder
         return "Reclaiming"
     end
     if builder.platoon then
@@ -6657,7 +6893,7 @@ function planBuildInFactory(platoon, armyIndex, baseName, formerTable)
         -- not get stuck with a random unit from the wrong technology tier.
         platoon.ai.unitBuildList = formerTable.WantUnits
     else
-        platoon.ai.unitBuildList = AIFunctions.GetWantUnits(armyIndex, baseName, formerTable)
+        platoon.ai.unitBuildList = AIFunctions.GetWantUnits(armyIndex, baseName, formerTable, platoon:GetUnits())
     end
     if not platoon.ai.unitBuildList or not platoon.ai.unitBuildList[1] then
         if formerTable.DebugPlatoon then
@@ -6976,7 +7212,7 @@ function planScoutMap(platoon, armyIndex, baseName, formerTable)
     end
     -- get units and assign them to the platoon
     local scouts, minUnits, maxUnits, reserveForBase = AIFunctions.GetNeedUnits(armyIndex, baseName, formerTable)
-    if not scouts[1] then
+    if not scouts or not scouts[1] then
         AILog("- WARNING: Fn planScoutMap():[A:"..armyIndex.."][P:"..platoon.id.."] Base: "..baseName..", Former ("..formerTable.FormerName.."), AIPlan ["..formerTable.AIPlan.."] no scout found! (need more factories)")
         ExitPlatoon(platoon)
         return
@@ -6998,31 +7234,33 @@ function planScoutMap(platoon, armyIndex, baseName, formerTable)
     -- assign units to this platton
     platoon:AssignUnits(scouts)
     scouts = nil
+    local army,platoonAI=platoon.army,platoon.ai
+    local armyAI=army.ai
     -- build loop
-    while Armies[armyIndex]:PlatoonExists(platoon) do
+    while army.ai==armyAI and platoon.ai==platoonAI and armyAI.isAlive~=false and army:PlatoonExists(platoon) do
         --check if we need to assign more builders to the platoon.
         subPlanGetMoreScouts(platoon, maxUnits)
         for i, scout in pairs(platoon:GetUnits()) do
             if formerTable.DebugPlatoon then
                 AILog("* Fn planScoutMap():[A:"..armyIndex.."][P:"..platoon.id.."][U:"..scout.id.index.."] [eState] = "..repr(scout.ai.eState)..".")
             end
-            if not IsValidPlatoonUnit(scout) then
+            if not RushReliability.Own(army,scout) or scout.platoon~=platoon or not IsValidPlatoonUnit(scout) then
                 AILog("- WARNING: Fn planScoutMap():[A:"..scout.army.id.."][U:"..scout.id.index.."] scout is not a valid platoon unit!")
             elseif not scout.ai.eState then
-                scout.ai.eState = subPlanInitScout(scout)
+                RushReliability.ApplyBuilderStep(scout,platoon,subPlanInitScout)
             elseif scout.ai.eState == "GetScoutTarget" then
-                scout.ai.eState = subPlanGetScoutTarget(scout)
+                RushReliability.ApplyBuilderStep(scout,platoon,subPlanGetScoutTarget)
             elseif scout.ai.eState == "ReturnToBase" then
-                scout.ai.eState = subPlanStartReturnToBase(scout)
+                RushReliability.ApplyBuilderStep(scout,platoon,subPlanStartReturnToBase)
             elseif scout.ai.eState == "MovingReturnToBase" then
-                scout.ai.eState = subPlanMovingToDestination(scout, scout.destination, 4)
+                RushReliability.ApplyBuilderStep(scout,platoon,subPlanMovingToDestination, scout.destination, 4)
             elseif scout.ai.eState == "StartScoutingTarget" then
-                scout.ai.eState = subPlanStartMoveToDestination(scout, nil) -- do not reserve eco here
+                RushReliability.ApplyBuilderStep(scout,platoon,subPlanStartMoveToDestination, nil) -- do not reserve eco here
             elseif scout.ai.eState == "MovingToDestination" then
-                scout.ai.eState = subPlanMovingToDestination(scout, scout.destination, 4)
-                scout.ai.eState = subPlanCheckForAlreadyScoutedDestination(scout)
+                RushReliability.ApplyBuilderStep(scout,platoon,subPlanMovingToDestination, scout.destination, 4)
+                RushReliability.ApplyBuilderStep(scout,platoon,subPlanCheckForAlreadyScoutedDestination)
             elseif scout.ai.eState == "MovingDestinationReached" then
-                scout.ai.eState = subPlanDestinationScouted(scout)
+                RushReliability.ApplyBuilderStep(scout,platoon,subPlanDestinationScouted)
             elseif scout.ai.eState == "Disband" then
                 if lobbyOptionsAI.debugUnitEState then
                     scout.ai.orderText = "disband from scout platoon"
@@ -7035,6 +7273,7 @@ function planScoutMap(platoon, armyIndex, baseName, formerTable)
         end
         WaitTicks(10)
     end
+    if army.ai~=armyAI or platoon.ai~=platoonAI then return end
     -- remove unused variables from the unit
     for i, unit in pairs(platoon:GetUnits()) do
         ClearUnitTemporaryPlatoonData(unit, "planScoutMap")
@@ -7100,6 +7339,13 @@ end
 ---@param scout table Unit class table. Contains functions and data for a unit
 ---@return string Returns the next e(xecute)State for the builder
 function subPlanGetScoutTarget(scout)
+    local army,assignment,unitAI=scout.army,scout.platoon,scout.ai
+    local assignmentAI=assignment and assignment.ai;local armyAI=army.ai
+    local function current()
+        return army.ai==armyAI and RushReliability.CurrentAssignment(scout,army,assignment,unitAI,assignmentAI)
+            and not scout.CaptureInProgress and not scout.ReclaimInProgress
+    end
+    if not current() then return "Disband" end
     local scoutDestination, path, info
     scout.platoon.ai.cachedScoutTable = scout.platoon.ai.cachedScoutTable or false
     scout.platoon.ai.cachedScoutTableTick = scout.platoon.ai.cachedScoutTableTick or 0
@@ -7110,7 +7356,7 @@ function subPlanGetScoutTarget(scout)
     end
     local highPrioList = scout.platoon.ai.cachedScoutTable.highPrioList
     local lowPrioList = scout.platoon.ai.cachedScoutTable.lowPrioList
-    local unitPosition = scout:GetPosition()
+    local unitPosition = RushMovementV18.Copy(scout:GetPosition())
     --check highPrioList
     for i, location in pairs(highPrioList) do
         if scout.platoon.ai.formerTable.DebugPlatoon then
@@ -7127,6 +7373,7 @@ function subPlanGetScoutTarget(scout)
                 AILog("* Fn subPlanGetScoutTarget():[A:"..scout.army.id.."][P:"..scout.platoon.id.."][U:"..scout.id.index.."] GetLastScoutBy for : ("..scoutDestination.x..","..scoutDestination.z..") is false, send scout!")
             end
             path, info = AIMarkerGenerator.GeneratePathTo(scout.army.id, unitPosition, scoutDestination, scout.movementLayer, true)
+            if not current() then return "Disband" end
             if path then
                 if scout.platoon.ai.formerTable.DebugPlatoon then
                     AILog("* Fn subPlanGetScoutTarget():[A:"..scout.army.id.."][P:"..scout.platoon.id.."][U:"..scout.id.index.."] path found highPrioList["..i.."] ("..location.id..") "..repr(info))
@@ -7160,6 +7407,7 @@ function subPlanGetScoutTarget(scout)
                 AILog("* Fn subPlanGetScoutTarget():[A:"..scout.army.id.."][P:"..scout.platoon.id.."][U:"..scout.id.index.."] get unscouted area nearby : ("..scoutDestination.x..","..scoutDestination.z..") sending scout.")
             end
             path, info = AIMarkerGenerator.GeneratePathTo(scout.army.id, unitPosition, scoutDestination, scout.movementLayer, true)
+            if not current() then return "Disband" end
             if path then
                 if scout.platoon.ai.formerTable.DebugPlatoon then
                     AILog("* Fn subPlanGetScoutTarget():[A:"..scout.army.id.."][P:"..scout.platoon.id.."][U:"..scout.id.index.."] path found. "..repr(info))
@@ -7196,6 +7444,7 @@ function subPlanGetScoutTarget(scout)
                     AILog("* Fn subPlanGetScoutTarget():[A:"..scout.army.id.."][P:"..scout.platoon.id.."][U:"..scout.id.index.."] GetLastScoutBy for : ("..scoutDestination.x..","..scoutDestination.z..") is false, send scout!")
                 end
                 path, info = AIMarkerGenerator.GeneratePathTo(scout.army.id, unitPosition, scoutDestination, scout.movementLayer, true)
+                if not current() then return "Disband" end
                 if path then
                     if scout.platoon.ai.formerTable.DebugPlatoon then
                         AILog("* Fn subPlanGetScoutTarget():[A:"..scout.army.id.."][P:"..scout.platoon.id.."][U:"..scout.id.index.."] path found lowPrioList["..i.."] ("..location.id..") "..repr(info))
@@ -7242,8 +7491,16 @@ end
 ---@param scout table Unit class table. Contains functions and data for a unit
 ---@return string Returns the next e(xecute)State for the builder
 function subPlanStartReturnToBase(scout)
+    local army,assignment,unitAI=scout.army,scout.platoon,scout.ai
+    local assignmentAI=assignment and assignment.ai;local armyAI=army.ai
+    local function current()
+        return army.ai==armyAI and RushReliability.CurrentAssignment(scout,army,assignment,unitAI,assignmentAI)
+            and not scout.CaptureInProgress and not scout.ReclaimInProgress
+    end
+    if not current() then return "Disband" end
     local basePosition = scout.platoon.ai.basePosition
     local path, info = AIMarkerGenerator.GeneratePathTo(scout.army.id, scout:GetPosition(), basePosition, scout.movementLayer, true)
+    if not current() then return "Disband" end
     if path then
         if scout.platoon.ai.formerTable.DebugPlatoon then
             AILog("* Fn subPlanStartReturnToBase():[A:"..scout.army.id.."][P:"..scout.platoon.id.."][U:"..scout.id.index.."] path found return to base")
@@ -7253,6 +7510,7 @@ function subPlanStartReturnToBase(scout)
         end
         HostClearOrder(UnitAsArray(scout))
         WaitTicks(3)
+        if not current() then return "Disband" end
         scout.destination = basePosition
         for z, nodePos in pairs(path) do
             HostIssueOrder(OrderTasks.MOVE, UnitAsArray(scout), true, nodePos, nil) --orderTask, unitsArray, append, position, payload
@@ -7459,65 +7717,14 @@ end
 ---@param formerTable table Former table from active AI modDirectory/formers folder
 ---@return nil
 function planAttackArtillery(platoon, armyIndex, baseName, formerTable)
-    platoon.ai.formerTable = formerTable
-    local realArtyTargetUnit, allArtyHaveTarget
-    local x, y, z
---[[
-    platoon:SetPrioritizedTargetList('Attack',
-        {
-            Tags.COMMAND,
-            Tags.STRUCTURE * Tags.SHIELD * Tags.TECH4,
-            Tags.STRUCTURE * Tags.SHIELD - Tags.TECH4,
-            Tags.STRUCTURE * Tags.ECONOMIC * Tags.ENERGY_PRODUCTION * Tags.ALLOYS_PRODUCTION * Tags.TECH4,
-            Tags.STRUCTURE * Tags.ARTILLERY * (Tags.TECH3 + Tags.TECH4),
-            Tags.STRUCTURE * Tags.ORBITALSYSTEM,
-            Tags.STRUCTURE * Tags.DEFENCE * Tags.ANTI_PROJECTILE * (Tags.TECH3 + Tags.TECH4),
-            Tags.STRUCTURE * Tags.NUKE,
-            Tags.MOBILE * Tags.TECH4 - Tags.AIR - Tags.INSIGNIFICANTUNIT,
-            Tags.ALL_UNITS
-        }
-    )
-]]--
-    while true do
-        -- assign all free artilleries to this platoon
-        local ownUnits = Armies[armyIndex].units
-        for _, unit in pairs(ownUnits) do
-            if unit.tp.hasTags.ARTILLERY and not unit.assignedToBase and not unit.platoon and unit:IsCompleted() then
-                platoon:AssignUnits(UnitAsArray(unit))
-            end
-        end
-        WaitTicks(20)
-        if Armies[armyIndex].ai.targets and Armies[armyIndex].ai.targets.artilleryTargets then
-            for targetIndex, artyTarget in pairs(Armies[armyIndex].ai.targets and Armies[armyIndex].ai.targets.artilleryTargets or {}) do
-                if not artyTarget.underWater then
-                    local realArtyTargetUnit = AIFunctions.GetEnemyUnitsAroundPosition(armyIndex, artyTarget.pos, 1, artyTarget.tags, true)[1]
-                    if realArtyTargetUnit and not realArtyTargetUnit.CaptureInProgress and not realArtyTargetUnit.ReclaimInProgress then
-                        allArtyHaveTarget = true
-                        for artyIndex, arty in pairs(platoon:GetUnits()) do
-                            if not arty.dead then
-                                local artyPosition = arty:GetPosition()
-                                local distanceToArtillery = Distance2D(artyPosition.x, artyPosition.z, artyTarget.pos.x, artyTarget.pos.z)
-                                local artilleryMinRange = arty.tp.Weapon[1].MinRadius
-                                local artilleryMaxRange = arty.tp.Weapon[1].MaxRadius
-                                if not arty.dead and distanceToArtillery > artilleryMinRange and distanceToArtillery < artilleryMaxRange then
-                                -- does the arty has a target ?
-                                    if not arty.actualTarget or arty.actualTarget.dead or GetGameTimeSeconds() - arty.lastTargetting > 60 then
-                                        --IssueOrder( { order = "Attack", units = {arty}, targetUnit = artyTarget.id, addToQueue = false } )
-                                        arty.actualTarget = realArtyTargetUnit
-                                        arty.lastTargetting = GetGameTimeSeconds()
-                                        allArtyHaveTarget = false
-                                    end
-                                end
-                            end
-                        end
-                        if allArtyHaveTarget then
-                            break -- break for targetIndex, artyTarget in pairs(Armies[armyIndex].ai.targets.artilleryTargets) do
-                        end
-                    end
-                end
-            end
-        end
+    local army=Armies[armyIndex];local armyAI=army and army.ai
+    platoon.ai.formerTable=formerTable
+    while army and Armies[armyIndex]==army and army.ai==armyAI and armyAI.isAlive~=false
+        and army:PlatoonExists(platoon) and platoon:GetNumOfUnits()>0 do
+        Import("AI/mods/AI-Scom/RushFireSupport.lua").Tick(army,RushBalance.CurrentSnapshot(army,true))
+        WaitTicks(30)
     end
+    if army and army:PlatoonExists(platoon) then ExitPlatoon(platoon) end
 end
 
 ---Executing attack orders for strategic missiles.
@@ -7945,16 +8152,23 @@ end
 ExitPlatoon = function(platoon)
     if Armies[platoon.army.id]:PlatoonExists(platoon) then
         for i, unit in pairs(platoon:GetUnits()) do
+            local clearTemporary = true
             -- Construction exits can bypass individual arrival and finishing states.
             if platoon.ai.formerTable.AIPlan == "planBuildWithEngineer" then
-                if not RushReliability.ReleaseConstructionQueueUnit(unit) then
+                if platoon.ai.formerTable.BuildNavalFactory then
+                    -- Naval work releases only the native orders and reservation
+                    -- it owns. Foreign work also keeps its temporary AI state.
+                    clearTemporary = RushNavalConstruction.ReleaseUnit(unit, platoon)
+                elseif not RushReliability.ReleaseConstructionQueueUnit(unit) then
                     HostClearOrder(UnitAsArray(unit))
                     ClearConstructionBuilderEconomyReservation(unit)
                 end
             end
-            ClearUnitTemporaryPlatoonData(unit, platoon.ai.formerTable.AIPlan)
-            if lobbyOptionsAI.debugUnitEState then
-                unit.ai.orderText = "disband from "..platoon.ai.formerTable.AIPlan.."."
+            if clearTemporary then
+                ClearUnitTemporaryPlatoonData(unit, platoon.ai.formerTable.AIPlan)
+                if lobbyOptionsAI.debugUnitEState then
+                    unit.ai.orderText = "disband from "..platoon.ai.formerTable.AIPlan.."."
+                end
             end
         end
         platoon.army:DisbandPlatoon(platoon)
@@ -7998,6 +8212,7 @@ function ClearUnitTemporaryPlatoonData(unit, functionName)
     unit.ai.rushNoBuildOrdersSince = nil
     unit.ai.rushAlloyRetries = nil
     unit.ai.rushAlloySafetyAt = nil
+    unit.ai.rushCommanderAlloyTravel = nil
     unit.ai.nextResourceSpot = nil
     unit.ai.pathDistanceToField = nil
     unit.ai.alloyConstructionTarget = nil
@@ -8502,12 +8717,14 @@ local function SelectCommanderShelterShield(platoon)
 end
 
 ---Calculates travel time to the first protection in order: active home shield, then home base.
+---Empty enemy intel retains shelter checks and movement ownership bookkeeping, but skips the native route.
 ---@param platoon table Commander platoon
 ---@param commander table Commander unit
+---@param noKnownEnemies boolean Whether no enemy records can use the projected travel time
 ---@return number protectionTravelTime
 ---@return table protectionPosition
 ---@return string protectionType
-local function GetCommanderProtectionTravelData(platoon, commander)
+local function GetCommanderProtectionTravelData(platoon, commander, noKnownEnemies)
     local _,data,current=CommanderRequest(platoon,commander)
     if not current() then return end
     local commanderPosition=RushMovementV18.Copy(commander:GetPosition())
@@ -8539,6 +8756,9 @@ local function GetCommanderProtectionTravelData(platoon, commander)
     end
     local layer=data.movementLayer
     local request=RushMovementV18.Capture(platoon,{commander})
+    -- Capture also reconciles movement suspension. Preserve that bookkeeping
+    -- even when empty intel makes a protection route unnecessary this turn.
+    if noKnownEnemies then return 0,protectionPosition,"NoKnownEnemies" end
     local path=AIMarkerGenerator.GeneratePathTo(platoon.army.id,commanderPosition,protectionPosition,layer,true,0)
     if not current() or data.movementLayer~=layer then return end
     if (type(path)~="table" or #path==0) and protectionType=="Shield" then
@@ -9257,7 +9477,9 @@ function subPlanCalculateBraveness(mainPlatoonUnit)
     local commanderHealthPercentage = 100 / math.max(1,mainPlatoonUnit:GetMaxHealth()) * mainPlatoonUnit:GetHealth()
     local commanderSpeed = mainPlatoonUnit.tp.movement and mainPlatoonUnit.tp.movement.speed or 0
     local intel=RushCombatIntel.Get(platoon.army)
-    local protectionTravelTime, protectionPosition, protectionType = GetCommanderProtectionTravelData(platoon, mainPlatoonUnit)
+    -- Empty intel makes both damage/interception loops below empty. Keep
+    -- shelter and movement ownership checks, but omit the unused native route.
+    local protectionTravelTime, protectionPosition, protectionType = GetCommanderProtectionTravelData(platoon, mainPlatoonUnit, intel.enemy[1] == nil)
     if not current() or not protectionTravelTime or not protectionPosition then return 0,false,false,false,false,0,false end
     local expectedDamageUntilProtection, attackingUnitCount = CalculateCommanderExpectedDamageUntilProtection(platoon, mainPlatoonUnit, mainPlatoonUnitPosition, protectionPosition, protectionTravelTime, commanderSpeed, intel.enemy)
     if not current() then return 0,false,false,false,false,0,false end
@@ -9266,7 +9488,7 @@ function subPlanCalculateBraveness(mainPlatoonUnit)
     local commanderFacesLethalDamage = expectedDamageUntilProtection > 0 and expectedDamageUntilProtection >= commanderDamageBudget
     if lobbyOptionsAI.debugGameTelemetry and data.commanderLethalDamageTelemetryActive ~= commanderFacesLethalDamage then
         data.commanderLethalDamageTelemetryActive = commanderFacesLethalDamage
-        AILog(" --- CommanderLethalDamage [A:"..armyIndex.."][P:"..platoon.id.."] State:"..(commanderFacesLethalDamage and "ON" or "OFF").." ExpectedDamage:"..string.format("%.1f", expectedDamageUntilProtection).." DamageBudget:"..string.format("%.1f", commanderDamageBudget).." Reserve:"..string.format("%.1f", commanderHealthReserve).." Attackers:"..attackingUnitCount.." Protection:"..protectionType.." TravelTime:"..string.format("%.1f", protectionTravelTime))
+        AILog(" --- CommanderLethalDamage [A:"..armyIndex.."][P:"..platoon.id.."] State:"..(commanderFacesLethalDamage and "ON" or "OFF").." ExpectedDamage:"..string.format("%.1f", expectedDamageUntilProtection).." DamageBudget:"..string.format("%.1f", commanderDamageBudget).." Reserve:"..string.format("%.1f", commanderHealthReserve).." Attackers:"..attackingUnitCount.." Protection:"..protectionType.." TravelTime:"..(protectionType == "NoKnownEnemies" and "not-required" or string.format("%.1f", protectionTravelTime)))
     end
     -- We gain 1 Braveness if we have full health -------------------------------------------------------------------------------------------------------------------------
     if commanderHealthPercentage == 100 then
@@ -9391,10 +9613,10 @@ function subPlanCalculateBraveness(mainPlatoonUnit)
     if commanderFacesOverwhelmingInterceptionThreat then braveness['InterceptionThreat'] = -100 end
     if lobbyOptionsAI.debugGameTelemetry and data.commanderCurrentInterceptionThreatTelemetryActive ~= commanderFacesCurrentOverwhelmingInterceptionThreat then
         data.commanderCurrentInterceptionThreatTelemetryActive = commanderFacesCurrentOverwhelmingInterceptionThreat
-        AILog(" --- CommanderInterceptionThreatRaw [A:"..armyIndex.."][P:"..platoon.id.."] State:"..(commanderFacesCurrentOverwhelmingInterceptionThreat and "ON" or "OFF").." Ground:"..string.format("%.1f", enemyInterceptGroundThreat).."/"..string.format("%.1f", friendlyLandCombatThreat).." AirToLand:"..string.format("%.1f", enemyInterceptAirToLandThreat).."/"..string.format("%.1f", friendlyAntiAirCombatThreat).." TimeToProtection:"..string.format("%.1f", protectionTravelTime))
+        AILog(" --- CommanderInterceptionThreatRaw [A:"..armyIndex.."][P:"..platoon.id.."] State:"..(commanderFacesCurrentOverwhelmingInterceptionThreat and "ON" or "OFF").." Ground:"..string.format("%.1f", enemyInterceptGroundThreat).."/"..string.format("%.1f", friendlyLandCombatThreat).." AirToLand:"..string.format("%.1f", enemyInterceptAirToLandThreat).."/"..string.format("%.1f", friendlyAntiAirCombatThreat).." TimeToProtection:"..(protectionType == "NoKnownEnemies" and "not-required" or string.format("%.1f", protectionTravelTime)))
     end
     if lobbyOptionsAI.debugGameTelemetry and previousCommanderInterceptionThreatActive ~= commanderFacesOverwhelmingInterceptionThreat then
-        AILog(" --- CommanderInterceptionThreat [A:"..armyIndex.."][P:"..platoon.id.."] State:"..(commanderFacesOverwhelmingInterceptionThreat and "ON" or "OFF").." Ground:"..string.format("%.1f", enemyInterceptGroundThreat).."/"..string.format("%.1f", friendlyLandCombatThreat).." AirToLand:"..string.format("%.1f", enemyInterceptAirToLandThreat).."/"..string.format("%.1f", friendlyAntiAirCombatThreat).." TimeToProtection:"..string.format("%.1f", protectionTravelTime))
+        AILog(" --- CommanderInterceptionThreat [A:"..armyIndex.."][P:"..platoon.id.."] State:"..(commanderFacesOverwhelmingInterceptionThreat and "ON" or "OFF").." Ground:"..string.format("%.1f", enemyInterceptGroundThreat).."/"..string.format("%.1f", friendlyLandCombatThreat).." AirToLand:"..string.format("%.1f", enemyInterceptAirToLandThreat).."/"..string.format("%.1f", friendlyAntiAirCombatThreat).." TimeToProtection:"..(protectionType == "NoKnownEnemies" and "not-required" or string.format("%.1f", protectionTravelTime)))
     end
     -- We gain 0.5 Braveness if we have at least 5 Anti Air units in close range ------------------------------------------------------------------------------------------
     if AIFunctions.GetNumUnitsAroundPosition(armyIndex, mainPlatoonUnitPosition, 30, Tags.MOBILE * Tags.ANTI_AIR, false) >= 5 then
@@ -9583,6 +9805,36 @@ function subPlanSelectMainTarget(platoon)
     end
     --AILog( repr(Armies[platoon.army.id].ai.highestEnemyThreat["Land"]) )
     --AILog( repr(Armies[platoon.army.id].ai.highestEnemyEcoValue["Ghost"]) )
+    if not data.commanderIsInImmediateDanger and not data.commanderFacesLethalDamage
+        and not data.commanderUnderAttack and not data.commanderWithdrawalPhase then
+        local snapshot=Import("AI/mods/AI-Scom/RushController.lua").Snapshot(platoon.army)
+        local role=RushDevelopmentV8.CommanderRole(commander,snapshot)
+        if not current() then return "Disband" end
+        if not sameOrders() then return data.eState or "SelectMainTarget" end
+        if role and role.role=="support" and not snapshot.mainRaid and not snapshot.mainBombardment then
+            local pos=commander:GetPosition()
+            if Distance2DSquared(pos.x,pos.z,data.basePosition.x,data.basePosition.z)<=data.baseRadius^2 then
+                if not data.rushCommanderService and data.path
+                    and not RushCommanderWork.ConstructionTarget(commander) then
+                    local orders=commander.orders or {}
+                    local combatOnly=not orders.activeOrder or orders.activeOrder.orderTask==OrderTasks.MOVE
+                        or orders.activeOrder.orderTask==OrderTasks.ATTACK
+                    for _,order in pairs(orders.queuedOrders or {}) do
+                        if order.orderTask~=OrderTasks.MOVE and order.orderTask~=OrderTasks.ATTACK then combatOnly=false end
+                    end
+                    if combatOnly then
+                        RushMovementV18.Forget(commander,false)
+                        ClearCombatOrders({commander})
+                        data.path=false;commander.ai.path=false;commander.ai.moveToDestinationReached=nil
+                    end
+                end
+                local working=UpdateCommanderProductionAssist(platoon)
+                if not current() then return "Disband" end
+                if working then data.commanderIdleSince=nil;return data.eState or "SelectMainTarget" end
+                if not sameOrders() then return data.eState or "SelectMainTarget" end
+            end
+        end
+    end
     local target,destination,reason=SelectCommanderAttackTarget(platoon,commander)
     if not current() then return "Disband" end
     if not sameOrders() or reason=="stale-request" then return data.eState or "SelectMainTarget" end
@@ -9854,7 +10106,7 @@ function subPlanMovingToTarget(platoon)
     for _,weapon in ipairs(commander.weapons or {}) do
         local target=weapon.targetUnit or data.primaryTarget
         if IsAttackTargetAvailable(target) and weapon.enabled and not weapon.isDeathExplosion
-            and weapon:CanShootAt(target) and weapon:IsTargetInRange(target) then
+            and RushCombatIntel.CanShootAt(commander.army,weapon,target) and RushCombatIntel.IsTargetInRange(commander.army,weapon,target) then
             RushMovementV18.Forget(commander,false)
         ClearCombatOrders(platoon:GetUnits())
             data.commanderApproachWatch=nil
@@ -10219,6 +10471,11 @@ local function RunRushCombatPlatoon(platoon, support)
                     .." Forces:"..r.forces.." Units:"..r.units.." Largest:"..r.largest.." Holding:"..r.holding
                     .." Goals:"..r.stats.goals.." Retreats:"..r.stats.retreats.." Repaths:"..r.stats.repaths
                     .." Detached:"..r.stats.detached.." MergedUnits:"..r.stats.merges
+                    .." AssemblyOffers:"..tostring(r.stats.assemblyOffers or 0)
+                    .." AssemblyMergedUnits:"..tostring(r.stats.assemblyMerged or 0)
+                    .." GuardedApproaches:"..tostring(r.stats.guardedApproaches or 0)
+                    .." AssemblyOfferReasons:"..r.assemblyOfferReasons
+                    .." AssemblyJoinReasons:"..r.assemblyJoinReasons
                     .." IntelBuilds:"..r.intel.builds.." EnemyCandidates:"..r.intel.enemyCandidates
                     .." FriendlyCandidates:"..r.intel.friendlyCandidates
                     .." PoolRefills:"..tostring(r.stats.poolRefills or 0)
@@ -10696,8 +10953,14 @@ local function InitRushMoveToDestination(platoon,destination,useAggressiveMove)
     destination=RushMovementV18.Clamp(destination)
     local threat=CalculatePlatoonThreat(platoon)
     local data=ai.formerTable.AIPlanData or {}
-    local maximum=math.max(threat,ai.rushPathThreat or 0)
-    if type(data.PathEnemyStrength)=="number" then maximum=math.max(maximum,threat*data.PathEnemyStrength/100) end
+    local maximum
+    if useAggressiveMove and not withdraw then
+        maximum=RushCombat.AttackPathBudget(platoon)
+    else
+        -- Withdrawal/containment must retain its independent escape budget.
+        maximum=math.max(threat,ai.rushPathThreat or 0)
+        if type(data.PathEnemyStrength)=="number" then maximum=math.max(maximum,threat*data.PathEnemyStrength/100) end
+    end
     local start=ai.rushGeometry and ai.rushGeometry.position or platoon:GetPosition()
     local origin=operation.pathOrigin
     if origin and Distance2DSquared(origin.goal.x,origin.goal.z,destination.x,destination.z)<1 then
@@ -11850,18 +12113,32 @@ local function MicroWeapon(unit,target,layer)
         local profile=RushTacticsV8.CommanderCombatProfile(unit.platoon,unit,target)
         return profile and profile.weapon or nil,profile
     end
-    local best,damage,reach=nil,0,0
+    local best,damage,reach,bestInRange=nil,0,0,false
     for _,weapon in ipairs(unit.weapons or {}) do
         local tp=weapon.tp or weapon
-        local allowed=target and weapon.enabled and not weapon.isDeathExplosion and weapon:CanShootAt(target)
+        local allowed=target and weapon.enabled and not weapon.isDeathExplosion and RushCombatIntel.CanShootAt(unit.army,weapon,target)
         if not target and weapon.enabled and not weapon.isDeathExplosion and tp.rangeRingType~="AntiAir" then
             allowed=not layer
             for _,candidate in ipairs(tp.layerTargetLimits or {}) do if candidate==layer then allowed=true;break end end
         end
         if allowed and (tp.rangeMax or 0)>0 then
             local dps=AIFunctions.GetWeaponDamagePerSecond(tp) or 0
-            if dps>damage or dps==damage and dps>0 and (tp.rangeMax or 0)>reach then
-                best,damage,reach=weapon,dps,tp.rangeMax
+            local inRange=target and RushCombatIntel.IsTargetInRange(unit.army,weapon,target) or false
+            if inRange and (tp.rangeMin or 0)>0 then
+                local pos,targetPos=unit:GetPosition(),target:GetPosition()
+                inRange=Distance2DSquared(pos.x,pos.z,targetPos.x,targetPos.z)>=tp.rangeMin^2
+            end
+            local better=not best
+            if not better then
+                if inRange~=bestInRange then better=inRange
+                elseif target and not inRange then
+                    better=tp.rangeMax>reach or tp.rangeMax==reach and dps>damage
+                else better=dps>damage or dps==damage and tp.rangeMax>reach end
+            end
+            -- Fire an available gun now; otherwise approach using the longest
+            -- legal weapon instead of walking into a shorter gun's range.
+            if dps>0 and better then
+                best,damage,reach,bestInRange=weapon,dps,tp.rangeMax,inRange
             end
         end
     end
@@ -11988,7 +12265,7 @@ end
 local OVERKILL_HEALTH_MULTIPLIER = 1.25 -- Match Sanctuary's existing targeter safety margin.
 local FIRE_ALLOCATION_LOOKAHEAD_SECONDS = 1 -- One normal micro update interval.
 ---Reuses one platoon-local budget; health and external saturation are read once per candidate, not per shooter.
-local function PrepareFireControl(platoon, units, targets, targetPositionX, targetPositionZ, targetCount, primaryTargetCount, assignments, saturationFactor, additivePenalty, focusUnitWeight)
+local function PrepareFireControl(platoon, units, targets, targetPositionX, targetPositionZ, targetCount, primaryTargetCount, assignments, saturationFactor, additivePenalty, focusUnitWeight, preferTargetsInRange)
     local data = platoon.ai.fireControlData
     if not data then
         data = {healthBudgets = {}, assignedDamage = {}, previousDamage = {}, externallyCovered = {}, redirects = 0, selections = 0}
@@ -12004,6 +12281,7 @@ local function PrepareFireControl(platoon, units, targets, targetPositionX, targ
     data.saturationFactor = saturationFactor
     data.additivePenalty = additivePenalty
     data.focusUnitWeight = focusUnitWeight
+    data.preferTargetsInRange = preferTargetsInRange == true
     table.clear(data.healthBudgets)
     table.clear(data.assignedDamage)
     table.clear(data.previousDamage)
@@ -12014,7 +12292,11 @@ local function PrepareFireControl(platoon, units, targets, targetPositionX, targ
         if not unit.dead then
             for _, weapon in ipairs(unit.weapons or {}) do
                 local target = weapon.targetUnit
-                if target and not target.dead then data.previousDamage[target] = (data.previousDamage[target] or 0) + weapon:PredictedDamageFor(target) end
+                if target and not target.dead then
+                    local damage=weapon:PredictedDamageFor(target)
+                    local key=target.id.index..":"..target.id.version
+                    data.previousDamage[key]=(data.previousDamage[key] or 0)+damage
+                end
             end
         end
     end
@@ -12027,7 +12309,10 @@ local function PrepareFireControl(platoon, units, targets, targetPositionX, targ
             end
             data.healthBudgets[target] = (math.max(0, target:GetHealth()) + shieldHealth) * OVERKILL_HEALTH_MULTIPLIER
             -- The engine check uses hull health only; do not apply it through an active personal shield.
-            data.externallyCovered[target] = shieldHealth == 0 and TargeterManager.IsOverkilled(target, platoon.army, data.previousDamage[target] or 0)
+            local key=target.id.index..":"..target.id.version
+            data.externallyCovered[target] = shieldHealth == 0 and
+                RushCombatIntel.IncomingDamage(platoon.army,target)-(data.previousDamage[key] or 0)
+                    > math.max(0,target:GetHealth())*OVERKILL_HEALTH_MULTIPLIER
         end
     end
     return data
@@ -12037,7 +12322,7 @@ local function GetAvailableFireControlDamage(unit, target)
     local canEngage = false
     local damage = 0
     for _, weapon in ipairs(unit.weapons or {}) do
-        if weapon.enabled and not weapon.isDeathExplosion and weapon:CanShootAt(target) and weapon:IsTargetInRange(target) then
+        if weapon.enabled and not weapon.isDeathExplosion and RushCombatIntel.CanShootAt(unit.army,weapon,target) and RushCombatIntel.IsTargetInRange(unit.army,weapon,target) then
             canEngage = true
             if weapon.reloadTimer <= FIRE_ALLOCATION_LOOKAHEAD_SECONDS or weapon.salvosRemaining > 0 then damage = damage + weapon:PredictedDamageFor(target) end
         end
@@ -12048,7 +12333,7 @@ end
 local function IsFireControlTargetCovered(data, target)
     return data.externallyCovered[target] or (data.assignedDamage[target] or 0) >= (data.healthBudgets[target] or math.huge)
 end
----Preserves the existing distance/saturation score and changes only redundant fire assignments with a usable alternative.
+---Uses distance/saturation and health budgets; hard land micro prefers a usable in-range alternative.
 local function SelectFireControlTarget(data,unit,unitPosition,previousTarget,previousTargetFactor)
     local bestTarget,bestWeapon,alternativeTarget,alternativeWeapon
     local bestScore,alternativeScore=math.huge,math.huge
@@ -12072,7 +12357,8 @@ local function SelectFireControlTarget(data,unit,unitPosition,previousTarget,pre
         if canReplace and score<bestScore then bestTarget,bestWeapon,bestScore=target,weapon,score end
         local tp=weapon.tp or weapon
         if data.enabled and score<alternativeScore and distanceSquared<=(tp.rangeMax or 0)^2
-            and not IsFireControlTargetCovered(data,target) and weapon:IsTargetInRange(target) then
+            and distanceSquared>=(tp.rangeMin or 0)^2
+            and not IsFireControlTargetCovered(data,target) and RushCombatIntel.IsTargetInRange(unit.army,weapon,target) then
             alternativeTarget,alternativeWeapon,alternativeScore=target,weapon,score
         end
     end
@@ -12082,7 +12368,8 @@ local function SelectFireControlTarget(data,unit,unitPosition,previousTarget,pre
         for index=data.primaryTargetCount+1,data.targetCount do consider(index,noCompatiblePrimary) end
     end
     local selectedDamage
-    if data.enabled and bestTarget and IsFireControlTargetCovered(data,bestTarget)
+    if data.enabled and bestTarget and (IsFireControlTargetCovered(data,bestTarget)
+        or data.preferTargetsInRange and not unit:HasTags(Tags.COMMAND))
         and alternativeTarget and alternativeTarget~=bestTarget then
         local canEngage,damage=GetAvailableFireControlDamage(unit,alternativeTarget)
         if canEngage then
@@ -12154,13 +12441,6 @@ function MicroingAttackUnits(platoon)
     if platoon.ai.isNavalPlatoon then
         enemyTargets = platoon.ai.rushFleet and GetClosestIndividualTargets(enemyUnits,platoonPos,math.min(24,math.max(8,#platoonUnits*2)))
             or GetClosestTargets(enemyUnits, platoonPos)
-        local contact=platoon.ai.microTarget;local present=false
-        for _,target in ipairs(enemyTargets) do if target==contact then present=true;break end end
-        if not present and IsAttackTargetAvailable(contact) and not contact:HasTags(Tags.AIR)
-            and platoon.army:IsEnemy(contact.army) and RushCombatIntel.Visible(platoon.army,contact) then
-            local pos=contact:GetPosition()
-            if Distance2DSquared(platoonPos.x,platoonPos.z,pos.x,pos.z)<=platoonEngagementRadius^2 then enemyTargets[#enemyTargets+1]=contact end
-        end
     else
         enemyTargets = GetClosestIndividualTargets(enemyUnits, platoonPos, #platoonUnits)
         local primary=commander and platoon.ai.primaryTarget
@@ -12174,6 +12454,15 @@ function MicroingAttackUnits(platoon)
                 if not present then enemyTargets[#enemyTargets+1]=primary end
             end
         end
+    end
+    -- Keep the controller's compatible contact even when closer units
+    -- that this platoon cannot shoot fill the distance-based shortlist.
+    local contact=platoon.ai.microTarget;local present=false
+    for _,target in ipairs(enemyTargets) do if target==contact then present=true;break end end
+    if not present and IsAttackTargetAvailable(contact) and not contact:HasTags(Tags.AIR)
+        and platoon.army:IsEnemy(contact.army) and RushCombatIntel.Visible(platoon.army,contact) then
+        local pos=contact:GetPosition()
+        if Distance2DSquared(platoonPos.x,platoonPos.z,pos.x,pos.z)<=platoonEngagementRadius^2 then enemyTargets[#enemyTargets+1]=contact end
     end
     if platoon.ai.rushFleet then
         local fleet=Import("AI/mods/AI-Scom/RushNavalCombat.lua");local reachable={}
@@ -12190,6 +12479,7 @@ function MicroingAttackUnits(platoon)
     local cachedTargetPositions = {}
     local cachedTargetMaximumWeaponRanges = {}
     local cachedTargetSupportIntelCoverage = {}
+    local supportIntel
     local cachedTargetCount = 0
     local platoonTargetLayer = platoon.ai.rushSurfaceLayer or GetWeaponTargetLayerFromMovementLayer(platoon.ai.movementLayer)
     if platoon.ai.formerTable.DebugPlatoon then
@@ -12206,7 +12496,10 @@ function MicroingAttackUnits(platoon)
             cachedTargetPositionZ[cachedTargetCount] = targetPos.z
             cachedTargetPositions[target] = targetPos
             cachedTargetMaximumWeaponRanges[target] = AIFunctions.GetUnitMaximumWeaponRangeByLayer(target, platoonTargetLayer)
-            cachedTargetSupportIntelCoverage[target] = not platoon.ai.isNavalPlatoon and HasLandMicroSupportIntelCoverage(platoonUnits, targetPos) or false
+            if not platoon.ai.isNavalPlatoon then
+                supportIntel = supportIntel or LandMicroSupportIntel(platoonUnits)
+                cachedTargetSupportIntelCoverage[target] = HasLandMicroSupportIntelCoverage(supportIntel, targetPos)
+            else cachedTargetSupportIntelCoverage[target] = false end
         end
     end
     if cachedTargetCount < 1 then
@@ -12242,20 +12535,23 @@ function MicroingAttackUnits(platoon)
             end
             InitializeLandMicroFormationData(platoon, platoonUnits, platoonPos, targetPlatoonCenterPos, CalculatePlatoonThreat(platoon, platoonTargetLayer), enemyGroupThreat)
         end
-        if platoon.ai.landMicroFormationData.phase == "Forming" then return MoveLandMicroFormationUnits(platoon, platoonUnits, targetPlatoonCenterPos), platoon.ai.eState end
+        if platoon.ai.landMicroFormationData.phase == "Forming" and not BeginLandMicroFormationEngagement(platoon,platoonUnits,cachedTargetUnits,cachedTargetPositions,cachedTargetCount) then return MoveLandMicroFormationUnits(platoon, platoonUnits, targetPlatoonCenterPos), platoon.ai.eState end
         if platoon.ai.landMicroFormationData.phase == "Advancing" then
             local advancingUnitsToCover, weaponContactReached = AdvanceLandMicroFormationUnits(platoon, platoonUnits, targetPlatoonCenterPos, cachedTargetUnits, cachedTargetPositions, cachedTargetCount)
             if not weaponContactReached then return advancingUnitsToCover, platoon.ai.eState end
         end
         table.sort(platoonUnits, SortLandMicroTargetAssignmentUnits)
     end
+    local landMicroThreatData = not platoon.ai.isNavalPlatoon and not commander
+        and RushTacticsV8.PrepareLandMicroThreatData(platoon,enemyUnits,platoonTargetLayer,cachedTargetPositions,cachedTargetMaximumWeaponRanges)
     -- Soft saturation tracking table (counts how many units are assigned per target)
     local targetAssignments = {}
     -- quadratic saturation factor, reduces central dominance and lowers distribution efficiency on easy difficulty
     local saturationFactor = difficultyAI == "easy" and 0.2 or 0.50
     -- Additive penalty to force redistribution even when distances are similar
     local additivePenalty = 4
-    local fireControl = PrepareFireControl(platoon, platoonUnits, cachedTargetUnits, cachedTargetPositionX, cachedTargetPositionZ, cachedTargetCount, cachedTargetCount, targetAssignments, saturationFactor, additivePenalty, 1)
+    local preferTargetsInRange = difficultyAI == "hard" and not platoon.ai.isNavalPlatoon and not commander
+    local fireControl = PrepareFireControl(platoon, platoonUnits, cachedTargetUnits, cachedTargetPositionX, cachedTargetPositionZ, cachedTargetCount, cachedTargetCount, targetAssignments, saturationFactor, additivePenalty, preferTargetsInRange and 2 or 1, preferTargetsInRange)
     -- Assign best target per unit using distance and saturation penalty.
     if platoon.ai.formerTable.DebugPlatoon then
         AILog("* Fn MicroingAttackUnits():[A:" .. platoon.army.id .. "][P:" .. platoon.id .. "] set platoon targets. unit count:"..#platoonUnits.."")
@@ -12343,7 +12639,12 @@ function MicroingAttackUnits(platoon)
                 local isCoastalTarget = platoon.ai.isNavalPlatoon and not platoon.ai.rushAmphibiousNaval and not unit.ai.microTarget:HasTags(Tags.NAVAL)
                 local firingPositionValid=true
                 local isCommander=unit:HasTags(Tags.COMMAND)
-                if (TargetHug or unit.ai.Blocked) and not platoon.ai.isNavalPlatoon and not isCommander then
+                local selectedWeapon=unit.ai.weaponMicroData.primaryWeapon
+                local selectedTemplate=selectedWeapon and (selectedWeapon.tp or selectedWeapon)
+                local minimumWeaponRange=selectedTemplate and selectedTemplate.rangeMin or 0
+                local keepMovingDuringAttack=false
+                if (TargetHug or unit.ai.Blocked) and not platoon.ai.isNavalPlatoon and not isCommander
+                    and minimumWeaponRange<=0 then
                     -- TargetHug position
                     smartPosTargetHug.x = targetPos.x + (math.random(-5, 5) / 10)
                     smartPosTargetHug.y = targetPos.y
@@ -12358,16 +12659,15 @@ function MicroingAttackUnits(platoon)
                 else
                     -- Attack-range position
                     local alpha = math.atan2(targetPos.z - unitPos.z, targetPos.x - unitPos.x)
-                    local selectedWeapon=unit.ai.weaponMicroData.primaryWeapon
-                    local selectedTemplate=selectedWeapon and (selectedWeapon.tp or selectedWeapon)
-                    local distance=math.max((selectedTemplate and selectedTemplate.rangeMin or 0)+1,unit.ai.maxWeaponRange-1)
+                    local distance=math.max(minimumWeaponRange+1,unit.ai.maxWeaponRange-1)
                     smartPosAttack.x = targetPos.x - math.cos(alpha) * distance
                     smartPosAttack.y = targetPos.y
                     smartPosAttack.z = targetPos.z - math.sin(alpha) * distance
                     if not platoon.ai.isNavalPlatoon then
                         local formationUnitSpacing = platoon.ai.landMicroFormationData.unitSpacing or LAND_MICRO_FORMATION_MINIMUM_UNIT_SPACING
                         local targetAssignmentIndex = unit.ai.landMicroTargetAssignmentIndex or 1
-                        local maximumAttackRadius = math.max(1, unit.ai.maxWeaponRange - 1)
+                        local minimumAttackRadius = math.max(1, minimumWeaponRange + 1)
+                        local maximumAttackRadius = math.max(minimumAttackRadius, unit.ai.maxWeaponRange - 1)
                         local unitIntelRadius = GetLandMicroUnitIntelRadius(unit)
                         -- Dedicated siege guns use the existing observed target. Do not turn the
                         -- only gun in a battery into a short-vision scout and override its
@@ -12376,8 +12676,12 @@ function MicroingAttackUnits(platoon)
                         local canServeAsLandMicroIntelSpotter = not isCommander and not isDedicatedSiegeBattery and not cachedTargetSupportIntelCoverage[unit.ai.microTarget] and unitIntelRadius > 0 and unit.tp.general.techNumber == minimumLandMicroAttackUnitTechnologyLevel
                         unit.ai.landMicroIsIntelSpotter = selectedLandMicroIntelSpotterCount < maximumLandMicroIntelSpotterCount and canServeAsLandMicroIntelSpotter
                         if unit.ai.landMicroIsIntelSpotter then selectedLandMicroIntelSpotterCount = selectedLandMicroIntelSpotterCount + 1 end
-                        if unit.ai.landMicroIsIntelSpotter then maximumAttackRadius = math.min(maximumAttackRadius, unitIntelRadius - LAND_MICRO_INTEL_POSITION_MARGIN) end
-                        SetLandMicroAttackPosition(unit, unitPos, targetPos, retreatDirX, retreatDirZ, targetAssignmentIndex, targetAssignments[unit.ai.microTarget] or 1, formationUnitSpacing, maximumAttackRadius, smartPosAttack)
+                        if unit.ai.landMicroIsIntelSpotter then maximumAttackRadius = math.max(minimumAttackRadius, math.min(maximumAttackRadius, unitIntelRadius - LAND_MICRO_INTEL_POSITION_MARGIN)) end
+                        SetLandMicroAttackPosition(unit, unitPos, targetPos, retreatDirX, retreatDirZ, targetAssignmentIndex, targetAssignments[unit.ai.microTarget] or 1, formationUnitSpacing, minimumAttackRadius, maximumAttackRadius, smartPosAttack)
+                        if difficultyAI == "hard" and not isCommander then
+                            keepMovingDuringAttack=RushTacticsV8.SetLandTankEvasionPosition(unit,unitPos,targetPos,
+                                cachedTargetMaximumWeaponRanges[unit.ai.microTarget] or 0,maximumAttackRadius,smartPosAttack)
+                        end
                     elseif isCoastalTarget then
                         local firingPosition
                         if platoon.ai.rushFleet then
@@ -12402,6 +12706,7 @@ function MicroingAttackUnits(platoon)
                     end
                 end
                 if not platoon.ai.isNavalPlatoon then
+                    local needsRangeSafetyRetreat,rangeSafetyPositionAdjusted=RushTacticsV8.AdjustLandMicroAttackPositionForThreats(unit,unitPos,smartPosAttack,landMicroThreatData)
                     local orderedAttackPosition = unit.ai.landMicroOrderedAttackPosition
                     local attackPositionReached = Distance2DSquared(unitPos.x, unitPos.z, smartPosAttack.x, smartPosAttack.z) <= LAND_MICRO_ATTACK_POSITION_REACHED_DISTANCE * LAND_MICRO_ATTACK_POSITION_REACHED_DISTANCE
                     local attackOrderPositionChanged = not orderedAttackPosition or Distance2DSquared(smartPosAttack.x, smartPosAttack.z, orderedAttackPosition.x, orderedAttackPosition.z) > LAND_MICRO_ORDER_POSITION_CHANGE_DISTANCE * LAND_MICRO_ORDER_POSITION_CHANGE_DISTANCE
@@ -12413,15 +12718,32 @@ function MicroingAttackUnits(platoon)
                         local minimumPreferredWeaponDistance = math.max(0, math.sqrt(preferredWeaponDistanceSquared) - LAND_MICRO_ATTACK_POSITION_REACHED_DISTANCE)
                         local maximumPreferredWeaponDistance = unit.ai.landMicroIsIntelSpotter and math.max(1, GetLandMicroUnitIntelRadius(unit)) or math.sqrt(preferredWeaponDistanceSquared) + LAND_MICRO_ATTACK_POSITION_REACHED_DISTANCE
                         local hasWeaponRangeAdvantage = unit.ai.maxWeaponRange > (cachedTargetMaximumWeaponRanges[unit.ai.microTarget] or 0) + LAND_MICRO_ATTACK_POSITION_REACHED_DISTANCE
-                        local targetWithinWeaponRange = targetDistanceSquared <= unit.ai.maxWeaponRange * unit.ai.maxWeaponRange
+                        local targetWithinWeaponRange = selectedWeapon and selectedWeapon.enabled
+                            and RushCombatIntel.CanShootAt(unit.army,selectedWeapon,unit.ai.microTarget)
+                            and targetDistanceSquared >= minimumWeaponRange * minimumWeaponRange
+                            and RushCombatIntel.IsTargetInRange(unit.army,selectedWeapon,unit.ai.microTarget)
                         local targetInsidePreferredWeaponRange = hasWeaponRangeAdvantage and targetDistanceSquared < minimumPreferredWeaponDistance * minimumPreferredWeaponDistance
-                        local targetOutsideIntelSpotterRange = unit.ai.landMicroIsIntelSpotter and targetDistanceSquared > maximumPreferredWeaponDistance * maximumPreferredWeaponDistance
+                        local targetOutsideIntelSpotterRange = not rangeSafetyPositionAdjusted and unit.ai.landMicroIsIntelSpotter and targetDistanceSquared > maximumPreferredWeaponDistance * maximumPreferredWeaponDistance
+                        if targetWithinWeaponRange and unit.ai.Blocked then
+                            -- A stuck approach still needs current terrain evidence;
+                            -- otherwise range alone renews its contact watchdog.
+                            unit.ai.Blocked=CheckCachedLandMicroBlockingTerrain(unit,unit.ai.microTarget,unit.ai.rangeRingType,platoon.ai.formerTable.DebugPlatoon,unitPos,targetPos)
+                        end
                         local holdPositionForIndirectFire = targetWithinWeaponRange and ShouldLandMicroUnitHoldForIndirectFire(unit)
-                        local moveToAttackPosition = targetOutsideIntelSpotterRange or not holdPositionForIndirectFire and not attackPositionReached and (unit.ai.Blocked or not targetWithinWeaponRange or targetInsidePreferredWeaponRange)
+                        -- Rejecting an unsafe approach must also replace its old MOVE;
+                        -- leaving that order active would continue through the gun line.
+                        local stopUnsafeMove=rangeSafetyPositionAdjusted and attackPositionReached
+                            and activeOrderTask==OrderTasks.MOVE and (not orderedAttackPosition
+                                or Distance2DSquared(unitPos.x,unitPos.z,orderedAttackPosition.x,orderedAttackPosition.z)>2.25)
+                        local moveToAttackPosition = needsRangeSafetyRetreat or stopUnsafeMove or targetOutsideIntelSpotterRange or not holdPositionForIndirectFire and not attackPositionReached and (keepMovingDuringAttack or unit.ai.Blocked or not targetWithinWeaponRange or targetInsidePreferredWeaponRange)
                         if moveToAttackPosition then
                             if attackOrderPositionChanged or activeOrderTask ~= OrderTasks.MOVE or unit.ai.landMicroOrderedAttackTarget then
                                 if not IssueLandMicroOrder(platoon,unit,OrderTasks.MOVE,smartPosAttack,nil) then return unitsToCover,"SelectMainTarget" end
                                 unit.ai.landMicroOrderedAttackPosition = {x = smartPosAttack.x, y = smartPosAttack.y, z = smartPosAttack.z}
+                                if landMicroThreatData then
+                                    if rangeSafetyPositionAdjusted then landMicroThreatData.moveOrders=landMicroThreatData.moveOrders+1
+                                    elseif keepMovingDuringAttack then landMicroThreatData.evasionOrders=landMicroThreatData.evasionOrders+1 end
+                                end
                             end
                             unit.ai.landMicroOrderedAttackTarget = nil
                             if unit.ai.Blocked then DebugUtilities.RecordTerrainApproachOrder(platoon.army.id) end
@@ -12482,8 +12804,8 @@ function MicroingAttackUnits(platoon)
                     end
                 else
                     local weapon=unit.ai.weaponMicroData.primaryWeapon
-                    local inRange=weapon and weapon.enabled and weapon:CanShootAt(unit.ai.microTarget)
-                        and weapon:IsTargetInRange(unit.ai.microTarget)
+                    local inRange=weapon and weapon.enabled and RushCombatIntel.CanShootAt(unit.army,weapon,unit.ai.microTarget)
+                        and RushCombatIntel.IsTargetInRange(unit.army,weapon,unit.ai.microTarget)
                     local position=firingPositionValid and MicroPosition(platoon,unit,smartPosAttack)
                     if not position and platoon.ai.rushFleet and not isCoastalTarget then
                         local template=weapon and (weapon.tp or weapon)
@@ -12541,6 +12863,18 @@ function MicroingAttackUnits(platoon)
     end
     if #unitsToCover > 0 then
         table.sort(unitsToCover, SortUnitsToCoverDescendingByUnitResourceCostValue)
+    end
+    if landMicroThreatData and lobbyOptionsAI.debugGameTelemetry
+        and GetGameTimeSeconds()-landMicroThreatData.lastTelemetryTime>=60 then
+        if landMicroThreatData.unsafeChecks+landMicroThreatData.redirectedApproaches+landMicroThreatData.evasionOrders>0 then
+            AILog("[RushMicroV10] army="..platoon.army.id.." platoon="..platoon.id
+                .." unsafeChecks="..landMicroThreatData.unsafeChecks.." otherTargetChecks="..landMicroThreatData.otherTargetChecks
+                .." adjustedApproaches="..landMicroThreatData.redirectedApproaches.." moveOrders="..landMicroThreatData.moveOrders
+                .." evasionOrders="..landMicroThreatData.evasionOrders)
+        end
+        landMicroThreatData.unsafeChecks,landMicroThreatData.otherTargetChecks,landMicroThreatData.redirectedApproaches=0,0,0
+        landMicroThreatData.moveOrders,landMicroThreatData.evasionOrders=0,0
+        landMicroThreatData.lastTelemetryTime=GetGameTimeSeconds()
     end
     return unitsToCover, platoon.ai.eState
 end
@@ -12611,20 +12945,106 @@ end
 ---@param platoonPos table Position of the platoon formatted as {x, y, z}.
 ---@param maximumTargetCount integer Maximum number of individual targets to return.
 ---@return table closestTargets List of individual enemy units sorted by distance.
-function GetClosestIndividualTargets(enemyUnits, platoonPos, maximumTargetCount)
-    local closestTargets = {}
-    local targetDistancesSquared = {}
+-- Keep a worst-first heap for large shortlists. Small searches and ties at
+-- any selected distance retain the native full-sort result exactly.
+local function NearestMicroTargets(enemyUnits, platoonPos, maximumTargetCount, eligible)
+    local limit = math.max(0, math.floor(maximumTargetCount))
+    if limit == 0 then return {}, 0 end
+    -- The original compact sort is cheaper for a small air contact list.
+    if #enemyUnits <= limit * 2 then
+        local nearest = {}
+        for _, enemy in ipairs(enemyUnits) do
+            if not enemy.dead and (not eligible or eligible(enemy)) then
+                local position = enemy:GetPosition()
+                nearest[#nearest+1] = {unit=enemy, position=position,
+                    distanceSquared=Distance2DSquared(platoonPos.x, platoonPos.z, position.x, position.z)}
+            end
+        end
+        local count = #nearest
+        table.sort(nearest, function(first, second) return first.distanceSquared < second.distanceSquared end)
+        while #nearest > limit do table.remove(nearest) end
+        return nearest, count
+    end
+    local nearest, candidates, distances, positions = {}, {}, {}, {}
+    local useHeap = true
+    local function farther(first, second)
+        return first.distanceSquared > second.distanceSquared
+    end
     for _, enemy in ipairs(enemyUnits) do
-        if not enemy.dead then
-            local enemyPosition = enemy:GetPosition()
-            targetDistancesSquared[enemy] = Distance2DSquared(platoonPos.x, platoonPos.z, enemyPosition.x, enemyPosition.z)
-            table.insert(closestTargets, enemy)
+        if not enemy.dead and (not eligible or eligible(enemy)) then
+            local position = enemy:GetPosition()
+            local distance = Distance2DSquared(platoonPos.x, platoonPos.z, position.x, position.z)
+            candidates[#candidates+1], distances[enemy], positions[enemy] = enemy, distance, position
+            if useHeap then
+                if #nearest < limit then
+                    local record = {unit=enemy, position=position, distanceSquared=distance}
+                    local index = #nearest + 1
+                    while index > 1 do
+                        local parent = math.floor(index / 2)
+                        if not farther(record, nearest[parent]) then break end
+                        nearest[index] = nearest[parent]
+                        index = parent
+                    end
+                    nearest[index] = record
+                elseif distance < nearest[1].distanceSquared then
+                    local record = nearest[1]
+                    record.unit, record.position, record.distanceSquared = enemy, position, distance
+                    local index, count = 1, #nearest
+                    while index * 2 <= count do
+                        local child = index * 2
+                        if child < count and farther(nearest[child+1], nearest[child]) then child = child + 1 end
+                        if not farther(nearest[child], record) then break end
+                        nearest[index] = nearest[child]
+                        index = child
+                    end
+                    nearest[index] = record
+                end
+            end
         end
     end
-    table.sort(closestTargets, function(firstEnemy, secondEnemy)
-        return targetDistancesSquared[firstEnemy] < targetDistancesSquared[secondEnemy]
-    end)
-    while #closestTargets > maximumTargetCount do table.remove(closestTargets) end
+    if useHeap and #candidates > limit * 2 then
+        -- Native table.sort does not promise a stable order on ties. Fall
+        -- back when a tie could change selected membership or assignment order.
+        local selectedDistances, seen = {}, {}
+        for _, record in ipairs(nearest) do selectedDistances[record.distanceSquared] = true end
+        for _, enemy in ipairs(candidates) do
+            local distance = distances[enemy]
+            if selectedDistances[distance] then
+                if seen[distance] then useHeap = false; break end
+                seen[distance] = true
+            end
+        end
+    else useHeap = false end
+    if useHeap then
+        table.sort(nearest, function(first, second) return first.distanceSquared < second.distanceSquared end)
+    else
+        table.sort(candidates, function(first, second) return distances[first] < distances[second] end)
+        nearest = {}
+        for index = 1, math.min(limit, #candidates) do
+            local enemy = candidates[index]
+            nearest[index] = {unit=enemy, position=positions[enemy], distanceSquared=distances[enemy]}
+        end
+    end
+    return nearest, #candidates
+end
+
+function GetClosestIndividualTargets(enemyUnits, platoonPos, maximumTargetCount)
+    if #enemyUnits <= maximumTargetCount * 2 then
+        local closestTargets, distances = {}, {}
+        for _, enemy in ipairs(enemyUnits) do
+            if not enemy.dead then
+                local position = enemy:GetPosition()
+                distances[enemy] = Distance2DSquared(platoonPos.x, platoonPos.z, position.x, position.z)
+                closestTargets[#closestTargets+1] = enemy
+            end
+        end
+        table.sort(closestTargets, function(first, second) return distances[first] < distances[second] end)
+        while #closestTargets > maximumTargetCount do table.remove(closestTargets) end
+        return closestTargets
+    end
+    local nearest = NearestMicroTargets(enemyUnits, platoonPos, maximumTargetCount)
+    local closestTargets = {}
+    for index, record in ipairs(nearest) do closestTargets[index] = record.unit end
     return closestTargets
 end
 
@@ -12727,8 +13147,9 @@ end
 --- @param targetPosition table|nil Optional cached target unit position.
 --- @return boolean Returns true if the line of sight is blocked, false otherwise.
 function CheckBlockingTerrain(unit, target, rangeRingType, formerTableDebug, unitPosition, targetPosition)
-    if rangeRingType == "AntiAir" then
-        -- AntiAir can shoot over all terrain features.
+    if rangeRingType == "AntiAir" or rangeRingType == "IndirectFire" then
+        -- Native indirect aiming owns projectile speed and gravity. Endpoint
+        -- heights cannot reconstruct its arc, so a straight ridge test is invalid.
         return false
     end
     unitPosition = unitPosition or unit:GetPosition()
@@ -12756,20 +13177,7 @@ function CheckBlockingTerrain(unit, target, rangeRingType, formerTableDebug, uni
                 end
                 return true
             end
-        elseif rangeRingType == "IndirectFire" then
-            -- For 'IndirectFire', simulate a parabolic trajectory.
-            -- Parabola equation for trajectory: y = a*x^2 + bx + c
-            local trajectoryHeightDifference = unitLineHeight - targetLineHeight
-            local quadraticTrajectoryCoefficient = -4 * trajectoryHeightDifference / (sampleCount^2)
-            local linearTrajectoryCoefficient = 4 * trajectoryHeightDifference / sampleCount
-            local trajectoryHeight = quadraticTrajectoryCoefficient * (sampleIndex^2) + linearTrajectoryCoefficient * sampleIndex + unitLineHeight
 
-            if sampleHeight >= trajectoryHeight then
-                if formerTableDebug then
-                    AILog("* Fn CheckBlockingTerrain():projectile blocked by terrain (parabolic trajectory)")
-                end
-                return true
-            end
         end
     end
     return false
@@ -14417,8 +14825,9 @@ function planBomberAttack(platoon, armyIndex, baseName, formerTable)
         platoon.ai.withdraw = false
         local previousCommanderAttackTarget = platoon.ai.commanderAttackTarget
         platoon.ai.commanderAttackTarget = false
+        if platoon.ai.priorityTarget then platoon.ai.priorityTarget=RushCombatIntel.Contact(platoon.army,platoon.ai.priorityTarget) or false end
         local priorityTarget = formerTable.AIPlanData.SelectFarthestTargetFromEnemyBase and platoon.ai.priorityTarget
-        if priorityTarget and (not IsAttackTargetAvailable(priorityTarget) or platoon.ai.requireShootableTarget and not CanPlatoonShootTarget(platoon, priorityTarget)) then
+        if priorityTarget and (not IsAttackTargetAvailable(priorityTarget) or not RushCombatIntel.Detected(platoon.army,priorityTarget) or platoon.ai.requireShootableTarget and not CanPlatoonShootTarget(platoon, priorityTarget)) then
             platoon.ai.priorityTarget = false
             priorityTarget = false
             priorityTargetRecheckCounter = 4
@@ -14694,9 +15103,9 @@ local function RushGunshipDefenseSector(basePosition, position, innerRadiusSquar
 end
 
 local function RushGunshipDefenseVisible(army, target, category)
-    return IsAttackTargetAvailable(target) and not target.deleted and target.isTargetable == true
+    return IsAttackTargetAvailable(target) and not target.deleted and target.isTargetable ~= false
         and target:IsCompleted() and target:HasTags(category)
-        and (target:IsIntelVisionVisible(army) or target:IsIntelRadarVisible(army))
+        and RushCombatIntel.Detected(army,target)
 end
 
 local function RushGunshipDefenseCandidates(platoon)
@@ -14863,43 +15272,46 @@ function SelectPriorityTargetAreaPos(platoon)
     local enemyUnits = AIFunctions.GetEnemyUnitsOnMap(armyIndex)
     for unitIndex = 1, #enemyUnits do
         local enemyUnit = enemyUnits[unitIndex]
-        if not enemyUnit.dead and enemyUnit:HasTags(planData.TargetSearchCategory) and enemyUnit:IsCompleted() and (not planData.RequireShootableTarget or CanPlatoonShootTarget(platoon, enemyUnit)) then
+        if not enemyUnit.dead and not reservedPriorityTargets[enemyUnit]
+            and enemyUnit:HasTags(planData.TargetSearchCategory) and enemyUnit:IsCompleted() then
             local enemyUnitPosition = enemyUnit:GetPosition()
             local distanceSquared = Distance2DSquared(enemyUnitPosition.x, enemyUnitPosition.z, targetSearchPosition.x, targetSearchPosition.z)
-            if not reservedPriorityTargets[enemyUnit] and isPosWithinPlayableArea(enemyUnitPosition)
-                and (planData.SelectFarthestTargetFromEnemyBase or distanceSquared <= targetSearchRadiusSquared) and AIMarkerGenerator.CanGraphAreaTo(targetSearchPosition, enemyUnitPosition, platoonData.movementLayer) then
-                local enemyAreaThreat = AITargetManager.GetThreatFromHeatMapPosition(armyIndex, enemyUnitPosition, platoonData.movementLayer)
-                if IsEnemyThreatAttackable(platoon, enemyAreaThreat) then
-                    local targetDistanceSquared = distanceSquared
-                    local targetPriorityIndex = 1
-                    if useTargetPriority then
-                        targetPriorityIndex = #planData.TargetPriority + 1
-                        for priorityIndex = 1, #planData.TargetPriority do
-                            if enemyUnit:HasTags(planData.TargetPriority[priorityIndex]) then
-                                targetPriorityIndex = priorityIndex
-                                break
-                            end
+            if isPosWithinPlayableArea(enemyUnitPosition)
+                and (planData.SelectFarthestTargetFromEnemyBase or distanceSquared <= targetSearchRadiusSquared) then
+                local targetDistanceSquared = distanceSquared
+                local targetPriorityIndex = 1
+                if useTargetPriority then
+                    targetPriorityIndex = #planData.TargetPriority + 1
+                    for priorityIndex = 1, #planData.TargetPriority do
+                        if enemyUnit:HasTags(planData.TargetPriority[priorityIndex]) then
+                            targetPriorityIndex = priorityIndex
+                            break
                         end
                     end
-                    if planData.SelectFarthestTargetFromEnemyBase then
-                        local enemyArmyIndex = enemyUnit.army.id
-                        if enemyMainBasePositions[enemyArmyIndex] == nil then
-                            enemyMainBasePositions[enemyArmyIndex] = RushReliability.MainBasePosition(enemyArmyIndex) or false
-                        end
-                        local enemyMainBasePosition = enemyMainBasePositions[enemyArmyIndex]
-                        if enemyMainBasePosition then
-                            targetDistanceSquared = Distance2DSquared(enemyUnitPosition.x, enemyUnitPosition.z, enemyMainBasePosition.x, enemyMainBasePosition.z)
-                        end
+                end
+                if planData.SelectFarthestTargetFromEnemyBase then
+                    local enemyArmyIndex = enemyUnit.army.id
+                    if enemyMainBasePositions[enemyArmyIndex] == nil then
+                        enemyMainBasePositions[enemyArmyIndex] = RushReliability.MainBasePosition(enemyArmyIndex) or false
                     end
-                    local targetIsPreferred = not selectedTargetDistanceSquared or targetPriorityIndex < selectedTargetPriorityIndex or targetPriorityIndex == selectedTargetPriorityIndex and (planData.SelectFarthestTargetFromEnemyBase and targetDistanceSquared > selectedTargetDistanceSquared or not planData.SelectFarthestTargetFromEnemyBase and targetDistanceSquared < selectedTargetDistanceSquared)
-                    if targetIsPreferred then
+                    local enemyMainBasePosition = enemyMainBasePositions[enemyArmyIndex]
+                    if enemyMainBasePosition then
+                        targetDistanceSquared = Distance2DSquared(enemyUnitPosition.x, enemyUnitPosition.z, enemyMainBasePosition.x, enemyMainBasePosition.z)
+                    end
+                end
+                local targetIsPreferred = not selectedTargetDistanceSquared or targetPriorityIndex < selectedTargetPriorityIndex or targetPriorityIndex == selectedTargetPriorityIndex and (planData.SelectFarthestTargetFromEnemyBase and targetDistanceSquared > selectedTargetDistanceSquared or not planData.SelectFarthestTargetFromEnemyBase and targetDistanceSquared < selectedTargetDistanceSquared)
+                -- Path, live-weapon and heat-map checks cannot change this
+                -- candidate's priority/distance score. Evaluate them only when
+                -- the candidate can replace the best already-valid target.
+                if targetIsPreferred and (not planData.RequireShootableTarget or CanPlatoonShootTarget(platoon, enemyUnit))
+                    and AIMarkerGenerator.CanGraphAreaTo(targetSearchPosition, enemyUnitPosition, platoonData.movementLayer) then
+                    local enemyAreaThreat = AITargetManager.GetThreatFromHeatMapPosition(armyIndex, enemyUnitPosition, platoonData.movementLayer)
+                    if IsEnemyThreatAttackable(platoon, enemyAreaThreat) then
                         selectedTarget = enemyUnit
                         selectedTargetPriorityIndex = targetPriorityIndex
                         selectedTargetDistanceSquared = targetDistanceSquared
                         selectedTargetPosition = enemyUnitPosition
-                    end
-                else
-                    if platoonData.formerTable.DebugPlatoon then
+                    elseif platoonData.formerTable.DebugPlatoon then
                         AILog("* Fn SelectPriorityTargetAreaPos():[A:"..armyIndex.."][P:"..platoon.id.."] priority target area threat too high: ("..enemyAreaThreat..").")
                     end
                 end
@@ -16127,17 +16539,8 @@ function MicroingAirAttackUnits(platoon)
     local focusUnitWeight = 4
     local desiredTargetCount = math.max(1, math.ceil(activeAttackUnitCount / focusUnitWeight))
     local availableTargetCount = platoon.ai.fireControlDisabled and desiredTargetCount or math.max(desiredTargetCount, activeAttackUnitCount)
-    local enemyTargetCandidates = {}
-    for enemyUnitIndex = 1, #enemyUnits do
-        local enemyUnit = enemyUnits[enemyUnitIndex]
-        if RushTacticsV8.ValidAirTarget(platoon, enemyUnit) then
-            local enemyPosition = enemyUnit:GetPosition()
-            table.insert(enemyTargetCandidates, { unit = enemyUnit, position = enemyPosition, distanceSquared = Distance2DSquared(platoonPosition.x, platoonPosition.z, enemyPosition.x, enemyPosition.z) })
-        end
-    end
-    table.sort(enemyTargetCandidates, function(firstEnemyTargetCandidate, secondEnemyTargetCandidate)
-        return firstEnemyTargetCandidate.distanceSquared < secondEnemyTargetCandidate.distanceSquared
-    end)
+    local enemyTargetCandidates, enemyCandidateCount = NearestMicroTargets(enemyUnits, platoonPosition, availableTargetCount,
+        function(enemy) return RushTacticsV8.ValidAirTarget(platoon, enemy) end)
     local cachedTargetUnits = {}
     local cachedTargetPositionX = {}
     local cachedTargetPositionZ = {}
@@ -16146,7 +16549,7 @@ function MicroingAirAttackUnits(platoon)
     local targetCenterY = 0
     local targetCenterZ = 0
     if platoon.ai.formerTable.DebugPlatoon then
-        AILog("* Fn MicroingAirAttackUnits():[A:" .. platoon.army.id .. "][P:" .. platoon.id .. "] caching enemyTargets. enemy count:"..#enemyTargetCandidates..", desired target count:"..desiredTargetCount.."")
+        AILog("* Fn MicroingAirAttackUnits():[A:" .. platoon.army.id .. "][P:" .. platoon.id .. "] caching enemyTargets. enemy count:"..enemyCandidateCount..", desired target count:"..desiredTargetCount.."")
     end
     for targetIndex = 1, math.min(availableTargetCount, #enemyTargetCandidates) do
         local enemyTargetCandidate = enemyTargetCandidates[targetIndex]
@@ -16244,7 +16647,7 @@ function MicroingAirAttackUnits(platoon)
                 unit.ai.airMicroAttackLastTarget = nil
             end
             unit.ai.airMicroAttackTarget = target
-            unit:SetWeaponPreferredTarget(target)
+            RushCombatIntel.SetPreferredTarget(unit,target)
             local groupSide = unit.ai.airMicroAttackGroupSide
             local lobeDestination = unit.ai.airMicroAttackDumbbellLobeDestination or { x = 0, y = 0, z = 0 }
             local oppositeDestination = unit.ai.airMicroAttackDumbbellOppositeDestination or { x = 0, y = 0, z = 0 }

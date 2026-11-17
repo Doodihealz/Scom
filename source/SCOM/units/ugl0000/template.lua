@@ -117,7 +117,7 @@ UnitTemplate = {
         },
         ["scoIdleResetLocomotion"] = true,
         ["scomRestoredAnimations"] = {
-            ["assetSha256"] = "78b04c7ce842f9934fe4c240e0aaf8c9139ac5428b35b693a3225ec794a5f473",
+            ["assetSha256"] = "fe782927f078eec652f41135b910b01177229669801e1ac27d3e32ae3b169fc2",
             ["runtimeRate"] = 1,
             ["sourceDeathRateRandomization"] = false,
             ["sourceId"] = "URL0001",
@@ -520,7 +520,7 @@ UnitTemplate = {
             ["audio"] = {
                 ["onFire"] = {
                     ["looping"] = false,
-                    ["name"] = "agom3100",
+                    ["name"] = "agom1122",
                 },
             },
             ["damage"] = 100,
@@ -676,7 +676,7 @@ UnitTemplate = {
             ["audio"] = {
                 ["onFire"] = {
                     ["looping"] = false,
-                    ["name"] = "agom1110",
+                    ["name"] = "aeom3132",
                 },
             },
             ["damage"] = 250,

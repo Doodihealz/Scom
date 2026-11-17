@@ -9,6 +9,11 @@ UnitTemplate = {
             [2] = "Turret_Muzzle1",
         },
         ["buildBeamEffectName"] = "beam1",
+        ["multiConstructionBeam"] = {
+            ["materialPath"] = "VFX/SCOM/ConstructionBeams/seraphim_blue.sanmaterial",
+            ["prefabName"] = "SCOM.SeraphimEngineerBeam",
+            ["shrink"] = 0.05,
+        },
         ["scoCargo"] = {
             ["attachOffset"] = {
                 [1] = 2.458328481225181e-08,

@@ -504,7 +504,7 @@ UnitTemplate = {
             ["damageRadius"] = 0,
             ["damageType"] = "Normal",
             ["effects"] = {
-                ["onFire"] = "VFX/SCOM/Source/usl1201/muzzle_aagun.sanvfx",
+                ["onFire"] = "VFX/SCOM/Seraphim/Muzzle/ShleoCompact.sanvfx",
             },
             ["firingRandomness"] = 0,
             ["layerTargetLimits"] = {

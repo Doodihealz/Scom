@@ -674,8 +674,8 @@ UnitTemplate = {
                             },
                         },
                     },
-                    ["path"] = "VFX/SCOM/Source/ucs2611/ambient_power.sanvfx",
-                    ["sha256"] = "226a321a386ee90eb22793b6617f6dcaee7edd852c992596a4dce4d98070e6f7",
+                    ["path"] = "VFX/SCOM/Structures/Aeon/ucs2611_ambient.sanvfx",
+                    ["sha256"] = "ad8dba2121c57af99d61ecab53c97637a8b1b193bfb9f8b9690e8fc3c74f0a91",
                 },
             },
             ["effects"] = {},
@@ -892,7 +892,7 @@ UnitTemplate = {
         ["effectsPersistent"] = {
             [1] = {
                 ["boneName"] = "Root",
-                ["particleName"] = "VFX/SCOM/Source/ucs2611/ambient_power.sanvfx",
+                ["particleName"] = "VFX/SCOM/Structures/Aeon/ucs2611_ambient.sanvfx",
                 ["positionOffset"] = {
                     ["x"] = 0,
                     ["y"] = 0,

@@ -27,6 +27,11 @@ ProjectileTemplate = {
     timeToLive = 8,    nonUniformScale = { x = 1, y = 1, z = 1 },
     visuals = {
         mesh = { lod0distance = 60 },
+        scoProjectileMesh = {
+            model = "Projectiles/pgb301/LOD0/pgb301.sanmodel",
+            material = "Projectiles/pgb301/LOD0/pgb301.sanmaterial",
+            scale = { x = 1, y = 1, z = 1 },
+        },
         onImpactEffects = {
             { effects = { { particleName = "VFX/Death/vgd1301_death_land_large.sanvfx" } } },
         },

@@ -3,6 +3,16 @@
 -- Explicit ranges control range rings; coordinate them with weapon range edits.
 -- host.lua and client.lua own behavior and class inheritance.
 UnitTemplate = {
+    ["audio"] = {
+        ["engine"] = {
+            ["looping"] = true,
+            ["name"] = "aelu1315",
+        },
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "aeod1120",
+        },
+    },
     ["additions"] = {
         ["faSourceContract"] = {
             ["fuelIntentionallyOmitted"] = false,
@@ -829,6 +839,10 @@ UnitTemplate = {
         [19] = "SCFA_UEF",
         [20] = "SCFA_VISIBLETORECON",
         [21] = "TECH2",
+        -- Native role selectors also need the imported SCFA category roles.
+        [22] = "BOT",
+        [23] = "DIRECT_FIRE",
+        [24] = "ANTI_SURFACE",
     },
     ["visuals"] = {
         ["animations"] = {
@@ -847,6 +861,7 @@ UnitTemplate = {
                 ["sanAnimationPath"] = "Units/uel5001/LOD0/uel5001.sananimation",
             },
             ["run"] = {
+                ["startSpeed"] = 0.05,
                 ["authoredSpeed"] = 0.8,
                 ["clipName"] = "FaDEL0204awalk",
                 ["sanAnimationPath"] = "Units/uel5001/LOD0/uel5001.sananimation",

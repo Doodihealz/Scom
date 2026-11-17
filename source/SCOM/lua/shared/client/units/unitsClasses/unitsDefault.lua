@@ -445,7 +445,7 @@ function ClientCommander:CanShowIdleAdornment()
 end
 
 function ClientCommander:DashBehaviorIsValidFor()
-    return true
+    return false
 end
 
 function ClientCommander:CreateDeathEffects()
@@ -1457,3 +1457,6 @@ if SCOCommanderAbilityVisualMarker == nil then
         "SCO_CommanderAbilityClientVisualInstalled",
         "1.2.0")
 end
+
+-- Native SCOM nuclear presentation; install after existing faction wrappers.
+Import('common/systems/scoNuclearPresentation.lua').InstallCommander(ClientCommander)

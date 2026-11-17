@@ -1,6 +1,6 @@
 # Double-click Install SCOM.cmd after extracting the entire archive.
 [CmdletBinding()]
-param()
+param([switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 2.0
 . (Join-Path $PSScriptRoot 'Installer.Core.ps1')
@@ -50,13 +50,21 @@ function Read-ScomChoice {
 function Invoke-ScomInstaller {
     param(
         [string]$DesktopPath = [Environment]::GetFolderPath('Desktop'),
-        [string]$DocumentsPath = [Environment]::GetFolderPath('MyDocuments')
+        [string]$DocumentsPath = [Environment]::GetFolderPath('MyDocuments'),
+        [switch]$CheckOnly
     )
+    $installationStarted = $false
     try {
-        Write-Host 'SCOM Setup 1.0.1' -ForegroundColor Cyan
+        Write-Host 'SCOM Setup 1.3.0' -ForegroundColor Cyan
         Write-Host 'Installs SCOM, SupCom Style UI, AI-Scom and required components.'
         Write-Host 'Existing settings and other mods are kept. You can back up your mods before installing.'
         Write-Host ''
+        Write-Host 'Checking installer package...'
+        $package = Read-ScomPackage $PSScriptRoot
+        if ($CheckOnly) {
+            Write-Host ('Package verified: {0} files.' -f $package.Files.Count) -ForegroundColor Green
+            return 0
+        }
         $suggested = Find-ScomGame
         if ($suggested) { Write-Host ('Detected: ' + $suggested) }
         $entered = (Read-Host 'Game or engine folder (Enter uses the detected folder)').Trim().Trim('"')
@@ -65,8 +73,7 @@ function Invoke-ScomInstaller {
         $engine = [IO.Path]::GetFullPath($entered)
         if (-not [IO.File]::Exists((Join-Path $engine 'Sanctuary.exe'))) { $engine = Join-Path $engine 'engine' }
         Assert-ScomGameClosed
-        Write-Host 'Checking files and game version...'
-        $package = Read-ScomPackage $PSScriptRoot
+        Write-Host 'Checking game version and installed files...'
         $plan = Get-ScomInstallPlan $package $engine
         Write-Host ('Install folder: ' + $plan.EngineRoot)
         if ($plan.BepInExVersion) { Write-Host ('BepInEx {0} found. Existing loader settings are kept.' -f $plan.BepInExVersion) }
@@ -112,6 +119,7 @@ function Invoke-ScomInstaller {
         }
         Assert-ScomGameClosed
         Write-Host 'Installing and checking files...'
+        $installationStarted = $true
         $result = Invoke-ScomInstall $package $plan.EngineRoot
         Write-Host ('Setup complete. Added: {0}; updated: {1}; removed: {2}; already present: {3}; preserved: {4}.' -f $result.Installed, $result.Updated, $result.Removed, $result.Skipped, $result.Preserved) -ForegroundColor Green
         return 0
@@ -119,9 +127,11 @@ function Invoke-ScomInstaller {
     catch {
         Write-Host ''
         Write-Host $_.Exception.Message -ForegroundColor Red
-        Write-Host 'Setup reverses its changes when the files still match. Any unrestored originals are kept at the paths shown above.'
+        if ($installationStarted) {
+            Write-Host 'Setup reverses its changes when the files still match. Any unrestored originals are kept at the paths shown above.'
+        }
         return 1
     }
 }
 
-if ($MyInvocation.InvocationName -ne '.') { exit (Invoke-ScomInstaller) }
+if ($MyInvocation.InvocationName -ne '.') { exit (Invoke-ScomInstaller -CheckOnly:$CheckOnly) }

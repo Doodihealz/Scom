@@ -55,7 +55,7 @@ end
 ---@param hitGlobalID GlobalID? The entity that was hit, so the client knows what to play the impact effects of. Defaults to an invalid GlobalID, which is what the terrain uses.
 function HostProjectile:Destroy(tickImpactTime, hitGlobalID)
     ProjectileCommands.DestroyProjectile.Send(self.id, tickImpactTime, hitGlobalID or EngineClasses.GlobalID(),
-        self.intelLayer.detectionMask.value)
+        self.intelLayer.detectionMask.value, self.scoImpactPosition, self.scoImpactBone, self.scoImpactBonePosition)
 
     -- TODO: Combine the destroy and delete commands. Deleting the projectile sends the delete
     -- command, so the two are always sent right after each other.

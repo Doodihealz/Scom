@@ -10,7 +10,7 @@ UnitTemplate = {
             [3] = "Muzzle03",
         },
         ["multiConstructionBeam"] = {
-            ["materialPath"] = "VFX/SCOM/ConstructionBeams/seraphim.sanmaterial",
+            ["materialPath"] = "VFX/SCOM/ConstructionBeams/seraphim_blue.sanmaterial",
             ["prefabName"] = "SCOM_SeraphimNavalMuzzleBeam",
             ["shrink"] = 0.05,
         },

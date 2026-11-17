@@ -1,7 +1,7 @@
 -- Persistent spatial variation, independent of build priorities and unit stats.
 -- Integer arithmetic stays exact in double-precision Lua. No wall clock, global
 -- random seed, unordered iteration, enemy information, or native API extensions.
-Version = "9.0.11-rc12"
+Version = "9.0.12-scom-fix"
 local styles = {"staggered", "terraces", "crescent", "twin-wing", "fan", "spine"}
 local function Hash(text, seed)
     local value = seed or 5381
@@ -25,7 +25,7 @@ function Create(armyId, faction, name, center, area)
         return low + state % (high - low + 1)
     end
     -- Consecutive army slots receive different shapes at the same named base;
-    -- the full seed then varies proportions, spacing and banks independently.
+    -- the full seed then varies factory proportions and spacing independently.
     local style = (Hash(mapKey .. ":" .. name) + id) % #styles + 1
     local profile = {
         version=Version, seed=seed, name=styles[style], style=style,
@@ -36,9 +36,6 @@ function Create(armyId, faction, name, center, area)
         offsetX=Pick(-3,3), offsetZ=Pick(-3,3),
         gapX=Pick(3,6), gapZ=Pick(5,8),
         radiusScale=Pick(128,156)/100,
-        bankStart=Pick(0,3), bankDirection=Pick(0,1)==0 and -1 or 1,
-        bankRows=Pick(3,4), bankColumns=Pick(4,6), bankGap=Pick(15,20)/10,
-        reserveWidth=Pick(3,5),
     }
     return profile
 end

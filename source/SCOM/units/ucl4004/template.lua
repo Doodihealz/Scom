@@ -283,9 +283,9 @@ UnitTemplate = {
         ["icon"] = {
             ["shape"] = "experimental1",
             ["symbol"] = "direct",
-            ["tech"] = "t3",
+            ["tech"] = "t1",
         },
-        ["iconUI"] = "tech3_land1_direct.png",
+        ["iconUI"] = "tech1_experimental1_direct.png",
         ["iconUIBuildSortPriority"] = 80,
         ["iconUIType"] = "land",
         ["name"] = "Galactic Colossus",

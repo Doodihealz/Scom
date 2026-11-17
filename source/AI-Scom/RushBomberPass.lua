@@ -1,7 +1,8 @@
 -- RC21: one committed bomber run, then an outward leg and a wide return turn.
 -- All movement/fire remains native. We observe own reload/salvo state, never
 -- edit weapons or infer this bomber's release from somebody else's damage.
-Version = "9.0.20-rc21"
+Version = "9.1.1"
+local Intel=Import("AI/mods/AI-Scom/RushCombatIntel.lua")
 local Tasks = Import("common/commonOrders.lua").OrderTasks
 local Log = Import("AI/debugUtilities.lua").AILog
 local function Finite(n) return type(n)=="number" and n==n and math.abs(n)<math.huge end
@@ -19,7 +20,7 @@ local function Weapon(w,target)
     local t=w.tp or w
     return w.enabled~=false and not w.isDeathExplosion and t.rangeRingType~="AntiAir"
         and w.rangeRingType~="AntiAir" and (t.damage or w.damage or 0)>0
-        and type(w.CanShootAt)=="function" and w:CanShootAt(target)
+        and type(w.CanShootAt)=="function" and Intel.CanShootAt(w.unit.army,w,target)
 end
 function Eligible(u,target)
     if not Has(u,"AIR") or not Has(u,"MOBILE") or not Has(u,"BOMBER")
@@ -193,7 +194,7 @@ local function ObserveWeapons(u,s)
     for _,w in ipairs(s.weapons) do
         local previous=s.samples[w]
         local reload,salvos=w.reloadTimer,w.salvosRemaining
-        if w.enabled~=false and not w.isDeathExplosion and (not w.targetUnit or w.targetUnit==s.target) then
+        if w.enabled~=false and not w.isDeathExplosion and (not w.targetUnit or Intel.SameTarget(w.targetUnit,s.target)) then
             if Finite(salvos) and salvos>0 then burst=true end
             if previous and ((Finite(reload) and Finite(previous.reload) and reload>previous.reload+0.05)
                 or (Finite(salvos) and Finite(previous.salvos) and salvos~=previous.salvos)) then
@@ -280,6 +281,9 @@ function Step(p,u,r,target,now,api)
         local aim=Copy(target:GetPosition());if not Valid(aim) then return false end
         s=New(p,u,r,target,aim,now)
     end
+    if s.target then s.target=Intel.Contact(p.army,s.target) or s.target end
+    if s.requested then s.requested=Intel.Contact(p.army,s.requested) or s.requested end
+    if r.target then r.target=Intel.Contact(p.army,r.target) or r.target end
     if target then s.requested=target end
     if s.lastStep==now then return true end
     s.lastStep=now

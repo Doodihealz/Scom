@@ -380,6 +380,7 @@ UnitTemplate = {
                 ["sanAnimationPath"] = "Units/ugl5006/LOD0/ugl5006.sananimation",
             },
             ["run"] = {
+                ["startSpeed"] = 0.05,
                 ["authoredSpeed"] = 0.43478260869565216,
                 ["clipName"] = "FaXRL0302Awalk",
                 ["sanAnimationPath"] = "Units/ugl5006/LOD0/ugl5006.sananimation",

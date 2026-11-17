@@ -144,7 +144,7 @@ UnitTemplate = {
                         [2] = 0,
                         [3] = 0,
                     },
-                    ["path"] = "VFX/SCOM/Source/psf0125/impact_land.sanvfx",
+                    ["path"] = "VFX/SCOM/Seraphim/Death/YthothaDeathPulse.sanvfx",
                 },
                 ["explosion"] = {
                     ["bone"] = "Root",
@@ -154,7 +154,7 @@ UnitTemplate = {
                         [2] = 0,
                         [3] = 0,
                     },
-                    ["path"] = "VFX/SCOM/Source/usl4004/explosion.sanvfx",
+                    ["path"] = "VFX/SCOM/Seraphim/Death/YthothaExplosion.sanvfx",
                 },
             },
             ["explosionBones"] = {
@@ -473,7 +473,7 @@ UnitTemplate = {
             ["onDeath"] = {
                 [1] = {
                     ["boneName"] = "Root",
-                    ["particleName"] = "VFX/Death/vcd0301_death_rdu.sanvfx",
+                    ["particleName"] = "VFX/Death/vcd1301_death_land_large.sanvfx",
                 },
             },
         },

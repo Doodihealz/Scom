@@ -3623,6 +3623,7 @@ if SCOFieldFixStrategicSiloClientMarker == nil then
             EngineClasses.float3(1, 1, 1),
             impactRotation,
             instantiatedId)
+        Import('common/systems/scoNuclearPresentation.lua').PlayAeon(impactPosition, 1.5)
         SCOAudioManager.NotifyCombatActivity()
         SCOAudioManager.PlayOneShot(
             audioPrefabId,
@@ -3665,10 +3666,14 @@ if SCOFieldFixStrategicSiloClientMarker == nil then
         then
             return
         end
+        local impactPosition = EngineClasses.float3(x, y, z)
+        if Import('common/systems/scoNuclearPresentation.lua').Play(impactPosition, true, 1) then
+            return
+        end
         local instantiatedId = {}
         Engine.InstantiatePrefab(
             SCOStrategicNukeImpactPrefabID,
-            EngineClasses.float3(x, y, z),
+            impactPosition,
             EngineClasses.float3(1, 1, 1),
             GetIdentityQuaternion(),
             instantiatedId)

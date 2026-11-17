@@ -7,13 +7,13 @@ ProjectileTemplate = {
             impactProfile = "ApocalypseAeon2x",
             innerDamage = {
                 amount = 140000,
-                radius = 60,
+                radius = 30,
                 ticks = 24,
                 totalTime = 0,
             },
             outerDamage = {
                 amount = 1000,
-                radius = 80,
+                radius = 40,
                 ticks = 20,
                 totalTime = 0,
             },
@@ -56,7 +56,7 @@ ProjectileTemplate = {
             {
                 effects = {
                     {
-                        particleName = "VFX/SCOM/Apocalypse/apoc_impact.sanvfx",
+                        particleName = "VFX/SCOM/Source/AeonNuke/apoc_impact.sanvfx",
                     },
                 },
             },
@@ -65,7 +65,7 @@ ProjectileTemplate = {
             {
                 effects = {
                     {
-                        particleName = "VFX/SCOM/Apocalypse/apoc_missile.sanvfx",
+                        particleName = "VFX/SCOM/Source/AeonNuke/apoc_missile.sanvfx",
                     },
                 },
             },
@@ -74,3 +74,9 @@ ProjectileTemplate = {
 }
 -- SCOM optional roster resource ScomFieldFixes.Roster.Interception.psn003.lua
 ProjectileTemplate.additions.scoSourceThreat={["sourceId"]="AIFQuantumWarhead01",["categories"]={"AEON","PROJECTILE","INDIRECTFIRE","STRATEGIC","MISSILE","NOSPLASHDAMAGE"},["defense"]={["Health"]=25,["MaxHealth"]=25},["blueprintSha256"]="7098e71f9e65f3780accaaf72b4936836780aeabf82d1543b67b68b9d22cecf1",["collisionRadius"]=2}
+
+ProjectileTemplate.visuals.scoProjectileMesh = {
+    model = "Projectiles/psn003/LOD0/psn003.sanmodel",
+    material = "Projectiles/psn003/LOD0/psn003.sanmaterial",
+    scale = {x = 1, y = 1, z = 1},
+}

@@ -136,12 +136,13 @@ function Read-ScomPackage {
             if (($entry.replaceFromSha256 -isnot [string] -and $entry.replaceFromSha256 -isnot [array]) -or
                 ($relative -notmatch '^SanctuaryMods\\SCOM\\(?:lua|units)\\.+\.lua$' -and
                  $relative -notmatch '^LJ\\lua\\AI\\mods\\AI-Scom\\.+\.(?:lua|txt)$' -and
+                 $relative -cne 'BepInEx\plugins\SCOMTreeDecay\ScomTreeDecay.dll' -and
                  $relative -cne 'SanctuaryMods\SCOM\packs\scom.sanpack' -and
                  $relative -cne 'SanctuaryMods\SCOM\lua\source-manifest.tsv')) {
                 throw "Invalid source upgrade preimage: $relative"
             }
             $preimages = @($entry.replaceFromSha256)
-            if ($preimages.Count -eq 0 -or $preimages.Count -gt 16) { throw "Invalid source upgrade preimage: $relative" }
+            if ($preimages.Count -eq 0 -or $preimages.Count -gt 32) { throw "Invalid source upgrade preimage: $relative" }
             foreach ($preimage in $preimages) {
                 if ($preimage -isnot [string] -or $preimage -notmatch '^[0-9a-fA-F]{64}$' -or $replaceFrom -contains $preimage) {
                     throw "Invalid source upgrade preimage: $relative"
@@ -165,7 +166,9 @@ function Read-ScomPackage {
         if ($manifest.obsoleteFiles -isnot [array]) { throw 'Invalid obsolete file list.' }
         foreach ($entry in $manifest.obsoleteFiles) {
             $relative = ConvertTo-ScomRelativePath $entry.path
-            if ($relative -notmatch '^LJ\\lua\\AI\\mods\\AI-Scom\\.+\.(?:lua|txt)$' -or
+            if (($relative -notmatch '^LJ\\lua\\AI\\mods\\AI-Scom\\.+\.(?:lua|txt)$' -and
+                 $relative -cne 'BepInEx\plugins\SCOMLandMotion\ScomLandMotion.dll' -and
+                 $relative -cne 'BepInEx\plugins\SupComStyleUI\SupComStyleUI.dll') -or
                 -not $obsoletePaths.Add($relative) -or $filePaths.Contains($relative) -or $allPaths.ContainsKey($relative)) {
                 throw "Invalid or duplicate obsolete file path: $relative"
             }
@@ -173,13 +176,33 @@ function Read-ScomPackage {
                 ($entry.bytes -isnot [int] -and $entry.bytes -isnot [long]) -or $entry.bytes -lt 0) {
                 throw "Invalid obsolete file metadata: $relative"
             }
+            $previousVersions = @()
+            if ($entry.PSObject.Properties['previousVersions']) {
+                if ($relative -cne 'BepInEx\plugins\SupComStyleUI\SupComStyleUI.dll' -or
+                    $entry.previousVersions -isnot [array] -or $entry.previousVersions.Count -eq 0 -or
+                    $entry.previousVersions.Count -gt 8) {
+                    throw "Invalid obsolete file versions: $relative"
+                }
+                $versionKeys = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+                $null = $versionKeys.Add(([string]$entry.bytes + ':' + $entry.sha256))
+                foreach ($version in $entry.previousVersions) {
+                    if ($null -eq $version -or -not $version.PSObject.Properties['bytes'] -or
+                        -not $version.PSObject.Properties['sha256'] -or
+                        $version.sha256 -isnot [string] -or $version.sha256 -notmatch '^[0-9a-fA-F]{64}$' -or
+                        ($version.bytes -isnot [int] -and $version.bytes -isnot [long]) -or $version.bytes -lt 0 -or
+                        -not $versionKeys.Add(([string]$version.bytes + ':' + $version.sha256))) {
+                        throw "Invalid or duplicate obsolete file version: $relative"
+                    }
+                    $previousVersions += [pscustomobject]@{ Bytes = [long]$version.bytes; SHA256 = $version.sha256.ToLowerInvariant() }
+                }
+            }
             $prefix = ''
             foreach ($part in $relative.Split('\')) {
                 $prefix = if ($prefix) { $prefix + '\' + $part } else { $part }
                 if ($allPaths.ContainsKey($prefix) -and $allPaths[$prefix] -cne $prefix) { throw "Case collision in manifest: $prefix" }
                 $allPaths[$prefix] = $prefix
             }
-            $obsoleteFiles.Add([pscustomobject]@{ Path = $relative; Bytes = [long]$entry.bytes; SHA256 = $entry.sha256.ToLowerInvariant() })
+            $obsoleteFiles.Add([pscustomobject]@{ Path = $relative; Bytes = [long]$entry.bytes; SHA256 = $entry.sha256.ToLowerInvariant(); PreviousVersions = $previousVersions })
         }
         foreach ($relative in $obsoletePaths) {
             $parent = [IO.Path]::GetDirectoryName($relative)
@@ -325,12 +348,26 @@ function Get-ScomInstallPlan {
         $destination = Join-ScomSafePath $root $file.Path
         $attributes = Get-ScomAttributes $destination
         if ($null -eq $attributes) { continue }
-        if (($attributes -band [IO.FileAttributes]::Directory) -or
-            (New-Object IO.FileInfo $destination).Length -ne $file.Bytes -or (Get-ScomFileHash $destination) -ne $file.SHA256) {
+        if ($attributes -band [IO.FileAttributes]::Directory) {
             $conflicts.Add("Obsolete file differs: $($file.Path)")
             continue
         }
-        $remove.Add([pscustomobject]@{ Path = $file.Path; Destination = $destination; Bytes = $file.Bytes; SHA256 = $file.SHA256 })
+        $existingBytes = (New-Object IO.FileInfo $destination).Length
+        $existingHash = Get-ScomFileHash $destination
+        $versions = @($file)
+        if ($file.PSObject.Properties['PreviousVersions']) { $versions += $file.PreviousVersions }
+        $matchedVersion = $false
+        foreach ($version in $versions) {
+            if ($existingBytes -eq $version.Bytes -and $existingHash -eq $version.SHA256) {
+                $matchedVersion = $true
+                break
+            }
+        }
+        if (-not $matchedVersion) {
+            $conflicts.Add("Obsolete file differs: $($file.Path)")
+            continue
+        }
+        $remove.Add([pscustomobject]@{ Path = $file.Path; Destination = $destination; Bytes = $existingBytes; SHA256 = $existingHash })
     }
     if ($Package.Manifest.PSObject.Properties['ownedRoots']) {
         $allowedRoots = @('SanctuaryMods\SCOM', 'LJ\lua\AI\mods\AI-Scom', 'BepInEx\plugins\SupComStyleUI', 'BepInEx\plugins\SCOMTreeDecay', 'BepInEx\plugins\SCOMLandMotion')
@@ -344,7 +381,7 @@ function Get-ScomInstallPlan {
                 $conflicts.Add("File blocks owned mod directory: $relativeRoot")
                 continue
             }
-            foreach ($existingFile in @(Get-ScomTreeFiles $directory)) {
+            foreach ($existingFile in @(Get-ScomTreeFiles $directory -ExcludeRuntimeData)) {
                 $relative = $existingFile.Substring($root.Length + 1)
                 if (-not $expectedPaths.Contains($relative)) { $conflicts.Add("Unlisted file in owned mod directory: $relative") }
             }

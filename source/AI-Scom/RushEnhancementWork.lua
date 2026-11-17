@@ -1,8 +1,9 @@
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
 -- AI-only adapter for the installed SCOM 1.0.0 enhancement state contract.
 -- Paid resource/progress/effect implementation retained from the user-supplied
 -- SCOM host appendix; public network handlers and HostCommander are not replaced.
 -- Native sandbox restrictions remain intact. No debug/upvalue APIs are used.
-Version = "9.0.11-rc12"
+Version = "9.1.0"
 local SCOCommanderEnhancementHostVersion = "1.0.0"
 do
     local SCOResourceEntity =
@@ -359,7 +360,7 @@ do
                 fraction = buildTime > 0
                     and math.min(1, progress / buildTime)
                     or 0,
-                paused = unit:GetPause() == true,
+                paused = RushUnitState.IsPaused(unit) == true,
                 buildPower = state.active.buildPower,
                 estimatedSeconds = state.active.estimatedSeconds,
             }
@@ -1270,7 +1271,7 @@ do
             and builder.construction
             and SCOFinite(builder.construction.buildPower)
             and builder.construction.buildPower > 0
-            and not builder:GetPause() and not unit:GetPause()
+            and not RushUnitState.IsPaused(builder) and not RushUnitState.IsPaused(unit)
             and SCOAssistOrderMatches(builder, unit)
             and builder.constructionDetectorCollider
             and builder.constructionDetectorCollider:IsOverlappingUnit(unit)
@@ -1499,10 +1500,10 @@ do
         end
         local ok, reason = pcall(SCORecompute, unit)
         if not ok then
-            -- Retain the first exact state failure for diagnosis without a
-            -- recurring warning on each retry. Native payment and effect rollback are unchanged.
-            if not state._aiCompletionFailureWarned then
-                state._aiCompletionFailureWarned = true
+            state._aiCompletionFailures = state._aiCompletionFailures or {}
+            local failure = state._aiCompletionFailures[active.id]
+            -- Record each failed effect once; bound retries of already-paid work.
+            if not failure then
                 local logger = type(Warn) == "function" and Warn or type(Log) == "function" and Log
                 if logger then
                     pcall(logger, "[RushV9] commander=" .. tostring(unit.tpId)
@@ -1510,13 +1511,29 @@ do
                         .. " completion effect failed: " .. tostring(reason))
                 end
             end
+            local attempts = (failure and failure.attempts or 0) + 1
+            state._aiCompletionFailures[active.id] = {
+                attempts = attempts, reason = tostring(reason),
+                retryAt = attempts >= 2 and math.huge or GetGameTimeSeconds() + 300,
+            }
             state.installed = previous
             state._visualHidden = previousVisualHidden
             state._seraphimChronotronRadiusAdd = previousRadiusAdd
             state._suppressBaseRegenAura = previousAuraSuppression
             state._suppressSeraphimBaseDamageStabilization =
                 previousDamageSuppression
-            pcall(SCORecompute, unit)
+            local restored, restoreReason = pcall(SCORecompute, unit)
+            if not restored then
+                state._aiRollbackFailure = tostring(restoreReason)
+                local logger = type(Warn) == "function" and Warn or type(Log) == "function" and Log
+                if logger then
+                    pcall(logger, "[RushV9] commander=" .. tostring(unit.tpId)
+                        .. " enhancement=" .. tostring(active.id)
+                        .. " rollback failed; enhancement adapter disabled: " .. tostring(restoreReason))
+                end
+            end
+        elseif state._aiCompletionFailures then
+            state._aiCompletionFailures[active.id] = nil
         end
         unit:UpdateUIValues()
         SCOBumpRevision(unit)
@@ -1565,7 +1582,7 @@ do
                 end
             end
             SCOReconcileAssistants(unit, active)
-            local paused = unit:GetPause() == true
+            local paused = RushUnitState.IsPaused(unit) == true
             if paused ~= active.paused then
                 active.paused = paused
                 SCOSetProgressEntityEnabled(unit, not paused)
@@ -1611,7 +1628,7 @@ do
             assistants = {},
             assistEntities = {},
             estimatedSeconds = buildPower > 0 and cost.buildTime / buildPower or nil,
-            paused = unit:GetPause() == true,
+            paused = RushUnitState.IsPaused(unit) == true,
             lastPublishedBucket = 0,
             removeSet = removeSet,
             thread = nil,
@@ -1648,7 +1665,8 @@ do
     local function Trusted(unit)
         if not TrustedOwner(unit) or not CompatibleState(unit.scoCommanderEnhancements) then return false end
         local failed=unit.scoAIEnhancementBootstrapFailure
-        return not failed or failed.state~=unit.scoCommanderEnhancements
+        return not unit.scoCommanderEnhancements._aiRollbackFailure
+            and (not failed or failed.state~=unit.scoCommanderEnhancements)
     end
     local function RuntimeWarning(unit,reason)
         if unit.scoAIEnhancementRuntimeWarning then return end
@@ -1690,9 +1708,15 @@ do
         return true
     end
 
+    local function RetryAt(unit,id)
+        local state=unit.scoCommanderEnhancements
+        local failure=state and state._aiCompletionFailures and state._aiCompletionFailures[id]
+        return failure and failure.retryAt or 0
+    end
     local function Begin(unit,state,id,kind,cost,removeSet)
         if not Trusted(unit) or kind~="install" or removeSet~=nil
             or unit.scoCommanderEnhancements~=state or state.active then return false,"not-ai-owner" end
+        if GetGameTimeSeconds()<RetryAt(unit,id) then return false,"effect-retry-deferred" end
         if not SCOUnitIsCompleted(unit) or not SCOIsIdle(unit) then return false,"unit-busy" end
         local commander=SCOCommanderContract(unit)
         local rule,reason=SCOInstallAllowed(state,commander,id)
@@ -1747,6 +1771,7 @@ do
         return {ensure=SCOEnsureState,idle=SCOIsIdle,complete=SCOUnitIsCompleted,
             allowed=SCOInstallAllowed,validate=SCOValidateRule,begin=Begin,
             stop=Stop,publish=SCOBumpRevision,
+            retryAt=function(id) return RetryAt(unit,id) end,
             supports=function(rule) return Supports(unit,rule) end}
     end
 end

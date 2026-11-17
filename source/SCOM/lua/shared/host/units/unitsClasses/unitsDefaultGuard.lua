@@ -1175,7 +1175,7 @@ if not SCO_MegalithEngineer or not SCO_MegalithStructure then
 end
 
 local SCO_MegalithWalkBlendSeconds = 0.35
-local SCO_MegalithRestBlendSeconds = 0.2
+local SCO_MegalithRestBlendSeconds = 0.6
 local SCO_MegalithWalkStartSpeed = 0.05
 local SCO_MegalithWalkStopSpeed = 0.02
 local SCO_MegalithWalkStartYaw = 0.1
@@ -1657,7 +1657,7 @@ function SCOSeaParitySalemLifecycle.IsSupported(unit)
         and config.transformSourceRate == 2
         and config.transformReverseSourceRate == -2
         and config.landRestAnimationKey == "salemLandRest"
-        and config.landRestCrossFadeSeconds == 0.2
+        and config.landRestCrossFadeSeconds == 0.6
         and config.waterSpeed == 5
         and config.landSpeed == 2.5
         and config.waterColliderOffsetY == 0.36

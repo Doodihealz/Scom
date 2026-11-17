@@ -30,10 +30,44 @@ local function SCOGetSiloInformationValues(unit)
     return true, progress, ammo
 end
 
+-- Match the native card's two shield rows to the actual client entities.
+-- Enhancement placeholders stay hidden until their runtime maximum is installed.
+local function SCOShieldValues(tp, unit)
+    local bubble = {value = 0, maximum = 0, regen = 0}
+    local armour = {value = 0, maximum = 0, regen = 0}
+    for index, spec in ipairs(tp.defence and tp.defence.shields or {}) do
+        local bucket
+        if spec.type == 0 or spec.type == "Bubble" then
+            bucket = bubble
+        elseif spec.type == "Personal" then
+            bucket = armour
+        end
+        if bucket then
+            local shield = unit and unit.shields and unit.shields[index]
+            local maximum = shield and shield:GetMaxHealth() or spec.max or 0
+            if not spec.scoCommanderEnhancementShieldId or maximum > 1 then
+                bucket.maximum = bucket.maximum + maximum
+                bucket.regen = bucket.regen + (shield and shield:GetHealthRegen() or spec.regen or 0)
+                if unit then
+                    bucket.value = bucket.value + (shield and shield:GetHealth() or 0)
+                else
+                    bucket.value = bucket.value + (spec.value or spec.max or 0)
+                end
+            end
+        end
+    end
+    return bubble, armour
+end
+
 function InformationPanel:UpdateUnitInformationPanel(unit)
     local unitName = unit.tp.general.name
     local scoSiloBuilding, scoSiloProgress, scoSiloAmmo =
         SCOGetSiloInformationValues(unit)
+    local bubble, armour = SCOShieldValues(unit.tp, unit)
+    if not scoSiloBuilding and not unit:IsCompleted() then
+        scoSiloBuilding = true
+        scoSiloProgress = math.max(0, math.min(1, unit:GetFractionComplete()))
+    end
     local unitDisplayName = unit.tp.general.displayName
     if not unitName or unitName == "" then
         unitName = unitDisplayName
@@ -57,15 +91,15 @@ function InformationPanel:UpdateUnitInformationPanel(unit)
 
         currentOrderIcon = { index = 0 },
 
-        isArmourShieldEnabled = false,
-        armourShieldValue = 0,
-        armourShieldMax = 0,
-        armourShieldRegen = 0,
+        isArmourShieldEnabled = armour.maximum > 0,
+        armourShieldValue = armour.value,
+        armourShieldMax = armour.maximum,
+        armourShieldRegen = armour.regen,
 
-        isBubbleShieldEnabled = false,
-        bubbleShieldValue = 0,
-        bubbleShieldMax = 0,
-        bubbleShieldRegen = 0,
+        isBubbleShieldEnabled = bubble.maximum > 0,
+        bubbleShieldValue = bubble.value,
+        bubbleShieldMax = bubble.maximum,
+        bubbleShieldRegen = bubble.regen,
 
         isConstructionPercentEnabled = scoSiloBuilding,
         constructionPercent = scoSiloProgress,
@@ -81,6 +115,7 @@ end
 ---comment
 ---@param tp UnitTemplate
 function InformationPanel:UpdateUnitInformationPanelTemplate(tp)
+    local bubble, armour = SCOShieldValues(tp)
     local unitName = tp.general.name
     local unitDisplayName = tp.general.displayName
     if not unitName or unitName == "" then
@@ -108,15 +143,15 @@ function InformationPanel:UpdateUnitInformationPanelTemplate(tp)
 
         currentOrderIcon = { index = 0 },
 
-        isArmourShieldEnabled = false,
-        armourShieldValue = 0,
-        armourShieldMax = 0,
-        armourShieldRegen = 0,
+        isArmourShieldEnabled = armour.maximum > 0,
+        armourShieldValue = armour.value,
+        armourShieldMax = armour.maximum,
+        armourShieldRegen = armour.regen,
 
-        isBubbleShieldEnabled = false,
-        bubbleShieldValue = 0,
-        bubbleShieldMax = 0,
-        bubbleShieldRegen = 0,
+        isBubbleShieldEnabled = bubble.maximum > 0,
+        bubbleShieldValue = bubble.value,
+        bubbleShieldMax = bubble.maximum,
+        bubbleShieldRegen = bubble.regen,
 
         isConstructionPercentEnabled = false,
         constructionPercent = 0,

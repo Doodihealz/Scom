@@ -380,8 +380,8 @@ UnitTemplate = {
             },
             ["audio"] = {
                 ["onFire"] = {
-                    ["looping"] = true,
-                    ["name"] = "aelm1130",
+                    ["looping"] = false,
+                    ["name"] = "aeom1110",
                 },
             },
             ["collideFriendly"] = false,

@@ -1,6 +1,7 @@
 -- RC11: army-first policy and public-map exploration. No hidden unit access.
 Version = "9.0.22-rc26"
 local MG = Import("AI/AIMarkerGenerator.lua")
+local Adaptive = Import("AI/mods/AI-Scom/RushAdaptive.lua")
 local P = Import("AI/mods/AI-Scom/RushHeavyPolicy.lua")
 local function D2(a,b) return (a.x-b.x)^2+(a.z-b.z)^2 end
 local function Valid(p) return type(p)=="table" and type(p.x)=="number" and type(p.z)=="number"
@@ -46,7 +47,8 @@ function RaidCandidates(army,home,position,layer)
             -- repeatedly around an already-owned extractor. Enemy acquisition,
             -- local combat and checked retreat rules remain authoritative.
             result[#result+1]={pos=p,score=math.sqrt(D2(position,p))
-                -math.min(180,math.sqrt(D2(home,p)))*0.20-(wanted and 70 or 0)}
+                -math.min(180,math.sqrt(D2(home,p)))*0.20-(wanted and 70 or 0)
+                +Adaptive.RaidBias(army,p)}
         end
     end
     table.sort(result,function(a,b)
@@ -158,42 +160,22 @@ function EnemyLandConnection(army)
     if not army or not army.ai or not army.ai.bases or not army.ai.bases.MAIN then return nil end
     if type(MG.IsMarkerGridPresent)~="function" or not MG.IsMarkerGridPresent()
         or type(MG.GetGraphAreaAtPosition)~="function" then return nil end
-    local now=GetGameTimeSeconds()
+    local topology=Adaptive.Topology(army)
     local cached=army.ai.rushLandConnection
-    if cached and now>=cached.at and now-cached.at<(cached.value==nil and 5 or 30) then
-        return cached.value
-    end
-    local home=army.ai.bases.MAIN.position
-    local homeArea=Valid(home) and MG.GetGraphAreaAtPosition(home,"Land",true)
-    if not homeArea then
-        army.ai.rushLandConnection={at=now,value=nil}
-        return nil
-    end
+    if cached and cached.topology==topology then return cached.value end
     local found,unknown=false,false
-    local spawn=GameInfo and GameInfo.MapData and GameInfo.MapData.markers
-        and GameInfo.MapData.markers.Spawn
-    local starts=spawn and spawn.transforms
-    for _,enemy in pairs(Armies or {}) do
-        if enemy~=army and enemy.units and next(enemy.units) and army:IsEnemy(enemy) then
-            -- A scripted wave army has no Spawn marker. Reading map metadata
-            -- directly keeps the unknown result without logging every poll.
-            local marker=starts and starts[enemy.name]
-            local start=marker and marker.position
-            local area=Valid(start) and MG.GetGraphAreaAtPosition(start,"Land",true)
-            if area then
-                found=true
-                if area==homeArea then
-                    army.ai.rushLandConnection={at=now,value=true}
-                    return true
-                end
-            else
-                unknown=true
-            end
-        end
+    for _,enemy in ipairs(topology.enemies) do
+        if enemy.connected==true then
+            army.ai.rushLandConnection={at=topology.at,value=true,topology=topology}
+            return true
+        elseif enemy.connected==false then found=true
+        else unknown=true end
     end
     local value
     if found and not unknown then value=false end
-    army.ai.rushLandConnection={at=now,value=value}
+    -- Production and adaptation share one relationship/defeat refresh; a
+    -- vanished reachable opponent cannot leave a separate thirty-second lease.
+    army.ai.rushLandConnection={at=topology.at,value=value,topology=topology}
     return value
 end
 -- The target manager already publishes one current panic target per army.

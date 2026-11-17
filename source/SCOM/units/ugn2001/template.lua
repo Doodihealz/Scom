@@ -3,6 +3,12 @@
 -- Explicit ranges control range rings; coordinate them with weapon range edits.
 -- host.lua and client.lua own behavior and class inheritance.
 UnitTemplate = {
+    ["audio"] = {
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "acod3110",
+        },
+    },
     ["additions"] = {
         ["faSalemAmphibious"] = {
             ["animationOwner"] = "GuardFaCybranSalem host medium/transition/death lifecycle",
@@ -12,7 +18,7 @@ UnitTemplate = {
             ["landDeathAnimationKey"] = "salemLandDeath",
             ["landDeathPlaybackSeconds"] = 3,
             ["landRestAnimationKey"] = "salemLandRest",
-            ["landRestCrossFadeSeconds"] = 0.2,
+            ["landRestCrossFadeSeconds"] = 0.6,
             ["landSpeed"] = 2.5,
             ["landTerrainAlignmentFactor"] = 1,
             ["mediumDebounceTicks"] = 3,

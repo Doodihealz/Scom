@@ -625,8 +625,8 @@ UnitTemplate = {
                             },
                         },
                     },
-                    ["path"] = "VFX/SCOM/Source/ucs1611/ambient_power.sanvfx",
-                    ["sha256"] = "7f2f5fb522c44389806a1b3cca95047a1271a791115cd9eb75fe2da8121f6b5b",
+                    ["path"] = "VFX/SCOM/Structures/Aeon/ucs1611_ambient.sanvfx",
+                    ["sha256"] = "4fe45693ecc636ce6e451aeaa640c5905d0f706cf8eaaf9caf41500dd5d26807",
                 },
             },
             ["effects"] = {},
@@ -886,6 +886,15 @@ UnitTemplate = {
                     ["z"] = 0.135,
                 },
                 ["scoDamageFire"] = 0.1,
+            },
+            [6] = {
+                ["boneName"] = "Root",
+                ["particleName"] = "VFX/SCOM/Structures/Aeon/ucs1611_ambient.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0,
+                    ["y"] = 0,
+                    ["z"] = 0,
+                },
             },
         },
         ["mesh"] = {

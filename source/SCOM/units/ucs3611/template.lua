@@ -686,24 +686,11 @@ UnitTemplate = {
                             },
                         },
                     },
-                    ["path"] = "VFX/SCOM/Source/ucs3611/ambient_power.sanvfx",
-                    ["sha256"] = "70d9030e4089f8aa3052851e1d7d128fcd71f08809cfafa2f30297b1563b0663",
+                    ["path"] = "VFX/SCOM/Structures/Aeon/ucs3611_ambient.sanvfx",
+                    ["sha256"] = "7d76f9f9fefbd7d080906f1f05ebd291ee895ec5ad9eb9f59eb888782235d5f9",
                 },
             },
-            ["effects"] = {
-                [1] = {
-                    ["bone"] = "Root",
-                    ["delay"] = 0,
-                    ["offset"] = {
-                        [1] = 0,
-                        [2] = 0,
-                        [3] = 0,
-                    },
-                    ["path"] = "VFX/SCOM/Source/ucs3611/ambient_power.sanvfx",
-                    ["sourceBone"] = "0",
-                    ["when"] = "complete",
-                },
-            },
+            ["effects"] = {},
             ["legacyStaticVisual"] = false,
             ["legacyTemplateClass"] = "AeonPortEnergyGenerator",
             ["legacyTemplateModule"] = "unitsDefaultChosen",
@@ -961,6 +948,15 @@ UnitTemplate = {
                     ["z"] = 0.72,
                 },
                 ["scoDamageFire"] = 0.1,
+            },
+            [6] = {
+                ["boneName"] = "Root",
+                ["particleName"] = "VFX/SCOM/Structures/Aeon/ucs3611_ambient.sanvfx",
+                ["positionOffset"] = {
+                    ["x"] = 0,
+                    ["y"] = 0,
+                    ["z"] = 0,
+                },
             },
         },
         ["mesh"] = {

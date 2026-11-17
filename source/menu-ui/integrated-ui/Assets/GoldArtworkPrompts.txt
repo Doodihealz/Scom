@@ -1,0 +1,43 @@
+Gold wallpaper color recipes: deterministic correction of the original pixels.
+
+The main-menu wallpaper matches the user's preferred deeper, muted gold reference. It keeps the unchanged original image's face, armor seams, pixel positions and 1938 x 811 dimensions. The separate lobby wallpaper retains its prior color grade.
+
+The commander and lobby retain their color-only processing: no generative editing, resizing, sharpening, blurring, spatial masks or neighboring-pixel operations. Their output colors depend only on the original pixel at the same coordinate. The battleship and city main-menu scenes use the same color grade followed by the explicitly requested background-only depth of field described below.
+
+Main-menu recipe: profile ref-b in source/menu-ui/artwork-tools/ColorGrade.cs. It uses a monotonic lightness curve and color-dependent saturation: low-chroma background shadows are neutralized more than the gold armor, with the gold hue kept near 34 degrees rather than the previous yellow-shifted hue near 38 degrees. The reference image supplies color guidance only; none of its altered geometry is copied.
+
+From source/menu-ui with a .NET 8 SDK:
+
+dotnet run --project artwork-tools/ColorGrade.csproj -- integrated-ui/Assets/ScomMainMenu.png integrated-ui/Assets/ScomMainMenuGold.png ref-b 0 1
+
+Unchanged lobby recipe: display-referred sRGB HSL saturation 0.72, hue +4 degrees, midtone gamma 0.90, with protected neutral highlights:
+
+dotnet run --project artwork-tools/ColorGrade.csproj -- integrated-ui/Assets/ScomLobby.png integrated-ui/Assets/ScomLobbyGold.png 0.72 4 0.90
+
+The original commander, lobby, and battleship PNG files remain unchanged. Identity PNG codec roundtrips match every original RGB byte. The full color formula and dependency-free C# tool are included in the installer source.
+
+Main-menu original SHA256: de17f80fb7a2829e4c8d0f47e24d83f1f49edb26ff884f171ceb6999beae4274
+Main-menu reference-gold SHA256: 1fe7c89a7550186570e258e50dcda16122882396a4be1adacf6e1372e34f9bce
+Lobby original SHA256: c1c59bc147be57b8d689cfd4c4ac67503e90ff8d742c9eb3662694a1e5d33c5c
+Lobby grade SHA256: f6fb9e886306898d8d4cb8da43c58d93fa3dc51e60d2953a90a2f86ed0db1641
+
+The main menu cycles through the existing commander, firing battleship, and city commander with 12-second holds and one-second fades. The lobby stays on its existing separate wallpaper. Branding positions are unchanged. All three main-menu images use centered cover fitting.
+
+New-scene recipe: apply ref-b using ColorGrade.cs, then bake authored depth of field using DepthOfField.py (requires Pillow). Original screenshots remain unchanged. Both are 1672 x 941. Only the city presentation removes its black letterbox rows: crop (0, 121, 1672, 819), producing 1672 x 698 without resampling. The battleship stays 1672 x 941.
+
+The focus masks retain the color-graded foreground pixels exactly. The firing ship and its muzzle flashes remain sharp while water/ships/shoreline become softer with distance. The city commander stays sharp while the distant architecture and arm gaps soften. Normalized background-only Gaussian blurs prevent subject colors from bleeding into surrounding pixels. Carefully traced armor corners, horns, flag tips, and deck details retain the graded source pixels. A 3-pixel guard protects antialiased edges. A 24-pixel smooth focus falloff interpolates adjacent blur levels, with restrained distant limits (ship4.5px, city3.5px), to avoid abrupt transitions or a sharp background halo. Background visible through the masts and commander apertures follows the same depth field. The masks, focus field, blur levels, and crop are in DepthOfField.py; no subject reconstruction is used.
+
+dotnet run --project artwork-tools/ColorGrade.csproj -- integrated-ui/Assets/ScomMainMenuBattleship.png /tmp/ship-graded.png ref-b 0 1
+python artwork-tools/DepthOfField.py ship /tmp/ship-graded.png integrated-ui/Assets/ScomMainMenuBattleshipGold.png
+
+dotnet run --project artwork-tools/ColorGrade.csproj -- integrated-ui/Assets/ScomMainMenuCity.png /tmp/city-graded.png ref-b 0 1
+python artwork-tools/DepthOfField.py city /tmp/city-graded.png integrated-ui/Assets/ScomMainMenuCityGold.png
+
+Battleship original SHA256: f5584681700666e39eaf040540ef7af80a4179c1acb640570d91386733bc0631
+Battleship gold/DoF SHA256: 99a1df3089d9a7ccd38eb4bb13b111fe4936175a878dbd69d44461903c4692a7
+City original SHA256: 8c4b6ec7c05f91c4e62ed748b138e8f59564e83b5daac7cf82b42ebf06a1b81a
+City gold/DoF SHA256: 9bf8c7470cbe16fbc2d51c5edf19bb611caa803706b39b0432e4b346581814db
+
+City eye repair: after the depth-of-field bake, repair_city_eye in DepthOfField.py restores the upper red eye's continuous taper using the intact left cross-section, transported along a narrowing diagonal. Horizontal feathering joins the original tip; low-intensity glow is preserved. The final retouch changes 54 pixels from the unretouched grade within cropped output bounds (1114,110)-(1127,119). Every other output pixel, including the lower eye and face, remains identical to the approved artwork; the original screenshot remains untouched.
+
+Main-menu Background button: choose Slideshow, Commander, Battleship, or City commander. This local preference is saved across launches; choosing a photo stops playback, and choosing Slideshow resumes from that photo. The separate lobby wallpaper and transitions remain unchanged.

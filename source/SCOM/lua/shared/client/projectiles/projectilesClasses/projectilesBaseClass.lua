@@ -123,7 +123,7 @@ end
 
 -- Sets the emit state of all persistent particles on the projectile.
 function ClientProjectile:SetPersistentEffectsState(enabled)
-    
+    enabled = enabled and not self.scoImpactComplete
     for _, localId in ipairs(self.persistentEffects) do
         Engine.SetParticleCanEmit(localId, enabled)
     end
@@ -133,7 +133,17 @@ end
 ---@param impactTime number
 ---@param orientation quaternion
 ---@param hitGlobalId GlobalID The entity that was hit, invalid when the projectile hit the terrain.
-function ClientProjectile:Destroy(impactTime, orientation, hitGlobalId)
+function ClientProjectile:Destroy(impactTime, orientation, hitGlobalId, impactPosition, impactBone, impactBonePosition)
+    if self.scoImpactPending or self.scoImpactComplete then return end
+    self.scoImpactPending = true
+    if impactBone and impactBone ~= "" and impactBonePosition then
+        self.scoImpactBone = impactBone
+        self.scoImpactBonePosition = EngineClasses.float3(impactBonePosition.x, impactBonePosition.y, impactBonePosition.z)
+    end
+    -- Copy command storage: the native command buffer is reused next tick.
+    if impactPosition then
+        self.scoImpactPosition = EngineClasses.float3(impactPosition.x, impactPosition.y, impactPosition.z)
+    end
 
     -- If we are close enough to the impact time, we do not wait, just destroy!
     if impactTime > SmallestImpactTime then
@@ -151,7 +161,32 @@ function ClientProjectile:DestroyThread(impactTime, orientation, hitGlobalId)
 end
 
 function ClientProjectile:OnDestroy(impactTime, orientation, hitGlobalId)
-    self:CreateImpactEffects(self:GetPosition(), orientation, hitGlobalId)
+    if self.scoImpactComplete then return end
+    self.scoImpactComplete = true
+    self.scoImpactPending = false
+    local position = self.scoImpactPosition or self:GetPosition()
+    local unit = self.scoImpactBone and __Entities.Units[hitGlobalId.index]
+    if unit and unit.id.index == hitGlobalId.index and unit.id.version == hitGlobalId.version then
+        local status, bone = Engine.GetLocalBone(unit.localId, self.scoImpactBone)
+        if status == EngineErrorCode.Success then
+            local poseStatus, pose = Engine.GetLocalEntityWorldMatrix(bone)
+            if poseStatus == EngineErrorCode.Success then
+                -- Follow the rendered bone, including target movement and animation.
+                -- The authoritative world point remains valid if the target is gone.
+                local p = self.scoImpactBonePosition
+                position = EngineClasses.float3(
+                    pose.c0.x*p.x + pose.c1.x*p.y + pose.c2.x*p.z + pose.c3.x,
+                    pose.c0.y*p.x + pose.c1.y*p.y + pose.c2.y*p.z + pose.c3.y,
+                    pose.c0.z*p.x + pose.c1.z*p.y + pose.c2.z*p.z + pose.c3.z)
+            end
+        end
+    end
+    if self.scoImpactPosition then
+        -- Tick-end coroutine flushing can run without another rendered frame.
+        -- Pin the emitter to the hit, rather than sampling a stale render pose.
+        Engine.SetLocalEntityLocalPosition(self.localId, position)
+    end
+    self:CreateImpactEffects(position, orientation, hitGlobalId)
     self:SetPersistentEffectsState(false)
     self.icon:SetEnabled(false)
 end
@@ -186,6 +221,7 @@ end
 
 ---@protected Called whenever the source of intel becomes vision.
 function ClientProjectile:OnIntelVision()
+    if self.scoImpactComplete then return end
     Engine.SetRendererEnabled(self.localId, true)
     self:SetPersistentEffectsState(true)
     self.icon:SetEnabled(true)
@@ -336,7 +372,7 @@ do
             if previous and (previous.projectileId.version>id.version or previous.projectileId.version==id.version and previous.phase>=value.phase) then return end
             pending[id.index]={projectileId={index=id.index,version=id.version},tpId=value.tpId,phase=value.phase,receivedAt=now}
         end
-        local oldInit,oldEffects,oldDestroy,oldDelete=ClientProjectile.__init,ClientProjectile.SetPersistentEffectsState,ClientProjectile.Destroy,ClientProjectile.Delete
+        local oldInit,oldEffects,oldOnDestroy,oldDelete=ClientProjectile.__init,ClientProjectile.SetPersistentEffectsState,ClientProjectile.OnDestroy,ClientProjectile.Delete
         function ClientProjectile:__init(...)
             local result=oldInit(self,...)
             if self.tpId=='psf0136' then
@@ -365,14 +401,17 @@ do
             refresh(self,enabled)
             return result
         end
-        function ClientProjectile:Destroy(...)
-            if self.scoSourceNukeFx then self.scoSourceNukeFx.destroyed=true;refresh(self,false) end
-            return oldDestroy(self,...)
+        function ClientProjectile:OnDestroy(...)
+            if self.scoSourceNukeFx then self.scoSourceNukeFx.destroyed=true end
+            return oldOnDestroy(self,...)
         end
         function ClientProjectile:Delete(...)
             local value=pending[self.id.index]
             if value and value.projectileId.version<=self.id.version then pending[self.id.index]=nil end
-            if self.scoSourceNukeFx then self.scoSourceNukeFx.destroyed=true;refresh(self,false) end
+            if self.scoSourceNukeFx and not self.scoImpactPending then
+                self.scoSourceNukeFx.destroyed=true
+                refresh(self,false)
+            end
             return oldDelete(self,...)
         end
         _G.SCO_SourceNukeClientInstalled=true
@@ -424,3 +463,6 @@ do
         _G.SCO_YolonaImpactClientInstalled = true
     end
 end
+
+-- Native SCOM nuclear presentation; install after existing faction wrappers.
+Import('common/systems/scoNuclearPresentation.lua').InstallProjectile(ClientProjectile)

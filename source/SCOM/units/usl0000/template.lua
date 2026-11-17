@@ -512,7 +512,7 @@ UnitTemplate = {
             ["audio"] = {
                 ["onFire"] = {
                     ["looping"] = false,
-                    ["name"] = "acom1120",
+                    ["name"] = "acom5140",
                 },
             },
             ["damage"] = 100,

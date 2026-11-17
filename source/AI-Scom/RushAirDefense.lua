@@ -1,9 +1,10 @@
 -- RC18: observer-private memory of air raids, paid T1 cover and interception.
 -- Memory retains a threat COUNT, not hidden positions or live hidden targets.
-Version="9.0.22-rc24"
-Config={MemorySeconds=180,ScanSeconds=1,ResourceScanSeconds=10,ResourceWatchRadius=64,
-    MaxTurrets=4,MaxInterceptors=12}
+Version = "9.1.1"
+Config={MemorySeconds=180,ScanSeconds=0.5,ResourceScanSeconds=10,ResourceWatchRadius=64,
+    CombatMemorySeconds=60,MaxCounterFighters=96,MaxTurrets=4,MaxInterceptors=12}
 local AF=Import("AI/AIFunctions.lua")
+local Intel=Import("AI/mods/AI-Scom/RushCombatIntel.lua")
 local Bombers=Import("AI/mods/AI-Scom/RushBomberHarassment.lua")
 local R=Import("AI/mods/AI-Scom/RushReliability.lua")
 local Log=Import("AI/debugUtilities.lua").AILog
@@ -22,20 +23,45 @@ function Active(a)
     local s=a and a.ai and a.ai.rushAirDefense
     return s and a.ai.isAlive~=false and Now()<s.expires or false
 end
+local function RememberCombat(s,counts,now)
+    s.combatMemory=s.combatMemory or {}
+    local demand={}
+    for tier=1,3 do
+        local old=s.combatMemory[tier]
+        local remembered=old and old.count*math.max(0,1-(now-old.at)/Config.CombatMemorySeconds) or 0
+        local count=counts[tier] or 0
+        if count>=remembered then
+            s.combatMemory[tier]=count>0 and {count=count,at=now} or nil
+            remembered=count
+        end
+        demand[tier]=math.ceil(remembered)
+    end
+    return demand
+end
+-- Higher-tier fighters cover lower-tier demand. This is a bounded production
+-- goal, not permission to ignore the normal factory or economy checks.
+function FighterGoal(snapshot,tier)
+    local count=0
+    for t=tier or 1,3 do count=count+((snapshot.airTierDemand or {})[t] or 0) end
+    if not snapshot.airTierDemand then count=snapshot.airCombatCount or 0 end
+    return math.min(Config.MaxCounterFighters,math.ceil(count*1.25))
+end
 function Observe(a,snapshot)
     local s=State(a);local now=Now()
     if s.lastTime and now<s.lastTime then
         s.expires=0;s.peak=0;s.nextScan=0;s.bases={};s.nextReport=0
-        s.nextResourceScan=0;s.resourcePositions={}
+        s.nextResourceScan=0;s.resourcePositions={};s.combatMemory=nil;s.tierDemand=nil
     end
     s.lastTime=now
     if a.ai.isAlive==false then
-        s.expires=0;s.bases={};snapshot.airRaid=false;snapshot.airRaidFighters=0;snapshot.airCombatCount=0;snapshot.localAirCombatCount=0;return s
+        s.expires=0;s.bases={};s.combatMemory=nil;s.tierDemand=nil
+        snapshot.airRaid=false;snapshot.airRaidFighters=0;snapshot.airCombatCount=0
+        snapshot.localAirCombatCount=0;snapshot.airTierDemand={};return s
     end
     if now>=s.nextScan or now<s.nextScan-Config.ScanSeconds then
         s.nextScan=now+Config.ScanSeconds
         if now>=s.expires then s.peak=0 end
-        local total,combat,localCombat=0,0,0;local counts={}
+        local total,combat,localCombat=0,0,0;local counts,tiers={},{}
         local function NearOwnedExtractor(position)
             if now>=(s.nextResourceScan or 0) then
                 local positions={}
@@ -55,14 +81,22 @@ function Observe(a,snapshot)
         end
         -- Visible combat aircraft inform cover; only nearby ground attackers
         -- create a remembered raid. Scouts and unarmed transports do neither.
-        for _,u in pairs(type(AF.GetEnemyUnitsOnMap)=="function" and AF.GetEnemyUnitsOnMap(a.id) or {}) do
-            if Has(u.tp,"AIR") and Has(u.tp,"MOBILE") and not Has(u.tp,"SCOUT") and Bombers.Visible(a,u) then
-                local groundAttack=not Bombers.IsNavalAttackAircraft(u.tp)
+        for _,record in ipairs(Intel.Get(a).enemy) do
+            local u=record.unit
+            if record.completed and Has(u.tp,"AIR") and Has(u.tp,"MOBILE")
+                and not Has(u.tp,"SCOUT") and Bombers.Visible(a,u) then
+                local unidentified=u.aiIntelObserverArmyIndex~=nil and not u.hasVisualIdentification
+                local estimatedLand=unidentified and math.max(0,AF.GetUnitThreatValueByLayer(u,"Land",false) or 0) or 0
+                local estimatedAir=unidentified and math.max(0,AF.GetUnitThreatValueByLayer(u,"Air",false) or 0) or 0
+                local estimatedNaval=unidentified and math.max(0,AF.GetUnitThreatValueByLayer(u,"WaterSurface",false) or 0) or 0
+                local groundAttack=estimatedLand>0 or not Bombers.IsNavalAttackAircraft(u.tp)
                     and (Bombers.IsBomber(u.tp) or Has(u.tp,"GUNSHIP") or Has(u.tp,"ANTI_SURFACE"))
                 if groundAttack or Bombers.IsNavalAttackAircraft(u.tp)
-                    or Has(u.tp,"FIGHTER") or Has(u.tp,"ANTI_AIR") then
+                    or Has(u.tp,"FIGHTER") or Has(u.tp,"ANTI_AIR") or estimatedAir>0 or estimatedNaval>0 then
                     combat=combat+1
-                    local p=Copy(u:GetPosition());local closest,distance
+                    local tier=(Has(u.tp,"TECH3") or Has(u.tp,"TECH4")) and 3 or Has(u.tp,"TECH2") and 2 or 1
+                    tiers[tier]=(tiers[tier] or 0)+1
+                    local p=record.pos;local closest,distance
                     for name,b in pairs(a.ai.bases or {}) do
                         local radius=math.max(128,math.min(220,(b.radius or 64)+80))
                         local d=D2(p,b.position)
@@ -85,9 +119,13 @@ function Observe(a,snapshot)
         end
         for name,b in pairs(s.bases) do if now>=b.expires or not a.ai.bases[name] then s.bases[name]=nil end end
         s.observed=total;s.observedCombat=combat;s.localCombat=localCombat
+        s.tierDemand=RememberCombat(s,tiers,now)
     end
     snapshot.airCombatCount=s.observedCombat or 0
     snapshot.localAirCombatCount=s.localCombat or 0
+    snapshot.airTierDemand=s.tierDemand or {}
+    snapshot.airThreat=snapshot.airThreat or FighterGoal(snapshot)>0
+    snapshot.airPanic=snapshot.airPanic or (s.observed or 0)>0
     snapshot.airRaid=now<s.expires
     snapshot.airRaidCount=s.peak
     snapshot.airRaidFighters=snapshot.airRaid and math.min(Config.MaxInterceptors,math.max(2,s.peak*2)) or 0

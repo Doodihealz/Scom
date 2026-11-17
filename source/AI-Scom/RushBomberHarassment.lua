@@ -2,12 +2,13 @@
 -- T1 raids punish exposed artillery and follow the resource chain; advanced wings value strategic strikes.
 -- This controller issues ordinary MOVE / ATTACKUNIT orders. It never changes
 -- weapon damage, reload, build permissions, resources or fog of war.
-Version = "9.0.22-rc26"
+Version = "9.1.1"
 Config = { OpeningSeconds=90, WingLimit=3, WingInstances=48, IntelSeconds=1, VisionGraceSeconds=8,
     AcquireSeconds=4, TargetLimit=12, NoDamageSeconds=32, AttackSeconds=90,
     ScoutSeconds=45, EgressSeconds=8, RiskFraction=0.65 }
 local AirOrders = Import("AI/mods/AI-Scom/RushAirOrders.lua")
 local Selection = Import("AI/mods/AI-Scom/RushSelection.lua")
+local Intel=Import("AI/mods/AI-Scom/RushCombatIntel.lua")
 local AF = Import("AI/AIFunctions.lua")
 local Pressure = Import("AI/mods/AI-Scom/RushPressure.lua")
 local Frontline = Import("AI/mods/AI-Scom/RushFrontline.lua")
@@ -31,12 +32,7 @@ local function Own(army,u) return u and not u.dead and not u.deleted and u.army=
     and u.id and army.units and army.units[u.id.index]==u
     and not u.CaptureInProgress and not u.ReclaimInProgress end
 function Visible(army,u)
-    if not u or u.dead or u.deleted or u.CaptureInProgress or u.ReclaimInProgress
-        or not u.army or not army:IsEnemy(u.army) then return false end
-    -- Do not assume that GetEnemyUnitsOnMap is fog-filtered. Some native versions
-    -- return all enemy records. Visibility is checked BEFORE position/health access.
-    return (type(u.IsIntelVisionVisible)=="function" and u:IsIntelVisionVisible(army))
-        or (type(u.IsIntelRadarVisible)=="function" and u:IsIntelRadarVisible(army)) or false
+    return Intel.Detected(army,u)
 end
 -- Naval-air tags outrank the broad BOMBER / ANTI_SURFACE tags. A torpedo
 -- aircraft cannot fill a land-strike role merely because it has both tags.
@@ -187,7 +183,7 @@ local function DamageTo(weapons,target)
     for _,item in ipairs(weapons) do
         local w=item.weapon;local t=w.tp or w
         if w.enabled~=false and not w.isDeathExplosion and t.rangeRingType~="AntiAir"
-            and type(w.CanShootAt)=="function" and w:CanShootAt(target) then
+            and type(w.CanShootAt)=="function" and Intel.CanShootAt(w.unit.army,w,target) then
             -- Reused only during this non-yielding selection. Future selections
             -- reread enabled weapons/muzzles; no permanent blueprint assumption.
             if item.damage==nil then item.damage=Volley(w) end
@@ -274,6 +270,7 @@ local function Refresh(army)
     end
     -- No arbitrary AA-count cap: distant long-range weapons remain represented.
     for key,c in pairs(s.claims) do
+        if c.unit then c.unit=Intel.Contact(army,c.unit) or c.unit end
         if not ClaimLive(army,c,now) or (c.unit and not Visible(army,c.unit)) then s.claims[key]=nil end
     end
     for key,t in pairs(s.visited) do if now>=t then s.visited[key]=nil end end
@@ -318,7 +315,7 @@ local function CounterTarget(army,alarm)
     local state=State(army);local now=Now();local current=state.response
     if current and now>=(state.responseBlocked[current.target] or 0) then
         for _,record in ipairs(alarm.artilleryTargets or {}) do
-            if record.unit==current.target and Visible(army,record.unit) then return record end
+            if Intel.SameTarget(record.unit,current.target) and Visible(army,record.unit) then return record end
         end
     end
     local cached=state.counterChoice
@@ -390,6 +387,65 @@ local function Exposure(a,b,c,r)
     local root=math.sqrt(disc)
     return math.max(0,math.min(1,-q+root)-math.max(0,-q-root))*math.sqrt(l2)
 end
+-- Exact broad phase for repeated route checks. Each AA circle belongs to one
+-- range band, so a single strategic weapon cannot widen the short-range grid.
+-- Candidate order is restored before summing: route choices retain the original
+-- floating-point arithmetic, with no AA cap or reduced observation frequency.
+local AA_CELL=128
+local function AACandidates(s,route)
+    if #s.aa<64 or #route<2 then return s.aa end
+    local index=s.aaIndex
+    if not index or index.source~=s.aa then
+        index={source=s.aa,bands={}};s.aaIndex=index
+        local byBound={}
+        for order,aa in ipairs(s.aa) do
+            aa.order=order
+            local radius=aa.range+(aa.mobile and 20 or 3);local bound=AA_CELL
+            while radius>bound do bound=bound*2 end
+            local band=byBound[bound]
+            if not band then
+                band={range=0,records={},grid={}};byBound[bound]=band;index.bands[#index.bands+1]=band
+            end
+            band.range=math.max(band.range,radius);band.records[#band.records+1]=aa
+            local x,z=math.floor(aa.pos.x/AA_CELL),math.floor(aa.pos.z/AA_CELL)
+            local row=band.grid[x];if not row then row={};band.grid[x]=row end
+            local cell=row[z];if not cell then cell={};row[z]=cell end
+            cell[#cell+1]=aa
+        end
+    end
+    local candidates,seen={},{}
+    local function add(aa)
+        if not seen[aa] then seen[aa]=true;candidates[#candidates+1]=aa end
+    end
+    for _,band in ipairs(index.bands) do
+        for i=2,#route do
+            local a,b=route[i-1],route[i];local radius=band.range
+            -- One conservative cell halo also includes exact tangencies when
+            -- floating-point subtraction rounds across a grid boundary.
+            local x0,x1=math.floor((math.min(a.x,b.x)-radius)/AA_CELL)-1,math.floor((math.max(a.x,b.x)+radius)/AA_CELL)+1
+            local z0,z1=math.floor((math.min(a.z,b.z)-radius)/AA_CELL)-1,math.floor((math.max(a.z,b.z)+radius)/AA_CELL)+1
+            -- A map-spanning leg uses one pass over the band instead of many
+            -- empty grid cells. Include all records, including long-range AA.
+            if (x1-x0+1)*(z1-z0+1)>#band.records then
+                if #band.records>#s.aa*0.75 then return s.aa end
+                for _,aa in ipairs(band.records) do add(aa) end
+                break
+            end
+            for x=x0,x1 do
+                local row=band.grid[x]
+                if row then
+                    for z=z0,z1 do
+                        local cell=row[z]
+                        if cell then for _,aa in ipairs(cell) do add(aa) end end
+                    end
+                end
+            end
+        end
+        if #candidates>#s.aa*0.75 then return s.aa end
+    end
+    table.sort(candidates,function(a,b) return a.order<b.order end)
+    return candidates
+end
 function RouteRisk(army,route,speed,decision)
     local risk,splash=0,0;local s=decision and decision.intel or Refresh(army)
     local xmin,zmin,xmax,zmax=math.huge,math.huge,-math.huge,-math.huge
@@ -397,7 +453,7 @@ function RouteRisk(army,route,speed,decision)
         xmin,zmin=math.min(xmin,node.x),math.min(zmin,node.z)
         xmax,zmax=math.max(xmax,node.x),math.max(zmax,node.z)
     end
-    for _,aa in ipairs(s.aa) do
+    for _,aa in ipairs(AACandidates(s,route)) do
         local r=aa.range+(aa.mobile and 20 or 3)
         -- Reject non-overlapping bounding boxes before circle/segment math.
         -- This is exact pruning, not a nearest-N or weapon-range truncation.
@@ -431,17 +487,16 @@ AirOrders.SetPassRiskEvaluator(function(p,u,route)
     -- exposure may share the physically present salvo's casualty budget.
     return (risk-splash)*(ResponseRiskScale and ResponseRiskScale(p,u) or 1)+splash
 end)
-local function PassRouteRisk(p,us)
+local function PassRouteRisk(p,us,target)
     local risk=0;local denied=false
     for _,u in ipairs(us) do
         local r=u.ai and u.ai.rushAirOrders
         if r and r.bomberPassRouteDenied then r.bomberPassRouteDenied=nil;denied=true end
         local route=AirOrders.RemainingPassRoute(p,u)
-        if route then
-            local speed=u.tp and u.tp.movement and u.tp.movement.speed or 16
-            local total,splash=RouteRisk(p.army,route,math.max(1,speed))
-            risk=math.max(risk,(total-splash)*(ResponseRiskScale and ResponseRiskScale(p,u) or 1)+splash)
-        end
+            or {Copy(u:GetPosition()),Copy(target:GetPosition())}
+        local speed=u.tp and u.tp.movement and u.tp.movement.speed or 16
+        local total,splash=RouteRisk(p.army,route,math.max(1,speed))
+        risk=math.max(risk,((total-splash)*(ResponseRiskScale and ResponseRiskScale(p,u) or 1)+splash)*1.5)
     end
     return risk,denied
 end
@@ -711,6 +766,7 @@ local function GatherSite(army,alarm,target)
 end
 local function Response(army,alarm)
     local state=State(army);local now=Now();local response=state.response
+    if response then response.target=Intel.Contact(army,response.target) or response.target end
     if response and response.armyAI==army.ai and response.baseRef==alarm.baseRef then
         local visible=Visible(army,response.target)
         if visible then response.lastSeen=now end
@@ -730,7 +786,7 @@ local function Response(army,alarm)
                 state.responseBlocked[response.target]=now+45;state.counterChoice=nil
             else
                 for _,record in ipairs(alarm.artilleryTargets or {}) do
-                    if record.unit==response.target then return response end
+                    if Intel.SameTarget(record.unit,response.target) then return response end
                 end
             end
         end
@@ -929,7 +985,9 @@ function Tick(p)
         -- drains. Release claims without Exit/Reset touching the foreign work.
         Release(p);return HasUnit(p)
     end
-    local op=p.ai.rushBomber;local now=Now();Refresh(p.army)
+    local op=p.ai.rushBomber;local now=Now()
+    if op.goal and op.goal.unit then op.goal.unit=Intel.Contact(p.army,op.goal.unit) or op.goal.unit end
+    Refresh(p.army)
     us=Units(p);if not Live(p) then return false end
     if #us==0 then Release(p);return HasUnit(p) end
     local alarm=Frontline.MainAlarm(p.army)
@@ -985,15 +1043,9 @@ function Tick(p)
             if health<op.health-1 then op.progressAt=now end
             op.health=health
             local hp,speed=Strength(us)
-            local scale=1
-            if g.response then
-                scale=0
-                for _,unit in ipairs(us) do scale=math.max(scale,ResponseRiskScale(p,unit)) end
-            end
-            local totalRisk,splash=RouteRisk(p.army,{pos,g.unit:GetPosition()},speed)
-            local risk=((totalRisk-splash)*scale+splash)*1.5
-            local passRisk,routeDenied=PassRouteRisk(p,us)
-            risk=math.max(risk,passRisk)
+            -- Assess each aircraft's actual remaining dogleg or turn, not
+            -- the unused straight line from the wing's center to its target.
+            local risk,routeDenied=PassRouteRisk(p,us,g.unit)
             if routeDenied or risk>hp*0.85 then
                 EndGoal(p,us,"anti-air",25)
                 local toward=Clamp({x=pos.x+(op.home.x-pos.x)*0.35,y=pos.y,z=pos.z+(op.home.z-pos.z)*0.35})

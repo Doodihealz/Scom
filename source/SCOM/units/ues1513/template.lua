@@ -4,6 +4,12 @@
 -- host.lua and client.lua own behavior and class inheritance.
 UnitTemplate = {
     ["additions"] = {
+        -- Visible above-water model vertices; submerged dock supports must not
+        -- inflate the cosmetic UEF construction cube.
+        ["scoConstructionBounds"] = {
+            ["min"] = { ["x"] = -1.688, ["y"] = 0, ["z"] = -5.153 },
+            ["max"] = { ["x"] = 1.889, ["y"] = 2.510, ["z"] = 5.067 },
+        },
         ["buildBeamBones"] = {
             [1] = "Right_Exhaust",
         },

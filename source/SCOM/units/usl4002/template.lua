@@ -522,7 +522,7 @@ UnitTemplate = {
             ["damageRadius"] = 0,
             ["damageType"] = "Normal",
             ["effects"] = {
-                ["onFire"] = "VFX/SCOM/Source/CommanderBrightness/67f193c0a63061c7fda6.sanvfx",
+                ["onFire"] = "VFX/SCOM/WS/67f193c0a63061c7fda6.sanvfx",
             },
             ["firingRandomness"] = 5,
             ["layerTargetLimits"] = {
@@ -604,7 +604,7 @@ UnitTemplate = {
             ["damageRadius"] = 2.5,
             ["damageType"] = "Normal",
             ["effects"] = {
-                ["onFire"] = "VFX/SCOM/Source/CommanderBrightness/67f193c0a63061c7fda6.sanvfx",
+                ["onFire"] = "VFX/SCOM/WS/67f193c0a63061c7fda6.sanvfx",
             },
             ["firingRandomness"] = 0,
             ["layerTargetLimits"] = {

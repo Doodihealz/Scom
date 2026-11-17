@@ -1,7 +1,13 @@
 -- RC10 bounded land operations. Uses the host's existing movement and weapon
 -- micro helpers through explicit callbacks; it does not implement fake orders.
-Version = "9.0.23-rc28"
+Version = "10.0.0"
+local UnitState=Import("AI/mods/AI-Scom/RushUnitState.lua")
 local Pressure = Import("AI/mods/AI-Scom/RushPressure.lua")
+local Adaptive = Import("AI/mods/AI-Scom/RushAdaptive.lua")
+local Diagnostics = Import("AI/mods/AI-Scom/RushDiagnostics.lua")
+local DiagnosticMonitor = Import("AI/mods/AI-Scom/RushDiagnosticsMonitor.lua")
+local Handoff = Import("AI/mods/AI-Scom/RushFactoryHandoff.lua")
+local Balance = Import("AI/mods/AI-Scom/RushBalance.lua")
 local Policy = Import("AI/mods/AI-Scom/RushCombatPolicy.lua")
 local HeavyPolicy = Import("AI/mods/AI-Scom/RushHeavyPolicy.lua")
 local Intel = Import("AI/mods/AI-Scom/RushCombatIntel.lua")
@@ -11,6 +17,7 @@ local Selection = Import("AI/mods/AI-Scom/RushSelection.lua")
 local Front = Import("AI/mods/AI-Scom/RushFrontline.lua")
 local Budget = Import("AI/mods/AI-Scom/RushPathBudget.lua")
 local Movement = Import("AI/mods/AI-Scom/RushMovement.lua")
+local Tactics = Import("AI/mods/AI-Scom/RushTactics.lua")
 local C = Policy.Config
 local STATE_NAMES={Group="Grouping",Advance="MoveToTargetArea",Engage="MicroingPlatoon",
     Retreat="Withdraw",Acquire="SelectMainTarget",Hold="SelectMainTarget"}
@@ -20,6 +27,17 @@ local function Now() return GetGameTimeSeconds() end
 local function Copy(p) return {x=p.x,y=p.y,z=p.z} end
 local function D2(a,b) return (a.x-b.x)^2+(a.z-b.z)^2 end
 local function Count(p) return p:GetNumOfUnits() end
+local function AttackRatio(platoon)
+    local data=platoon.ai.formerTable.AIPlanData or {}
+    return Adaptive.AttackStrength(platoon.army,data.AttackEnemyStrength or 105)/100
+end
+-- Path generation and the post-path check use the same physical force and
+-- adaptive entry threshold; dispersed trailing units cannot fund an assault.
+function AttackPathBudget(platoon,geometry)
+    local g=geometry or Intel.Geometry(platoon)
+    platoon.ai.rushGeometry=g
+    return math.max(0,g.own+Intel.FriendlyThreat(platoon,g.position,72,"Land",true))*AttackRatio(platoon)
+end
 local function Live(p) return p and not p.dead and not p.deleted and p.army and p.army.ai
     and p.army.ai.isAlive~=false and p.ai and p.army:PlatoonExists(p) and Count(p)>0 end
 local function Current(p,army,armyAI,ai,op)
@@ -54,6 +72,63 @@ local function State(army)
         stats={merges=0,detached=0,goals=0,repaths=0,retreats=0,rejected=0}}
     return army.ai.rushCombat
 end
+-- Finite, sampled diagnostic reasons. Each platoon records at most one
+-- offer decision and one join decision per five seconds; no per-tick log spam.
+local ASSEMBLY_REASONS={"role","combat","defense","orders","commitment","threat","cooldown",
+    "no-candidate","no-site","no-receiver","affordable-target","memory-ended","remembered-danger","route"}
+local function NoteAssembly(platoon,kind,reason,now)
+    local op=platoon.ai.rushOperation
+    op.assemblyNotes=op.assemblyNotes or {}
+    local previous=op.assemblyNotes[kind]
+    if previous and now>=previous.at and now<previous.nextAt then return end
+    op.assemblyNotes[kind]={at=now,nextAt=now+5}
+    local stats=State(platoon.army).stats
+    stats.assemblyReasons=stats.assemblyReasons or {offer={},join={}}
+    local counts=stats.assemblyReasons[kind]
+    counts[reason]=(counts[reason] or 0)+1
+end
+local function AssemblyReasonSummary(stats,kind)
+    local reasons=stats.assemblyReasons and stats.assemblyReasons[kind] or {}
+    local fields={}
+    for _,reason in ipairs(ASSEMBLY_REASONS) do
+        if (reasons[reason] or 0)>0 then fields[#fields+1]=reason.."="..tostring(reasons[reason]) end
+    end
+    return #fields>0 and table.concat(fields,",") or "none"
+end
+
+-- Give a viable raid a short assembly opportunity, then release supports if
+-- the idle pool cannot supply it. One army-owned window is shared by scheduler
+-- and refills; emergencies and filled quotas release it immediately.
+function ReserveRaidSeed(army,snapshot)
+    if not army or not army.ai then return false end
+    local state=State(army);local now=Now()
+    local adaptive=snapshot and snapshot.adaptive or Adaptive.Get(army)
+    local panic
+    if snapshot then
+        panic=snapshot.mainRaid or snapshot.mainBombardment or snapshot.localLandThreat or snapshot.airRaid
+    else
+        local alarm=Front.MainAlarm(army)
+        local air=army.ai.rushAirDefense
+        panic=alarm.localRaid or alarm.bombardment or air and now<(air.expires or 0)
+    end
+    -- Broad native panic zones overlap much of a small map. Only a real local
+    -- intrusion or observed raid may divert the core's bounded raid seed.
+    if not adaptive or adaptive.mode=="recover" or adaptive.mode=="defend" or panic
+        or adaptive.raidGroups<=0 or Pressure.EnemyLandConnection(army)==false then
+        state.raidAssembly=nil;return false
+    end
+    local main,raids,groups,primary=Balance.RaidAllocation(army)
+    if primary<=0 or main<adaptive.groundFloor or groups>=adaptive.raidGroups
+        or math.floor(main*adaptive.raidShare)-raids<Balance.Config.RaidMinimum then
+        state.raidAssembly=nil;return false
+    end
+    local assembly=state.raidAssembly
+    if not assembly or now<assembly.at or now>=assembly.nextAt then
+        assembly={at=now,untilTime=now+15,nextAt=now+30};state.raidAssembly=assembly
+    end
+    assembly.at=now
+    return now<assembly.untilTime
+end
 local function IsRaider(former)
     return former.RushRaider or former.FormerName=="F123 Land Alloy Hunter"
 end
@@ -62,8 +137,10 @@ local function AssaultOfferCurrent(p,now)
     if not Live(p) then return nil end
     local ai=p.ai;local op=ai.rushOperation;local offer=op and op.assaultOffer
     now=now or Now()
+    if offer then offer.unit=Intel.Contact(p.army,offer.unit) or offer.unit end
     if not offer or offer.armyAI~=p.army.ai or offer.platoonAI~=ai or offer.operation~=op
         or now>=offer.expires or now>=(offer.safeUntil or 0) or op.supportSince or op.defenseClaim
+        or offer.memoryFront and not Front.RememberedCurrent(p.army,offer.memoryFront)
         or op.policy.phase=="Retreat" or op.policy.phase=="Engage"
         or not Intel.Visible(p.army,offer.unit) or D2(offer.pos,offer.unit:GetPosition())>FRONT_RADIUS^2 then return nil end
     return offer
@@ -105,10 +182,27 @@ function Unregister(platoon)
     state.operations[platoon.id],state.supports[platoon.id]=nil,nil
     platoon.ai.rushReceiver=nil
     local op=platoon.ai.rushOperation
-    if op then op.defenseClaim=nil;op.defensePending=nil;op.registry=nil end
+    if op then op.defenseClaim=nil;op.defensePending=nil;op.registry=nil;op.alloyReservation=nil end
     Budget.Cancel(platoon)
 end
 function Capacity(platoon) return math.max(0,Limit(platoon)-Count(platoon)) end
+
+-- A newly idle factory output should not wait for the five-second pool scan.
+-- The normal refill still enforces proximity, capacity, roles and raid reserves.
+function NotifyRecruits(army,baseName)
+    local state=army.ai and army.ai.rushCombat
+    local base=army.ai and army.ai.bases and army.ai.bases[baseName]
+    if not state or not base then return end
+    for _,platoon in pairs(state.operations) do
+        if Live(platoon) and platoon.ai.baseName==baseName then
+            local op=platoon.ai.rushOperation;local g=platoon.ai.rushGeometry
+            if op and not op.supportSince and op.policy.phase~="Retreat"
+                and g and D2(g.position,base.position)<=((base.radius or 64)+40)^2 then
+                op.nextRefill=0;op.recruitWake=true
+            end
+        end
+    end
+end
 
 -- Formation gates include incoming reservations, not just current membership.
 -- A support cannot claim the last twelve slots already promised to another one.
@@ -135,7 +229,8 @@ local function Reservations(state,except)
 end
 function SupportAvailable(army)
     local state=State(army);Prune(state)
-    if #Front.Defense(army).fronts>0 then return true end
+    -- An alarm is not a receiver. Keep the first core together until a real
+    -- operation (including a weakened home defender) can accept these units.
     local reserved=Reservations(state)
     for _,p in pairs(state.operations) do
         if CanReceiveSupport(p) and Capacity(p)-(reserved[p] or 0)>=2 then return true end
@@ -190,7 +285,7 @@ function SelectRecruits(units,maximum,position,receiver)
             if not unit.dead and not unit.deleted and unit.army==receiver.army and unit.platoon==receiver
                 and receiver.army.units[unit.id.index]==unit and not unit.CaptureInProgress and not unit.ReclaimInProgress then
                 existing=existing+1
-                if not (unit.ai and unit.ai.eState=="RepairHome") and not (unit.GetPause and unit:GetPause())
+                if not (unit.ai and unit.ai.eState=="RepairHome") and not (UnitState.IsPaused(unit))
                     and (AF.GetUnitThreatValueByLayer(unit,"Land",false) or 0)>0 then damage=damage+1 end
             end
         end
@@ -231,7 +326,7 @@ local function RegroupOrdersOwned(platoon)
     for _,unit in pairs(platoon:GetUnits()) do
         if not unit.dead and not unit.deleted and unit.army==platoon.army and unit.platoon==platoon
             and (platoon.army.units[unit.id.index]~=unit or unit.CaptureInProgress or unit.ReclaimInProgress
-                or unit.GetPause and unit:GetPause() or unit.ai and unit.ai.eState=="RepairHome"
+                or UnitState.IsPaused(unit) or unit.ai and unit.ai.eState=="RepairHome"
                 or Movement.Suspended(unit) or not OwnedMovementOrIdle(unit,platoon)) then return false end
     end
     return true
@@ -254,7 +349,7 @@ function Transfer(source,receiver,hooks)
         if not u.dead and not u.deleted and u.army==source.army and u.platoon==source
             and source.army.units[u.id.index]==u and not u.CaptureInProgress and not u.ReclaimInProgress
             and not (u.ai and u.ai.eState=="RepairHome") and not Movement.Suspended(u)
-            and (not promised or not (u.GetPause and u:GetPause()) and OwnedMovementOrIdle(u,source)) then
+            and (not promised or not (UnitState.IsPaused(u)) and OwnedMovementOrIdle(u,source)) then
             local unitPosition=u:GetPosition()
             if D2(unitPosition,pos)<=40*40 and MG.CanGraphAreaTo(unitPosition,pos,source.ai.movementLayer) then
                 arrived[#arrived+1]=u
@@ -267,15 +362,24 @@ function Transfer(source,receiver,hooks)
     if promised and (AssaultOfferCurrent(receiver)~=promised or not RegroupOrdersOwned(source)
         or not RegroupOrdersOwned(receiver)) then return 0 end
     receiver:AssignUnits(arrived)
+    local assembled=0
     for _,u in ipairs(arrived) do
         if not u.dead and not u.deleted and u.army==receiver.army and u.platoon==receiver
             and not u.CaptureInProgress and not u.ReclaimInProgress then
             hooks.ResetUnit(u,"RushCombatTransfer")
             u.ai=u.ai or {};u.ai.eState="PlatoonControlled"
+            assembled=assembled+1
         end
     end
     local sameLayer=RefreshMovementLayer(receiver)
+    if assembled>0 and receiverOp and Policy.Reinforced(receiverOp.policy,Now()) then
+        receiverOp.recruitWake=true
+    end
     State(army).stats.merges=State(army).stats.merges+#arrived
+    if promised and promised.strongFront then
+        local stats=State(army).stats
+        stats.assemblyMerged=(stats.assemblyMerged or 0)+assembled
+    end
     if Capacity(receiver)==0 and source.ai==sourceAI then sourceAI.rushReceiver=nil end
     -- Reset every transferred unit before the first yielding resume. The donor
     -- can legitimately become empty; its replacement assignment cannot be used.
@@ -302,6 +406,7 @@ local function IsBlocked(op,pos,now)
 end
 local function Reject(platoon,pos,now)
     local op=platoon.ai.rushOperation
+    op.alloyReservation=nil
     if pos then
         if #op.blocked>=16 then table.remove(op.blocked,1) end
         op.blocked[#op.blocked+1]={pos=Copy(pos),untilTime=now+C.ObjectiveCooldown}
@@ -312,39 +417,72 @@ local function TargetValid(platoon,u)
     return u and Intel.Visible(platoon.army,u) and not u:HasTags(Tags.AIR)
 end
 local function NearTarget(platoon,g,hooks)
-    local old=platoon.ai.microTarget
+    local old=Intel.Contact(platoon.army,platoon.ai.microTarget)
+    local op=platoon.ai.rushOperation;local now=Now()
     local radius=math.max(40,g.radius+g.range+12)
-    local function allowed(u)
-        local pos=u:GetPosition()
-        local claim=platoon.ai.rushOperation.defenseClaim
+    local function allowed(u,pos)
+        pos=pos or Copy(u:GetPosition())
+        local claim=op.defenseClaim;local intercept=false
         if claim then
             local view=Front.Defense(platoon.army)
             local assigned=Front.DefenseMatch(view,claim)
-            if assigned and view.byUnit[u]~=assigned and D2(pos,assigned.pos)>48^2
-                and not Intel.InWeaponRange(g,u) then return false end
+            intercept=assigned and (view.byUnit[u]==assigned or D2(pos,assigned.pos)<=48^2)
+            if assigned and not intercept and not Intel.InWeaponRange(g,u) then return false end
         end
-        if not IsBlocked(platoon.ai.rushOperation,pos,Now())
-            and not Front.Blocked(platoon.army,pos,g.own) then return true end
-        -- Test weapon ranges only for an otherwise excluded approach. Ordinary
-        -- nearby selection keeps RC13's bounded permission-check workload.
-        return Intel.InWeaponRange(g,u)
+        if not IsBlocked(op,pos,now) and not Front.Blocked(platoon.army,pos,g.own) then return true,pos,intercept end
+        -- Real weapon contact remains eligible even at a remembered front;
+        -- the ordinary local-threat policy still decides to fire or retreat.
+        return Intel.InWeaponRange(g,u),pos,intercept
     end
-    if TargetValid(platoon,old) and D2(g.position,old:GetPosition())<=radius*radius
-        and allowed(old) and hooks.CanShoot(platoon,old) then return old end
+    local function admitted(u,pos,intercept)
+        if intercept or op.lastDamageAt and now-op.lastDamageAt<=3 or g.own<=0 then return true end
+        local assessment=Intel.Exposure(platoon.army,pos,"Land",12)
+        if Policy.NeedsAssaultAssembly(g.own,0,assessment,AttackRatio(platoon)) then
+            local support=Intel.FriendlyThreat(platoon,pos,64,"Land",true)
+            if Policy.NeedsAssaultAssembly(g.own,support,assessment,AttackRatio(platoon))
+                and not Intel.InWeaponRange(g,u) then
+                -- Local exposure can be zero while a harmless scout or
+                -- extractor sits under a fortress. Do not start native chase
+                -- micro until the destination is affordable too.
+                Front.Remember(platoon.army,assessment,g.own+support)
+                if op.guardedTarget~=u or op.guardedAt~=now then
+                    local stats=State(platoon.army).stats
+                    stats.guardedApproaches=(stats.guardedApproaches or 0)+1
+                    op.guardedTarget,op.guardedAt=u,now
+                end
+                return false
+            end
+        end
+        return true
+    end
+    local oldPosition=TargetValid(platoon,old) and Copy(old:GetPosition())
+    if oldPosition and D2(g.position,oldPosition)<=radius*radius then
+        local permitted,_,intercept=allowed(old,oldPosition)
+        if permitted and hooks.CanShoot(platoon,old) and admitted(old,oldPosition,intercept) then return old end
+    end
     local nearby={}
     for _,u in ipairs(Intel.EnemiesInRadius(platoon.army,g.position,radius,true)) do
-        if allowed(u) then
-            local pos=u:GetPosition()
-            nearby[#nearby+1]={unit=u,distance=D2(g.position,pos)}
-        end
+        local permitted,pos,intercept=allowed(u)
+        if permitted then nearby[#nearby+1]={unit=u,pos=pos,intercept=intercept,distance=D2(g.position,pos)} end
     end
-    nearby=Selection.Top(nearby,12,function(a,b)
+    local count=#nearby
+    local offset=count>0 and (op.nearSelectionOffset or 0)%count or 0
+    local function less(a,b)
         if a.distance~=b.distance then return a.distance<b.distance end
         return a.unit.id.index<b.unit.id.index
-    end)
-    for i=1,math.min(12,#nearby) do
-        if hooks.CanShoot(platoon,nearby[i].unit) then return nearby[i].unit end
     end
+    -- Retain the cheap nearest page, but rotate after it has no legal target.
+    -- Destination threat and native weapon queries inspect at most this page;
+    -- rejected guarded contacts cannot hide a later safe target forever.
+    if offset==0 then nearby=Selection.Top(nearby,12,less)
+    else table.sort(nearby,less) end
+    for i=1,math.min(12,count) do
+        local candidate=nearby[(offset+i-1)%count+1]
+        if hooks.CanShoot(platoon,candidate.unit) and admitted(candidate.unit,candidate.pos,candidate.intercept) then
+            op.nearSelectionOffset=0;return candidate.unit
+        end
+    end
+    op.nearSelectionOffset=count>0 and (offset+12)%count or 0
 end
 
 -- Cheap ranking first; expensive reachability and threat queries only for a
@@ -386,14 +524,14 @@ local function DefenseCounterFit(platoon,front,view)
             and not unit.dead and not unit.deleted and unit.platoon==platoon and unit.army==platoon.army
             and not unit.CaptureInProgress and not unit.ReclaimInProgress
             and not (unit.ai and unit.ai.eState=="RepairHome")
-            and not (unit.toggles and unit.GetPause and unit:GetPause()) then
+            and not (UnitState.IsPaused(unit)) then
             local canShoot,inRange,approach=false,false,math.huge
             for _,weapon in ipairs(unit.weapons or {}) do
                 if weapon.enabled and not weapon.isDeathExplosion then
                     for _,target in ipairs(front.targets) do
-                        if TargetValid(platoon,target.unit) and weapon:CanShootAt(target.unit) then
+                        if TargetValid(platoon,target.unit) and Intel.CanShootAt(platoon.army,weapon,target.unit) then
                             canShoot=true
-                            if weapon:IsTargetInRange(target.unit) then inRange=true;break end
+                            if Intel.IsTargetInRange(platoon.army,weapon,target.unit) then inRange=true;break end
                             local range=weapon.tp and weapon.tp.rangeMax or item.range
                             approach=math.min(approach,math.max(0,math.sqrt(D2(item.pos,target.pos))-(range or 0)))
                         end
@@ -428,7 +566,7 @@ local function DefenseCoverage(platoon,view,now,observer)
                 and not (data and (data.rushOperation or data.withdraw or data.eState=="Withdraw" or data.eState=="Disband"))
                 and not (unit.ai and unit.ai.eState=="RepairHome")
                 and not unit.CaptureInProgress and not unit.ReclaimInProgress
-                and not (unit.toggles and unit.GetPause and unit:GetPause()) then fixed=fixed+entry.threat end
+                and not (UnitState.IsPaused(unit)) then fixed=fixed+entry.threat end
         end
         coverage[front.key]=fixed
     end
@@ -478,7 +616,7 @@ local function DefenseOptions(platoon,g,now)
     local coverage=DefenseCoverage(platoon,view,now)
     local op=platoon.ai.rushOperation
     local current=op and Front.DefenseMatch(view,op.defenseClaim)
-    local ratio=(platoon.ai.formerTable.AIPlanData.AttackEnemyStrength or 105)/100
+    local ratio=AttackRatio(platoon)
     for _,front in ipairs(view.fronts) do
         local threat=platoon.ai.formerTable.RushMainDefense and (front.landRaidThreat or 0) or front.threat
         local required=threat/math.max(0.1,ratio)*(front.emergency and 1.18 or 1.08)
@@ -506,7 +644,7 @@ end
 function MainResponseRequired(army,attackRatio)
     if not army or not army.ai or not Front.MainAlarm(army).localRaid then return false end
     local view=Front.Defense(army);local coverage=DefenseCoverage(nil,view,Now(),army)
-    local ratio=math.max(0.1,attackRatio or 1.05)
+    local ratio=math.max(0.1,Adaptive.AttackStrength(army,(attackRatio or 1.05)*100)/100)
     for _,front in ipairs(view.fronts) do
         if front.own and front.baseName=="MAIN" and front.emergency and front.landRaid then
             local required=(front.landRaidThreat or 0)/ratio*1.18
@@ -536,7 +674,7 @@ end
 local function SelectDefenseObjective(platoon,g,hooks,now,excluded)
     local options,view,coverage=DefenseOptions(platoon,g,now)
     local ai,op=platoon.ai,platoon.ai.rushOperation
-    local ratio=(ai.formerTable.AIPlanData.AttackEnemyStrength or 105)/100
+    local ratio=AttackRatio(platoon)
     for _,option in ipairs(options) do
         local front=option.front
         if front~=excluded and (not ai.formerTable.RushMainDefense or front.own and front.baseName=="MAIN")
@@ -572,31 +710,97 @@ local function RegroupEligible(platoon)
     return not platoon.ai.isNavalPlatoon and not former.RushMainDefense and not former.RushSiege
         and not former.RushBeachheadAssault and not platoon.ai.rushDefenseDetached and not IsRaider(former)
 end
-local function RegroupSafe(platoon,g,now)
+local function RegroupSafe(platoon,g,now,joining)
     local op=platoon.ai.rushOperation;local goal=op.goal
-    if not RegroupEligible(platoon) or op.policy.phase=="Retreat" or op.policy.phase=="Engage"
-        or op.defenseClaim or goal and goal.defense or op.lastDamageAt and now-op.lastDamageAt<=3
-        or not RegroupOrdersOwned(platoon) then return false end
-    if goal and goal.kind~="stage" and goal.kind~="deploy" and goal.kind~="rally" then return false end
-    if TargetValid(platoon,platoon.ai.microTarget) and Intel.InWeaponRange(g,platoon.ai.microTarget) then return false end
+    if not RegroupEligible(platoon) then return false,"role" end
+    if op.policy.phase=="Retreat" or op.policy.phase=="Engage"
+        or op.lastDamageAt and now-op.lastDamageAt<=3 then return false,"combat" end
+    if op.defenseClaim or goal and goal.defense then return false,"defense" end
+    if not RegroupOrdersOwned(platoon) then return false,"orders" end
+    -- Offers may send their owner out to a safe staging site. Actual donors
+    -- and receivers must already be outside remembered weapon reach before
+    -- following/merging, even when those guns are currently out of sight.
+    if joining and not Front.AssemblyPositionSafe(platoon,g) then return false,"remembered-danger" end
+    if goal and goal.kind~="stage" and goal.kind~="deploy" and goal.kind~="rally" then return false,"commitment" end
+    if TargetValid(platoon,platoon.ai.microTarget) and Intel.InWeaponRange(g,platoon.ai.microTarget) then return false,"combat" end
     local options=DefenseOptions(platoon,g,now)
-    if #options>0 then return false end
+    if #options>0 then return false,"defense" end
     local friendly=Intel.FriendlyThreat(platoon,g.position,math.max(48,g.radius+32),"Land")
-    return Intel.Exposure(platoon.army,g.position,"Land",g.radius+6).total<=math.max(1,g.own+friendly)*1.8
+    if Intel.Exposure(platoon.army,g.position,"Land",g.radius+6).total>math.max(1,g.own+friendly)*1.8 then
+        return false,"threat"
+    end
+    return true
 end
 local function OfferAssault(platoon,g,candidate,now)
     local op=platoon.ai.rushOperation
-    if not candidate or g.own<=0 or now<(op.assaultRetry or 0) or not RegroupSafe(platoon,g,now) then
-        op.assaultOffer=nil;return
+    local reason
+    if not candidate then reason="no-candidate"
+    elseif g.own<=0 then reason="role"
+    elseif now<(op.assaultRetry or 0) then reason="cooldown"
+    else
+        local safe,blocked=RegroupSafe(platoon,g,now)
+        if not safe then reason=blocked
+        elseif candidate.strongFront and not candidate.stage then reason="no-site"
+        elseif candidate.memoryFront and not Front.RememberedCurrent(platoon.army,candidate.memoryFront) then reason="memory-ended" end
     end
+    if reason then op.assaultOffer=nil;NoteAssembly(platoon,"offer",reason,now);return end
     local old=op.assaultOffer
-    if old and now>=old.expires then op.assaultOffer=nil;op.assaultRetry=now+20;return end
-    if old and old.unit==candidate.unit and D2(old.pos,candidate.pos)<=FRONT_RADIUS^2 then
+    if old and now>=old.expires then
+        op.assaultOffer=nil;op.assaultRetry=now+20;NoteAssembly(platoon,"offer","cooldown",now);return
+    end
+    local expiry=math.min(now+ASSAULT_SECONDS,candidate.memoryFront and candidate.memoryFront.expires or math.huge)
+    if old and Intel.SameTarget(old.unit,candidate.unit) and D2(old.pos,candidate.pos)<=FRONT_RADIUS^2 then
         old.pos=Copy(candidate.pos);old.guard=candidate.guard;old.safeUntil=now+4
-        return
+        old.strongFront=candidate.strongFront==true;old.memoryFront=candidate.memoryFront
+        old.expires=math.min(old.expires,expiry)
+        return old
     end
     op.assaultOffer={unit=candidate.unit,pos=Copy(candidate.pos),guard=candidate.guard,
-        armyAI=platoon.army.ai,platoonAI=platoon.ai,operation=op,expires=now+ASSAULT_SECONDS,safeUntil=now+4}
+        strongFront=candidate.strongFront==true,memoryFront=candidate.memoryFront,
+        armyAI=platoon.army.ai,platoonAI=platoon.ai,operation=op,expires=expiry,safeUntil=now+4}
+    if candidate.strongFront then
+        local stats=State(platoon.army).stats
+        stats.assemblyOffers=(stats.assemblyOffers or 0)+1
+    end
+    return op.assaultOffer
+end
+
+-- With no observed ground target, a real assault core scouts a public enemy
+-- start before cycling through every neutral resource marker. This contains no
+-- hidden unit lookup, and the normal checked native route still owns movement.
+local function ForwardProbe(platoon,g,now)
+    local former=platoon.ai.formerTable;local op=platoon.ai.rushOperation
+    if g.count<C.ForwardProbeMinimum or g.own<=0 or IsRaider(former) or former.RushSiege
+        or former.RushMainDefense or platoon.ai.isNavalPlatoon
+        or now<(op.nextForwardProbe or 0) then return nil end
+    local damage=0
+    for _,item in ipairs(g.points) do
+        if item.threat>0 and item.distance<=math.max(40,g.radius+item.range+16) then damage=damage+1 end
+    end
+    if damage<C.ForwardProbeMinimum then return nil end
+    op.nextForwardProbe=now+C.ForwardProbeSeconds
+    local topology=Adaptive.Topology(platoon.army)
+    local candidates={}
+    for _,enemy in ipairs(topology and topology.enemies or {}) do
+        if enemy.connected~=false and enemy.position then
+            candidates[#candidates+1]={id=enemy.id,pos=enemy.position,distance=D2(g.position,enemy.position)}
+        end
+    end
+    table.sort(candidates,function(a,b)
+        if a.distance~=b.distance then return a.distance<b.distance end
+        return a.id<b.id
+    end)
+    for i=1,math.min(3,#candidates) do
+        local candidate=candidates[i];local pos=candidate.pos
+        if candidate.distance>40^2 and not IsBlocked(op,pos,now)
+            and not Front.Blocked(platoon.army,pos,g.own)
+            and MG.CanGraphAreaTo(g.position,pos,platoon.ai.movementLayer) then
+            local support=Intel.FriendlyThreat(platoon,pos,64,"Land",true)
+            if Intel.EnemyThreat(platoon.army,pos,"Land",12,24)<=(g.own+support)*AttackRatio(platoon) then
+                return {pos=Copy(pos),kind="probe"}
+            end
+        end
+    end
 end
 
 function SelectObjective(platoon,g,hooks,now,focus)
@@ -610,11 +814,11 @@ function SelectObjective(platoon,g,hooks,now,focus)
     if not focus then
         defense,defenseView,defenseCoverage=SelectDefenseObjective(platoon,g,hooks,now)
         if not Live(platoon) or platoon.ai.rushOperation~=op then return nil end
-        if defense then op.assaultOffer=nil;return defense end
+        if defense then op.assaultOffer=nil;NoteAssembly(platoon,"offer","defense",now);return defense end
     end
     -- Temporary responders stay available at MAIN once its other side is
     -- covered. Normal combat formers resume ownership when the alarm clears.
-    if platoon.ai.formerTable.RushMainDefense then return nil end
+    if platoon.ai.formerTable.RushMainDefense then NoteAssembly(platoon,"offer","role",now);return nil end
     local intel=Intel.Get(platoon.army)
     for _,other in pairs(state.operations) do
         local goal=Live(other) and other.ai.rushOperation and other.ai.rushOperation.goal
@@ -626,7 +830,7 @@ function SelectObjective(platoon,g,hooks,now,focus)
         -- Aircraft alone cannot suppress the native land scouting fallback.
         if TargetValid(platoon,u) then knownGround=true end
         local front=defenseView and defenseView.byUnit[u]
-        local ratio=(platoon.ai.formerTable.AIPlanData.AttackEnemyStrength or 105)/100
+        local ratio=AttackRatio(platoon)
         local covered=front and DefenseEligible(platoon,front)
             and (defenseCoverage[front.key] or 0)>=front.threat/math.max(0.1,ratio)*1.02
         if not covered and (not focus or D2(r.pos,focus)<=FRONT_RADIUS^2)
@@ -637,7 +841,12 @@ function SelectObjective(platoon,g,hooks,now,focus)
             -- Local base intrusion wins over a distant economic raid. This
             -- remains bounded to an actual known unit, not a sticky panic flag.
             local breach=front and DefenseEligible(platoon,front) or false
-            if breach then value=value+240 end
+            if breach then value=value+240
+            elseif IsRaider(platoon.ai.formerTable) then
+                if u:HasTags(Tags.ALLOYS_EXTRACTION+Tags.ENERGY_PRODUCTION+Tags.FACTORY+Tags.ENGINEER) then
+                    value=value+180
+                elseif not u:HasTags(Tags.COMMAND) then value=value-80 end
+            end
             local penalty=(claims[u] or 0)*90
             candidates[#candidates+1]={unit=u,pos=r.pos,breach=survival and breach,
                 regroup=offered~=nil and offered.unit==u,score=distance-value+penalty}
@@ -671,7 +880,7 @@ function SelectObjective(platoon,g,hooks,now,focus)
     else
         table.sort(candidates,ObjectiveLess)
     end
-    local staging,resisted,approached
+    local staging,resisted,approached,assemblyStage
     for j=1,math.min(12,n) do
         local c=candidates[(offset+j-1)%n+1]
         if MG.CanGraphAreaTo(g.position,c.pos,platoon.ai.movementLayer) and hooks.CanShoot(platoon,c.unit) then
@@ -681,16 +890,32 @@ function SelectObjective(platoon,g,hooks,now,focus)
             -- Only forces at this front can support the destination. Units
             -- left at home or heading elsewhere cannot fund a remote assault.
             local attacking=g.own+support
-            if g.own>0 and guard<=attacking*((platoon.ai.formerTable.AIPlanData.AttackEnemyStrength or 105)/100) then
+            -- A weak observed target cannot reopen a recently resisted front
+            -- simply because its protecting guns fell out of current intel.
+            -- Defense objectives were handled first, and real weapon contact
+            -- still belongs to the local engagement/retreat policy.
+            local blocked,remembered=Front.Blocked(platoon.army,c.pos,attacking)
+            if g.own>0 and not blocked and guard<=attacking*(AttackRatio(platoon)) then
                 op.selectionOffset=0;op.assaultOffer=nil
+                NoteAssembly(platoon,"offer","affordable-target",now)
                 return {pos=Copy(c.pos),unit=c.unit,kind="attack"}
             end
-            resisted=resisted or {unit=c.unit,pos=Copy(c.pos),guard=guard}
+            local memory=blocked and remembered or nil
+            local strongFront=memory~=nil or Policy.NeedsAssaultAssembly(g.own,support,assessment,AttackRatio(platoon))
+            if memory then guard=math.max(guard,memory.strength or 0) end
+            local candidate={unit=c.unit,pos=Copy(c.pos),guard=guard,strongFront=strongFront,memoryFront=memory}
+            if not resisted or strongFront and not resisted.strongFront then resisted=candidate end
             local front=Front.Remember(platoon.army,assessment,attacking)
-            if not staging and front and g.nominal>0 then
-                -- Base-wide threat is not a reason to run home. Find an actual
-                -- reachable, clear firing/containment position outside return fire.
-                staging=Front.Stage(platoon,g,assessment.staticUnit,assessment)
+            if not focus and (front or strongFront) and g.nominal>0 and (not staging or strongFront and not assemblyStage) then
+                -- Current guns use observed geometry; a fogged resisted front
+                -- uses only its still-current stored position and range.
+                local site
+                if memory and RegroupEligible(platoon) then site=Front.StageRemembered(platoon,g,memory,c.unit)
+                else site=Front.Stage(platoon,g,assessment.staticUnit,assessment) end
+                staging=staging or site
+                if strongFront and site then
+                    assemblyStage=site;candidate.stage=site;resisted=candidate
+                end
             end
             if not staging and not approached and not focus and not platoon.ai.formerTable.RushSiege then
                 approached=true
@@ -700,29 +925,61 @@ function SelectObjective(platoon,g,hooks,now,focus)
     end
     if not focus then op.selectionOffset=n>0 and (offset+12)%n or 0 end
     if focus then return nil end
-    OfferAssault(platoon,g,resisted,now)
+    local offer=OfferAssault(platoon,g,resisted,now)
+    -- Previously a generic alloy patrol immediately invalidated the offer's
+    -- safe staging goal. Keep this bounded assembly useful for eligible assault
+    -- groups; raiders, siege, emergencies and the existing 90s expiry keep their
+    -- own jobs. Once the offer expires, ordinary objectives are considered again.
+    if offer and offer.strongFront and assemblyStage then
+        assemblyStage.assembly=offer
+        return assemblyStage
+    end
     if staging and platoon.ai.formerTable.RushSiege then return staging end
+    -- Keep pressure on an identified factory site after it leaves vision.
+    -- These positional missions use native observer memory, then pass the same
+    -- local strength, remembered-front and final route checks as other attacks.
+    if not survival and not IsRaider(platoon.ai.formerTable) and not platoon.ai.formerTable.RushSiege
+        and not platoon.ai.isNavalPlatoon and g.count>=C.ForwardProbeMinimum and g.own>0 then
+        local factories=Tactics.KnownFactoryObjectives(platoon,g.position)
+        for i=1,math.min(6,#factories) do
+            local factory=factories[i];local pos=factory.pos
+            local supported=g.own+Intel.FriendlyThreat(platoon,pos,64,"Land",true)
+            if not IsBlocked(op,pos,now) and not Front.Blocked(platoon.army,pos,supported)
+                and MG.CanGraphAreaTo(g.position,pos,platoon.ai.movementLayer)
+                and Intel.EnemyThreat(platoon.army,pos,"Land",12,24)<=supported*AttackRatio(platoon) then
+                return factory
+            end
+        end
+    end
+    if not survival and n==0 and not knownGround and not staging then
+        local probe=ForwardProbe(platoon,g,now)
+        if probe then return probe end
+    end
     if g.nominal>0 then
         op.visitedAlloy=op.visitedAlloy or {}
+        state.visitedAlloy=state.visitedAlloy or {}
         local raids=Pressure.RaidCandidates(platoon.army,platoon.ai.basePosition,g.position,platoon.ai.movementLayer)
         local raidOffset=#raids>0 and (op.raidOffset or 0)%#raids or 0
         op.raidOffset=#raids>0 and (raidOffset+24)%#raids or 0
         for i=1,math.min(24,#raids) do
             local candidate=raids[(raidOffset+i-1)%#raids+1]
             local p=candidate.pos;local key=p.x..":"..p.z
-            if now>=(op.visitedAlloy[key] or 0) and not IsBlocked(op,p,now)
+            if now>=(op.visitedAlloy[key] or 0) and now>=(state.visitedAlloy[key] or 0)
+                and not IsBlocked(op,p,now)
                 and not Front.Blocked(platoon.army,p,g.own) then
                 local claimed=false
                 for _,other in pairs(state.operations) do
-                    local goal=other~=platoon and Live(other) and other.ai.rushOperation and other.ai.rushOperation.goal
-                    if goal and goal.kind=="alloy-patrol" and D2(goal.pos,p)<35^2 then claimed=true;break end
+                    local otherOp=other~=platoon and Live(other) and other.ai.rushOperation
+                    local reservation=otherOp and otherOp.alloyReservation
+                    if reservation and now<reservation.expires and otherOp.policy.phase~="Retreat"
+                        and (reservation.pending or otherOp.goal==reservation.goal)
+                        and D2(reservation.pos,p)<35^2 then claimed=true;break end
                 end
                 if not claimed and MG.CanGraphAreaTo(g.position,p,platoon.ai.movementLayer)
                     and Intel.EnemyThreat(platoon.army,p,"Land",12,24)<=
                         (g.own+Intel.FriendlyThreat(platoon,p,64,"Land",true))
-                        *((platoon.ai.formerTable.AIPlanData.AttackEnemyStrength or 105)/100) then
-                    op.visitedAlloy[key]=now+120
-                    return {pos=Copy(p),kind="alloy-patrol"}
+                        *(AttackRatio(platoon)) then
+                    return {pos=Copy(p),kind="alloy-patrol",alloyKey=key}
                 end
             end
         end
@@ -754,7 +1011,8 @@ local function Clear(platoon,hooks)
     hooks.ClearFormation(platoon)
     if hooks.Stop then hooks.Stop(platoon) end
     platoon.ai.path=false;platoon.ai.rushMoving=false
-    platoon.ai.rushOperation.pendingMove=nil;Budget.Cancel(platoon)
+    platoon.ai.rushOperation.pendingMove=nil
+    platoon.ai.rushOperation.alloyReservation=nil;Budget.Cancel(platoon)
     platoon.ai.primaryTargetAreaPos=false
     for _,u in pairs(platoon:GetUnits()) do
         if not u.dead and not u.deleted and u.army==platoon.army and u.platoon==platoon and u.ai
@@ -771,14 +1029,15 @@ local function AttackRouteSafe(platoon,path)
     local g=Intel.Geometry(platoon)
     platoon.ai.rushGeometry=g
     if g.own<=0 then return false end
+    local ratio=AttackRatio(platoon)
     local checks=math.min(#path,6)
     for sample=1,checks do
         local index=checks==1 and 1 or math.floor((sample-1)*(#path-1)/(checks-1)+0.5)+1
         local pos=path[index]
         local enemy=Intel.EnemyThreat(platoon.army,pos,"Land",g.radius+6)
-        if enemy>g.own*1.8 then
-            local friendly=Intel.FriendlyThreat(platoon,pos,48,"Land")
-            if enemy>math.max(1,g.own+friendly)*1.8 then return false end
+        if enemy>g.own*ratio then
+            local friendly=Intel.FriendlyThreat(platoon,pos,48,"Land",true)
+            if enemy>math.max(1,g.own+friendly)*ratio then return false end
         end
     end
     return true
@@ -789,13 +1048,13 @@ local function StartMove(platoon,pos,aggressive,hooks,now,checkAttackRoute)
     local armyAI,op,layer=army.ai,ai.rushOperation,ai.movementLayer
     pos=Copy(pos)
     local g=ai.rushGeometry
-    local nearby=Intel.FriendlyThreat(platoon,g.position,72,"Land",true)
     platoon.ai.withdraw=op.policy.phase=="Retreat"
-    platoon.ai.rushPathThreat=aggressive and math.max(g.nominal,g.own+nearby)
+    platoon.ai.rushPathThreat=aggressive and AttackPathBudget(platoon,g)
         or math.max(g.nominal,platoon.ai.closeEnemyThreat or 0)
     local ok,reason=hooks.Move(platoon,pos,aggressive,false)
     if not Current(platoon,army,armyAI,ai,op) or ai.movementLayer~=layer then return false,"stale-request" end
     if ok==nil and reason=="path-budget" then
+        Diagnostics.Count(army,"path_deferred","path-budget","platoon="..tostring(platoon.id))
         op.pendingMove={pos=Copy(pos),aggressive=aggressive,checkAttackRoute=checkAttackRoute}
         op.moveGoal=Copy(pos)
         op.moveAggressive,op.moveCheckAttackRoute=aggressive,checkAttackRoute
@@ -803,10 +1062,12 @@ local function StartMove(platoon,pos,aggressive,hooks,now,checkAttackRoute)
     end
     op.pendingMove=nil
     if not ok then
+        Diagnostics.Count(army,"path_rejected",reason or "path-failed","platoon="..tostring(platoon.id))
         if reason~="stale-request" then Clear(platoon,hooks) end
         return false,reason or "path-failed"
     end
     if checkAttackRoute and not AttackRouteSafe(platoon,platoon.ai.path) then
+        Diagnostics.Count(army,"path_rejected","route-overmatched","platoon="..tostring(platoon.id))
         Clear(platoon,hooks)
         return false,"route-overmatched"
     end
@@ -885,7 +1146,9 @@ local function ObserveProgress(platoon,g,now)
     if moved>=math.max(1,math.ceil(g.count*0.35)) then Policy.Progress(op.policy,now) end
     for u in pairs(op.unitPositions) do
         if u.dead or u.platoon~=platoon then
-            if u.dead then op.lastDamageAt=now end
+            if u.dead then
+                op.lastDamageAt=now;op.diagnosticDeaths=(op.diagnosticDeaths or 0)+1
+            else op.diagnosticDepartures=(op.diagnosticDepartures or 0)+1 end
             op.unitPositions[u]=nil;op.unitHealth[u]=nil
         end
     end
@@ -934,6 +1197,7 @@ end
 local function AdoptGoal(platoon,goal,hooks,now,input)
     local army,ai=platoon.army,platoon.ai
     local armyAI,op=army.ai,ai.rushOperation
+    op.alloyReservation=nil
     local defensive=goal.kind=="stage" or goal.kind=="siege" or goal.kind=="deploy" or goal.kind=="rally" or goal.kind=="defend"
     -- A distant objective can look weak while survivors remain under stronger
     -- local fire. Wait for reinforcements or a safer objective before attacking.
@@ -945,11 +1209,17 @@ local function AdoptGoal(platoon,goal,hooks,now,input)
     if defensive and Reached(platoon.ai.rushGeometry,goal.pos) then
         if platoon.ai.rushMoving then Clear(platoon,hooks) end
         op.goal=goal;op.moveGoal=Copy(goal.pos);op.defensePending=nil
-        Policy.Hold(op.policy,now,goal.kind=="defend" and "defense-cover" or "containment")
+        Policy.Hold(op.policy,now,goal.kind=="defend" and "defense-cover" or goal.assembly and "assembling-front" or "containment")
         return true
     end
+    -- Reserve before path generation can yield; failed attempts never become visits.
+    local patrol=goal.kind=="alloy-patrol" and {pos=Copy(goal.pos),goal=goal,pending=true,expires=now+60} or nil
+    op.alloyReservation=patrol
     local accepted,reason=StartMove(platoon,goal.pos,not defensive,hooks,now,not defensive or goal.approach==true)
-    if not Current(platoon,army,armyAI,ai,op) then return false,"stale-request" end
+    if not Current(platoon,army,armyAI,ai,op) then
+        if op.alloyReservation==patrol then op.alloyReservation=nil end
+        return false,"stale-request"
+    end
     if accepted~=false then
         op.goal=goal;op.defensePending=nil;Policy.GoalStarted(op.policy,now)
         if reserve and (not previousClaim or previousClaim.key~=reserve.key) then op.defenseChangedAt=now end
@@ -958,10 +1228,14 @@ local function AdoptGoal(platoon,goal,hooks,now,input)
             distance=distance+math.sqrt(D2(previous,node));previous=node
         end
         op.goalDeadline=now+math.min(900,math.max(120,distance*2+60))
+        if patrol then
+            patrol.pending=false;patrol.expires=op.goalDeadline;op.alloyReservation=patrol
+        end
         platoon.ai.primaryTargetAreaPos=goal.pos
         State(platoon.army).stats.goals=State(platoon.army).stats.goals+1
         return true
     end
+    if op.alloyReservation==patrol then op.alloyReservation=nil end
     if op.defenseClaim==reserve then op.defenseClaim=previousClaim;op.defensePending=nil end
     if reason~="stale-request" then Reject(platoon,goal.pos,now) end
     return false,reason
@@ -1013,8 +1287,8 @@ local function SupportTick(platoon,g,hooks,now)
     if promised then
         receiver=ai.rushReceiver
         local ready=Live(receiver) and AssaultOfferCurrent(receiver,now)==promised
-            and RegroupSafe(receiver,receiver.ai.rushGeometry or Intel.Geometry(receiver),now)
-            and RegroupSafe(platoon,g,now) and AvailableRoom(army,receiver,platoon)>0
+            and RegroupSafe(receiver,receiver.ai.rushGeometry or Intel.Geometry(receiver),now,true)
+            and RegroupSafe(platoon,g,now,true) and AvailableRoom(army,receiver,platoon)>0
         if not ready then EndAssaultSupport(platoon,hooks,now);return false end
     else receiver=SupportReceiver(platoon) end
     if receiver then
@@ -1036,7 +1310,14 @@ local function SupportTick(platoon,g,hooks,now)
         if (not op.moveGoal or D2(op.moveGoal,p)>32*32 or not platoon.ai.rushMoving)
             and now>=(op.nextSupportPath or 0) then
             op.nextSupportPath=now+8
-            if StartMove(platoon,p,true,hooks,now) then op.policy.lastProgressAt=op.policy.lastProgressAt or now end
+            -- An explicit assembly donor travels to a safe receiver without
+            -- opportunistic attack-move detours through the resisted front.
+            local moved,reason=StartMove(platoon,p,not promised,hooks,now,promised~=nil)
+            if moved then op.policy.lastProgressAt=op.policy.lastProgressAt or now
+            elseif promised and moved==false and reason~="stale-request" then
+                EndAssaultSupport(platoon,hooks,Now());op.nextAssaultRegroup=Now()+20
+                return false
+            end
         end
         if not Current(platoon,army,armyAI,ai,op) then return true end
         MoveUnits(platoon,g,hooks)
@@ -1086,7 +1367,7 @@ local function SplitDefense(platoon,g,hooks,input,now)
             and MG.CanGraphAreaTo(g.position,option.front.pos,platoon.ai.movementLayer) then destination=option;break end
     end
     if not destination then return false end
-    local ratio=(platoon.ai.formerTable.AIPlanData.AttackEnemyStrength or 105)/100
+    local ratio=AttackRatio(platoon)
     local retained=math.max(g.own*0.55,current.threat/math.max(0.1,ratio)*1.08-(coverage[current.key] or 0))
     local allowance=math.min(g.own-retained,destination.deficit*1.15)
     if allowance<=0 then return false end
@@ -1096,13 +1377,13 @@ local function SplitDefense(platoon,g,hooks,input,now)
         if item.distance<=math.max(40,g.radius+16) and unit.army==platoon.army and unit.platoon==platoon
             and not unit.dead and not unit.deleted and not unit.CaptureInProgress and not unit.ReclaimInProgress
             and not unit:HasTags(Tags.ENGINEER+Tags.COMMAND+Tags.TECH4) and not HeavyPolicy.IsT4(unit.tp)
-            and not (unit.toggles and unit.GetPause and unit:GetPause())
+            and not (UnitState.IsPaused(unit))
             and not (unit.ai and unit.ai.eState=="RepairHome") and OwnedMovementOrIdle(unit,platoon) then
             local damaging=false
             for _,weapon in ipairs(unit.weapons or {}) do
                 if weapon.enabled and not weapon.isDeathExplosion then
                     for _,target in ipairs(destination.front.targets) do
-                        if TargetValid(platoon,target.unit) and weapon:CanShootAt(target.unit) then damaging=true;break end
+                        if TargetValid(platoon,target.unit) and Intel.CanShootAt(platoon.army,weapon,target.unit) then damaging=true;break end
                     end
                 end
                 if damaging then break end
@@ -1146,6 +1427,8 @@ local function SplitDefense(platoon,g,hooks,input,now)
     child:StartAIFunction(function(p)
         local ok,err=pcall(Run,p,hooks,false)
         if not ok and p.ai==childAI then
+            Diagnostics.Event(p.army,"error",{where="defense-detachment",platoon=p.id,error=err})
+            DiagnosticMonitor.Combat(p,"end","plan-error",true)
             Unregister(p)
             if Live(p) then hooks.Exit(p) end
             Warn("AI-Scom defense detachment: "..tostring(err))
@@ -1159,10 +1442,12 @@ end
 -- exact offered receiver gains members, and native transfer waits for arrival.
 local function RegroupAssault(platoon,g,hooks,now)
     local ai,army=platoon.ai,platoon.army;local op=platoon.ai.rushOperation
-    if op.supportSince or now<(op.nextAssaultRegroup or 0) or not RegroupSafe(platoon,g,now) then return false end
+    if op.supportSince or now<(op.nextAssaultRegroup or 0) then return false end
+    local safe,blocked=RegroupSafe(platoon,g,now,true)
+    if not safe then NoteAssembly(platoon,"join",blocked,now);return false end
     op.nextAssaultRegroup=now+4
     local own=AssaultOfferCurrent(platoon,now)
-    if not own and (op.goal or not op.idleSince or now-op.idleSince<20) then return false end
+    local idleReady=not op.goal and op.idleSince and now-op.idleSince>=20
     local state=State(army);Prune(state)
     local reserved=Reservations(state,platoon);local candidates={}
     for _,other in pairs(state.operations) do
@@ -1170,7 +1455,8 @@ local function RegroupAssault(platoon,g,hooks,now)
         -- receiving offer, so it can also join a newer useful offensive core.
         local candidate=other~=platoon and (not own or other.id<platoon.id) and AssaultOfferCurrent(other,now)
         local geometry=candidate and other.ai.rushGeometry
-        if candidate and geometry and Capacity(other)-(reserved[other] or 0)>=math.min(6,g.count)
+        if candidate and geometry and (own or idleReady or candidate.strongFront and g.own>0)
+            and Capacity(other)-(reserved[other] or 0)>=math.min(6,g.count)
             and (not own or own.unit==candidate.unit or D2(own.pos,candidate.pos)<=FRONT_RADIUS^2)
             and D2(g.position,geometry.position)<=ASSAULT_RADIUS^2 then
             candidates[#candidates+1]={platoon=other,offer=candidate,geometry=geometry}
@@ -1178,15 +1464,18 @@ local function RegroupAssault(platoon,g,hooks,now)
     end
     -- Rank without native reads, then recheck only a bounded few receivers.
     -- Many held waves must not multiply the full defense/exposure scan.
-    local receiver,offer
+    local receiver,offer,receiverReason
     for _,candidate in ipairs(Selection.Top(candidates,3,function(a,b) return a.platoon.id<b.platoon.id end)) do
         local other=candidate.platoon
-        if RegroupSafe(other,candidate.geometry,now)
-            and MG.CanGraphAreaTo(g.position,candidate.geometry.position,ai.movementLayer) then
-            receiver,offer=other,candidate.offer;break
-        end
+        local safe,reason=RegroupSafe(other,candidate.geometry,now,true)
+        if safe then
+            if MG.CanGraphAreaTo(g.position,candidate.geometry.position,ai.movementLayer) then
+                receiver,offer=other,candidate.offer;break
+            end
+            receiverReason=receiverReason or "route"
+        else receiverReason=receiverReason or reason end
     end
-    if not receiver then return false end
+    if not receiver then NoteAssembly(platoon,"join",receiverReason or "no-receiver",now);return false end
     local armyAI=army.ai
     if not Current(platoon,army,armyAI,ai,op) or AssaultOfferCurrent(receiver)~=offer
         or not RegroupOrdersOwned(platoon) then return false end
@@ -1208,6 +1497,7 @@ function Initialize(platoon,hooks,support)
     Register(platoon,support)
     local g=Intel.Geometry(platoon);platoon.ai.rushGeometry=g
     platoon.ai.threat=g.nominal
+    DiagnosticMonitor.Combat(platoon,"start","initialized")
     operation.defenseDetached=platoon.ai.rushDefenseDetached==true
     local seed=platoon.ai.rushDefenseSeed;platoon.ai.rushDefenseSeed=nil
     if not seed and platoon.ai.formerTable.RushMainDefense then
@@ -1243,34 +1533,55 @@ local function Refill(platoon,g,hooks,now)
     if room==0 then return false end
     local need=former.NeedUnits and former.NeedUnits[1] and former.NeedUnits[1][1]
     local protected={}
+    local assembling=op.policy.phase~="Engage" and not (op.lastDamageAt and now-op.lastDamageAt<=3)
+        and ReserveRaidSeed(army)
     local beachhead=Import("AI/mods/AI-Scom/RushBeachhead.lua")
+    local raidTags=Tags.MOBILE*Tags.LAND*(Tags.DIRECT_FIRE+Tags.ANTI_SURFACE)
+        -Tags.ENGINEER-Tags.COMMAND-Tags.SCOUT-Tags.TECH4
     for name,base in pairs(army.ai.bases or {}) do
-        if D2(g.position,base.position)<=((base.radius or 64)+40)^2 and beachhead.BaseConnected(army,name) then
-            local defenders={}
+        local defense=beachhead.BaseConnected(army,name)
+        local assemble=assembling and name==ai.baseName and base.baseType~="NAVAL"
+            and MG.CanGraphAreaTo(g.position,base.position,ai.movementLayer)
+        if D2(g.position,base.position)<=((base.radius or 64)+40)^2 and (defense or assemble) then
+            local defenders,raiders={},{}
             for _,u in ipairs(Intel.FriendlyUnitsInRadius(army,base.position,base.radius or 64)) do
                 if u.army==army and army.units[u.id.index]==u and not u.dead and not u.deleted and not u.platoon
                     and u:IsCompleted() and not u.CaptureInProgress and not u.ReclaimInProgress
                     and u:HasTags(Tags.MOBILE*Tags.LAND-Tags.ENGINEER-Tags.COMMAND-Tags.SCOUT-Tags.TECH4)
                     and not HeavyPolicy.IsT4(u.tp)
-                    and not (u.toggles and u.GetPause and u:GetPause())
+                    and not (UnitState.IsPaused(u))
                     and not (u.ai and u.ai.eState=="RepairHome")
                     and not (army.ai.ecoReserve and army.ai.ecoReserve[u.id.index])
                     and (not u.assignedToBase or u.assignedToBase==name)
                     and (AF.GetUnitThreatValueByLayer(u,"Land",false) or 0)>0
                     and MG.CanGraphAreaTo(u:GetPosition(),base.position,"Land") then
-                    defenders[#defenders+1]={unit=u,id=u.id.index,distance=D2(u:GetPosition(),base.position)}
+                    local candidate={unit=u,id=u.id.index,distance=D2(u:GetPosition(),base.position)}
+                    if defense then defenders[#defenders+1]=candidate end
+                    if assemble and u:HasTags(raidTags) then raiders[#raiders+1]=candidate end
                 end
             end
-            for _,r in ipairs(Selection.Top(defenders,2,RecruitDistanceLess)) do protected[r.unit]=true end
+            if defense then
+                for _,r in ipairs(Selection.Top(defenders,2,RecruitDistanceLess)) do protected[r.unit]=true end
+            end
+            if assemble then
+                local available,already={},0
+                for _,r in ipairs(raiders) do
+                    if protected[r.unit] then already=already+1 else available[#available+1]=r end
+                end
+                for _,r in ipairs(Selection.Top(available,math.max(0,Balance.Config.RaidMinimum-already),RecruitDistanceLess)) do
+                    protected[r.unit]=true
+                end
+            end
         end
     end
     for _,u in ipairs(Intel.FriendlyUnitsInRadius(platoon.army,g.position,40)) do
         if not protected[u] and u.army==platoon.army and army.units[u.id.index]==u
             and not u.dead and not u.deleted and not u.platoon and u:IsCompleted()
+            and Handoff.Ready(u)
             and u:HasTags(Tags.MOBILE*Tags.LAND-Tags.ENGINEER-Tags.COMMAND-Tags.SCOUT-Tags.TECH4)
             and not HeavyPolicy.IsT4(u.tp)
             and (not need or u:HasTags(need)) and not (u.ai and u.ai.eState=="RepairHome")
-            and not u.CaptureInProgress and not u.ReclaimInProgress and not (u.toggles and u.GetPause and u:GetPause())
+            and not u.CaptureInProgress and not u.ReclaimInProgress and not (UnitState.IsPaused(u))
             and not (platoon.army.ai.ecoReserve and platoon.army.ai.ecoReserve[u.id.index])
             and (not u.assignedToBase or u.assignedToBase==platoon.ai.baseName)
             and D2(u:GetPosition(),g.position)<=40^2
@@ -1298,11 +1609,24 @@ local function Refill(platoon,g,hooks,now)
     return Current(platoon,army,armyAI,ai,op)
 end
 
+local function RetireGoal(platoon,g,now)
+    local op=platoon.ai.rushOperation
+    op.goal=nil;op.resumeMission=nil;op.alloyReservation=nil
+    if op.defenseClaim then
+        local options,view=DefenseOptions(platoon,g,now)
+        local assigned=Front.DefenseMatch(view,op.defenseClaim);local needed=false
+        for _,option in ipairs(options) do if option.front==assigned then needed=true;break end end
+        if not needed then op.defenseClaim=nil;op.defensePending=nil end
+    end
+end
+
 function Tick(platoon,hooks)
     if not Live(platoon) then return false end
     local now=Now();local army,ai=platoon.army,platoon.ai
     local armyAI,op=army.ai,ai.rushOperation
+    op.recruitWake=nil
     op.lastTick=now
+    if op.goal and op.goal.unit then op.goal.unit=Intel.Contact(army,op.goal.unit) or op.goal.unit end
     ai.withdraw=op.policy.phase=="Retreat"
     if op.assaultReceiverOffer and not RegroupOrdersOwned(platoon) then
         EndAssaultSupport(platoon,hooks,now);return true
@@ -1315,7 +1639,10 @@ function Tick(platoon,hooks)
     if g.count==0 then return false end
     local refilled=Refill(platoon,g,hooks,now)
     if not Current(platoon,army,armyAI,ai,op) then return false end
-    if refilled then g=Intel.Geometry(platoon);ai.rushGeometry=g end
+    if refilled then
+        g=Intel.Geometry(platoon);ai.rushGeometry=g
+        Policy.Reinforced(op.policy,now)
+    end
     ObserveProgress(platoon,g,now)
     RefreshDefense(platoon,g,now)
     local target=NearTarget(platoon,g,hooks)
@@ -1339,7 +1666,8 @@ function Tick(platoon,hooks)
     op.idleSince=idle and (op.idleSince or now) or nil
     if op.assaultOffer then
         if now>=op.assaultOffer.expires then op.assaultOffer=nil;op.assaultRetry=now+20
-        elseif not RegroupSafe(platoon,g,now) or not Intel.Visible(army,op.assaultOffer.unit) then op.assaultOffer=nil
+        elseif op.assaultOffer.memoryFront and not Front.RememberedCurrent(army,op.assaultOffer.memoryFront)
+            or not RegroupSafe(platoon,g,now) or not Intel.Visible(army,op.assaultOffer.unit) then op.assaultOffer=nil
         else op.assaultOffer.safeUntil=now+4 end
     end
     -- Locally consolidate depleted waves instead of filling all operation slots
@@ -1370,7 +1698,20 @@ function Tick(platoon,hooks)
     platoon.ai.nearbyFriendlyThreat=friendly
     platoon.ai.microTarget=target or false
     local goal=op.goal
+    if goal and goal.kind=="alloy-patrol" and Reached(g,goal.pos) then
+        op.visitedAlloy=op.visitedAlloy or {}
+        local key=goal.alloyKey or goal.pos.x..":"..goal.pos.z
+        if not goal.alloyVisited then
+            op.visitedAlloy[key]=now+120;goal.alloyVisited=true
+            -- Keys come only from the finite public alloy-marker set. Reset
+            -- with the army AI state; observed attack targets bypass this memory.
+            local state=State(army);state.visitedAlloy=state.visitedAlloy or {}
+            state.visitedAlloy[key]=now+120
+        end
+        op.alloyReservation=nil
+    elseif op.alloyReservation and now>=op.alloyReservation.expires then op.alloyReservation=nil end
     local goalValid=goal and (not goal.unit or TargetValid(platoon,goal.unit))
+        and (not goal.factoryMemory or Tactics.FactoryMemoryValid(platoon.army,goal.factoryMemory))
         and (not goal.defense or Front.DefenseMatch(Front.Defense(platoon.army),goal.defense)) or false
     if goal and goal.defense and not goalValid and op.policy.phase=="Hold" then Policy.Acquire(op.policy,now) end
     local input={now=now,count=g.count,own=g.own,friendly=friendly,enemy=enemy,
@@ -1378,7 +1719,7 @@ function Tick(platoon,hooks)
         target=target,targetDistance=target and math.sqrt(D2(g.position,target:GetPosition())) or nil,
         underFire=op.lastDamageAt and now-op.lastDamageAt<=3 or false,
         arrived=Reached(g,op.moveGoal),goalValid=goalValid,pathPending=op.pendingMove~=nil,
-        attackRatio=(platoon.ai.formerTable.AIPlanData.AttackEnemyStrength or 105)/100,
+        attackRatio=AttackRatio(platoon),
         primary=platoon.ai.formerTable.FormerName=="F123 Land Primary",
         raider=IsRaider(platoon.ai.formerTable)==true,
         goalMoved=goalValid and goal.kind=="attack" and goal.unit
@@ -1440,17 +1781,31 @@ function Tick(platoon,hooks)
         if op.policy.phase=="Engage" or op.policy.phase=="Retreat" then
             platoon.ai.eState=STATE_NAMES[op.policy.phase]
         end
+        DiagnosticMonitor.Combat(platoon,action,reason)
         if hooks.Report then hooks.Report(platoon,previous,reason) end
         return true
     end
     local previous=op.policy.phase
+    local opportunity
+    if Policy.OpportunityDue(op.policy,input,goal and goal.kind) then
+        -- Focus restricts the existing selector to observed nearby contacts and
+        -- returns before patrol/staging fallbacks; at most twelve are assessed.
+        opportunity=SelectObjective(platoon,g,hooks,now,g.position)
+        if not Current(platoon,army,armyAI,ai,op) then return false end
+        if opportunity then Policy.Acquire(op.policy,now) end
+    end
     local action,reason=Policy.Step(op.policy,input)
+    if opportunity and action=="acquire" then reason="observed-opportunity" end
     op.lastAction,op.lastReason=action,reason
     if action=="finish" then return false
     elseif action=="retreat" then Retreat(platoon,g,hooks,now)
     elseif action=="retreat-finished" then
-        Clear(platoon,hooks);op.goal=nil;op.defenseClaim=nil
+        Clear(platoon,hooks);RetireGoal(platoon,g,now)
         if op.policy.phase=="Acquire" then
+            -- The policy has just ended Retreat; this eligibility window did
+            -- not exist at the earlier per-tick regroup check.
+            if RegroupAssault(platoon,g,hooks,now) then return true end
+            if not Current(platoon,army,armyAI,ai,op) then return false end
             local nextGoal=SelectObjective(platoon,g,hooks,now)
             if not Current(platoon,army,armyAI,ai,op) then return false end
             if nextGoal then
@@ -1473,13 +1828,19 @@ function Tick(platoon,hooks)
             and enemy<=math.max(1,g.own+friendly)*0.8
         if goal and goal.kind=="stage" and Reached(g,goal.pos) then op.lastStage=Copy(goal.pos) end
         if not keepApproach and (platoon.ai.rushMoving or previous=="Engage") then Clear(platoon,hooks) end
-        local nextGoal=(previous=="Engage" or op.resumeMission) and goalValid and not input.goalExpired and goal or nil
-        op.goal,op.resumeMission=nil,nil
-        if nextGoal and nextGoal.kind=="attack" then
-            nextGoal.pos=Copy(nextGoal.unit:GetPosition())
+        local nextGoal=opportunity or (previous=="Engage" or op.resumeMission) and goalValid and not input.goalExpired and goal or nil
+        RetireGoal(platoon,g,now)
+        if nextGoal and (nextGoal.kind=="attack" or nextGoal.kind=="factory-pressure") then
+            if nextGoal.unit then nextGoal.pos=Copy(nextGoal.unit:GetPosition()) end
             local support=Intel.FriendlyThreat(platoon,nextGoal.pos,64,"Land",true)
-            if Intel.EnemyThreat(platoon.army,nextGoal.pos,"Land",12,24)>(g.own+support)*input.attackRatio then nextGoal=nil end
+            if not nextGoal.defense and Front.Blocked(platoon.army,nextGoal.pos,g.own+support)
+                or Intel.EnemyThreat(platoon.army,nextGoal.pos,"Land",12,24)>(g.own+support)*input.attackRatio then nextGoal=nil end
         end
+        -- An ended attack/patrol can no longer veto coordination. Preserve a
+        -- valid resumed mission, but give newly free groups one bounded chance
+        -- to join an offered core before selecting another independent attack.
+        if not nextGoal and RegroupAssault(platoon,g,hooks,now) then return true end
+        if not Current(platoon,army,armyAI,ai,op) then return false end
         if not nextGoal then nextGoal=SelectObjective(platoon,g,hooks,now) end
         if not Current(platoon,army,armyAI,ai,op) then return false end
         if not nextGoal then
@@ -1497,11 +1858,12 @@ function Tick(platoon,hooks)
             local destination=reason=="target-moved" and Copy(goal.unit:GetPosition()) or goal.pos
             local supported=g.own+Intel.FriendlyThreat(platoon,destination,64,"Land",true)
             local moved,blocked
-            if reason=="target-moved" and (not TargetValid(platoon,goal.unit)
+            local remembered=(goal.kind=="attack" or goal.kind=="factory-pressure") and not goal.defense and Front.Blocked(platoon.army,destination,supported)
+            if remembered or reason=="target-moved" and (not TargetValid(platoon,goal.unit)
                 or not MG.CanGraphAreaTo(g.position,destination,platoon.ai.movementLayer)
                 or Intel.EnemyThreat(platoon.army,destination,"Land",12,24)>supported*input.attackRatio) then
                 Clear(platoon,hooks)
-                moved,blocked=false,"target-retreated-into-threat"
+                moved,blocked=false,remembered and "remembered-front" or "target-retreated-into-threat"
             else
                 moved,blocked=StartMove(platoon,destination,not defensive,hooks,now,not defensive or goal.approach==true)
                 if moved~=false then goal.pos=Copy(destination);platoon.ai.primaryTargetAreaPos=goal.pos end
@@ -1521,7 +1883,9 @@ function Tick(platoon,hooks)
     if not Current(platoon,army,armyAI,ai,op) then return false end
     platoon.ai.withdraw=op.policy.phase=="Retreat"
     platoon.ai.eState=STATE_NAMES[op.policy.phase] or "SelectMainTarget"
-    if hooks.Report then hooks.Report(platoon,previous,reason) end
+    local finalReason=op.policy.phase=="Hold" and op.policy.holdReason or reason
+    DiagnosticMonitor.Combat(platoon,action,reason)
+    if hooks.Report then hooks.Report(platoon,previous,finalReason) end
     return true
 end
 
@@ -1534,9 +1898,12 @@ function Run(platoon,hooks,support)
     end
     while current() and Tick(platoon,hooks) do
         local rate=(Constants and Constants.TickRate) or 10
-        local nextSense=Now()+(operation.policy.phase=="Acquire" and 0.1 or 1)
+        local now=Now()
+        local nextSense=now+Policy.SenseSeconds(operation.policy,
+            operation.lastDamageAt and now-operation.lastDamageAt<=3,
+            operation.exposure and operation.exposure.total>0)
         repeat
-            local delay=math.min(nextSense-Now(),(operation.pendingMove or ai.rushMoving) and 0.2 or 1)
+            local delay=math.min(nextSense-Now(),0.2)
             WaitTicks(math.max(1,math.floor(rate*delay+0.5)))
             -- Queue admission is cheap; do not repeat the entire geometry,
             -- target and threat pass five times per second just while waiting.
@@ -1544,11 +1911,14 @@ function Run(platoon,hooks,support)
                 ResolvePending(platoon,hooks)
                 if current() and Live(platoon) and ai.rushMoving and hooks.MaintainMovement then hooks.MaintainMovement(platoon) end
             end
-        until not current() or not Live(platoon) or Now()>=nextSense
+        until not current() or not Live(platoon) or Now()>=nextSense or operation.recruitWake
     end
     -- A yielding path helper may have been replaced by a different plan. The
     -- old coroutine must not unregister or disband that replacement's army.
-    if current() then Unregister(platoon);hooks.Exit(platoon) end
+    if current() then
+        DiagnosticMonitor.Combat(platoon,"end","operation-ended",true)
+        Unregister(platoon);hooks.Exit(platoon)
+    end
 end
 
 function Summary(army)
@@ -1558,6 +1928,8 @@ function Summary(army)
         forces=forces+1;local n=Count(p);largest=math.max(largest,n);units=units+n
         if p.ai.rushOperation and p.ai.rushOperation.policy.phase=="Hold" then holding=holding+1 end
     end
-    return {forces=forces,largest=largest,units=units,holding=holding,stats=state.stats,intel=Intel.Stats(army),
+    return {forces=forces,largest=largest,units=units,holding=holding,stats=state.stats,
+        assemblyOfferReasons=AssemblyReasonSummary(state.stats,"offer"),assemblyJoinReasons=AssemblyReasonSummary(state.stats,"join"),
+        intel=Intel.Stats(army),
         fronts=Front.Summary(army),paths=Budget.Summary(),deployment=Intel.DeploymentStats(army)}
 end

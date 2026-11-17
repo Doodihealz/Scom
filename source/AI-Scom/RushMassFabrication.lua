@@ -1,3 +1,4 @@
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
 -- Convert sustained spare Energy into Alloys through native construction and toggles.
 local AF=Import("AI/AIFunctions.lua")
 local Rules=Import("AI/mods/AI-Scom/RushBalance.lua")
@@ -72,7 +73,7 @@ local function Commitments(army,except,snapshot)
         seen[unit]=true
         if not unit:IsCompleted() then upkeep=upkeep+Maintenance(unit.tp);pending=true
         elseif type(unit.GetProductionToggle)=="function" and not unit:GetProductionToggle()
-            and not (type(unit.GetPause)=="function" and unit:GetPause()) then
+            and not (RushUnitState.IsPaused(unit)) then
             local records=army.ai.rushMassFabrication and army.ai.rushMassFabrication.paused
             local record=records and records[unit.id.index]
             -- Reuse capacity that we can actually restart. An explicitly off
@@ -193,7 +194,7 @@ function CanFund(builder,id,snapshot)
     if not Enabled(army) or not Rules.Own(army,builder) or not builder:IsCompleted()
         or not IsFabricator(tp) or not Reliability.AllowedTarget(id,false)
         or not Reliability.CanBuilderBuild(builder,id) or AF.IsUnderAttack(builder)
-        or type(builder.GetPause)=="function" and builder:GetPause()
+        or RushUnitState.IsPaused(builder)
         or not tp.general or not tp.general.toggles
         or type(tp.general.toggles.Production)~="boolean" then return false end
     local upkeep,output=Maintenance(tp),Production(tp)
@@ -352,7 +353,7 @@ function Update(army,snapshot,plans)
         local unit=item.unit
         local key,record=unit.id.index,records[unit.id.index]
         if record and (record.unit~=unit or not RecordOwned(army,record)
-            or type(unit.GetPause)=="function" and unit:GetPause()) then records[key]=nil;record=nil end
+            or RushUnitState.IsPaused(unit)) then records[key]=nil;record=nil end
         -- Native completion may enable the production entity while leaving a
         -- default-off toggle untouched. Adopt only our accepted startup: its
         -- live drain is already running, so this costs no second upkeep charge.
@@ -360,7 +361,7 @@ function Update(army,snapshot,plans)
             unit:SetToggle("Production",true)
             if unit:GetProductionToggle() then records[key]=nil;record=nil;changed=true end
         end
-        if unit:GetProductionToggle() and not (type(unit.GetPause)=="function" and unit:GetPause()) then
+        if unit:GetProductionToggle() and not (RushUnitState.IsPaused(unit)) then
             if record then records[key]=nil end
             if waste or low and free<margin then
                 unit:SetToggle("Production",false)
@@ -380,7 +381,7 @@ function Update(army,snapshot,plans)
         local addedDrain=item.active and 0 or item.drain
         local unlocked=item.active and 0 or math.min(credit,item.output*ratio)
         if RecordOwned(army,record) and not unit:GetProductionToggle()
-            and not (type(unit.GetPause)=="function" and unit:GetPause())
+            and not (RushUnitState.IsPaused(unit))
             and (record.startup or Now()-record.since>=12) and not army.economy.isEnergyDown
             and (record.startup and Useful(a) or not record.startup and (a.ratio<0.80 or Rules.Balance(a)<0))
             and e.ratio>=(record.startup and 0.40 or 0.50)

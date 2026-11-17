@@ -1,16 +1,22 @@
--- Sanctuary Rush 9.0.6-rc7: profile-owned, four-faction reactive scheduling.
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
+-- Scom 10.0.0: shared workforce, economy-sized production and coherent attack forces.
 -- No template edits, resource grants, visibility changes, or permission bypasses.
 -- Economy totals.income/request are per tick; totals.balance is already per second.
 -- All production still goes through the game's CanBuild and AddToBuildQueue.
-Version = "9.0.25-rc30"
+Version = "10.0.0"
 
 local Balance = Import("AI/mods/AI-Scom/RushBalance.lua")
 local Pressure = Import("AI/mods/AI-Scom/RushPressure.lua")
+local Adaptive = Import("AI/mods/AI-Scom/RushAdaptive.lua")
+local Strategy = Import("AI/mods/AI-Scom/RushStrategy.lua")
+local Diagnostics = Import("AI/mods/AI-Scom/RushDiagnostics.lua")
+local DiagnosticMonitor = Import("AI/mods/AI-Scom/RushDiagnosticsMonitor.lua")
 local Bombers = Import("AI/mods/AI-Scom/RushBomberHarassment.lua")
 local AirDefense = Import("AI/mods/AI-Scom/RushAirDefense.lua")
 local Combat = Import("AI/mods/AI-Scom/RushCombat.lua")
 local Frontline = Import("AI/mods/AI-Scom/RushFrontline.lua")
 local CombatPolicy = Import("AI/mods/AI-Scom/RushCombatPolicy.lua")
+local Intel = Import("AI/mods/AI-Scom/RushCombatIntel.lua")
 local AF = Import("AI/AIFunctions.lua")
 local MG = Import("AI/AIMarkerGenerator.lua")
 local TM = Import("AI/AITargetManager.lua")
@@ -32,13 +38,16 @@ local Reliability = Import("AI/mods/AI-Scom/RushReliability.lua")
 local Layout = Import("AI/mods/AI-Scom/RushBaseLayout.lua")
 local NavalConstruction = Import("AI/mods/AI-Scom/RushNavalConstruction.lua")
 local NavalCombat = Import("AI/mods/AI-Scom/RushNavalCombat.lua")
+local FireSupport = Import("AI/mods/AI-Scom/RushFireSupport.lua")
 local Movement = Import("AI/mods/AI-Scom/RushMovement.lua")
 local Health = Import("AI/mods/AI-Scom/RushProductionHealth.lua")
+local Handoff = Import("AI/mods/AI-Scom/RushFactoryHandoff.lua")
 local AdoptBase, EnsureSupervisor
 local Orders = Import("host/managers/orders/hostOrderManager.lua")
 local ERROR_RETRY = 20
 local SENSE_SECONDS = 1
-local STRATEGY_SECONDS = 2
+local STRATEGY_SECONDS = 1
+local THREAT_SECONDS = 0.5
 
 local function Now() return GetGameTimeSeconds() end
 local function TickRate() return (Constants and Constants.TickRate) or 10 end
@@ -66,7 +75,7 @@ end
 local function RegisteredProduction(factory)
     local target=factory.unitBeingBuilt
     if factory.productionBehaviorIsActive and OwnUnit(factory.army,target) and not target:IsCompleted()
-        and not Reliability.UpgradeTarget(factory) and not factory:GetPause() then
+        and not Reliability.UpgradeTarget(factory) and not RushUnitState.IsPaused(factory) then
         return Balance.RegisteredBuildRates(factory)
     end
     return 0,0
@@ -115,6 +124,8 @@ end
 local function Report(army, key, message)
     local state, now = State(army), Now()
     state.failedChecks = state.failedChecks + 1
+    Diagnostics.Count(army,"errors",key,message)
+    Diagnostics.Event(army,"error",{where=key,error=message},"error:"..key,30)
     if not state.errors[key] or now - state.errors[key] >= 30 then
         state.errors[key] = now
         Log("[RushV9] army=" .. tostring(army.id) .. " " .. key .. ": " .. tostring(message), true)
@@ -244,6 +255,25 @@ local function Roster(factionTag)
         factionRosters[factionTag] = roster
     end
     return roster
+end
+
+-- At queue index 1 the native CanBuild reads only the current construction
+-- expression, never a future upgrade. Filter that menu's faction roster in its
+-- original order, so unavailable tiers/domains never enter policy scoring.
+-- Native CanBuild is still called for every selected candidate and queue edit.
+local function FactoryRoster(factory)
+    local roster=Roster(factory.factionTag)
+    local construction=factory.tp and factory.tp.construction
+    if not construction or not construction.canBuild or type(ParseTagsFromString)~="function" then return roster end
+    local ok,menu=pcall(ParseTagsFromString,construction.canBuild)
+    if not ok or type(menu)~="table" then return roster end
+    -- The Seraphim compatibility refresh edits native parsed menus in place.
+    -- Read membership live rather than caching a filtered list by table identity.
+    local filtered={}
+    for _,entry in ipairs(roster) do
+        if menu[entry.id] then filtered[#filtered+1]=entry end
+    end
+    return filtered
 end
 
 -- Removes only demonstrably abandoned reservations. Travelling builders and live queues keep theirs.
@@ -383,7 +413,7 @@ local function CensusView(snapshot,c)
     for _,key in ipairs({"factories","completeFactories","landFactories","airFactories","navalFactories",
         "engineersComplete","engineersQueued","engineersIdle","idleEngineersByBase","idleEngineerBases","extractors","groundReady",
         "idleFactoriesByDomain","development","powerComplete","powerPending","factoryPending",
-        "balanceEngineers","engineersByTier","landFactoryTiers","actualBombers","amphibiousNaval"}) do view[key]=c[key] end
+        "balanceEngineers","engineersByTier","landFactoryTiers","factoryThroughput","actualBombers","amphibiousNaval"}) do view[key]=c[key] end
     view.globalFactories=snapshot.globalFactories or snapshot.factories
     view.globalSnapshot=snapshot.globalSnapshot or snapshot
     view.advancedCapacity={};view.techGroundStrength=nil
@@ -423,16 +453,82 @@ function SnapshotForFactory(army,snapshot,factory)
     return SupportView(snapshot)
 end
 
+local function RefreshThreats(army,snapshot)
+    local switches = army.ai.strategySwitches or {}
+    local function flag(name)
+        if type(TM.getTargetManagerStrategyFlag) == "function" then
+            local ok, result = Call(army, "sense " .. name, TM.getTargetManagerStrategyFlag, army.id, name)
+            if ok then return result == true end
+        end
+        return switches[name] == true
+    end
+    snapshot.landPanic = flag("EnemyInLandPanicZone")
+    snapshot.airPanic = flag("EnemyInAirPanicZone")
+    snapshot.navalPanic = flag("EnemyInNavalPanicZone")
+    snapshot.airThreat = snapshot.airPanic or flag("EnemyInAirMilitaryZone") or flag("EnemyHasAirAttackUnits")
+    snapshot.navalThreat = snapshot.navalPanic or flag("EnemyHasNavalAttackUnits")
+    snapshot.landPressure = snapshot.landPanic or flag("EnemyInLandMilitaryZone")
+    snapshot.localLandThreat = snapshot.landDisconnected and snapshot.landPanic
+        and Pressure.LocalLandThreat(army) or false
+    -- Publish only the same target-manager flags used by the stock strategy brain.
+    switches.EnemyInLandPanicZone = snapshot.landPanic
+    switches.EnemyInAirPanicZone = snapshot.airPanic
+    switches.EnemyInNavalPanicZone = snapshot.navalPanic
+    -- Local observation can react before the periodic native strategy flags.
+    -- Keep that evidence private; do not manufacture target-manager flags.
+    local alarm=Frontline.MainAlarm(army)
+    snapshot.mainRaid=alarm.localRaid==true
+    snapshot.mainBombardment=alarm.bombardment==true
+    if snapshot.mainRaid then
+        snapshot.landPanic=true;snapshot.landPressure=true
+        if snapshot.landDisconnected and alarm.landRaid then snapshot.localLandThreat=true end
+    end
+    snapshot.enemyComposition=Intel.Composition(army)
+    AirDefense.Observe(army,snapshot)
+    snapshot.threatTime=Now()
+    Adaptive.Update(army,snapshot)
+    local strategy=Strategy.Update(army,snapshot)
+    local adaptive=snapshot.adaptive
+    if strategy and adaptive then
+        -- Legacy tactical consumers share the new decisions. Broad map-zone
+        -- alerts cannot secretly restore the old army/tech waiting thresholds.
+        adaptive.mode=(strategy.mode=="defend" or strategy.mode=="recover" or strategy.mode=="pressure")
+            and strategy.mode or "develop"
+        adaptive.groundFloor=strategy.groundFloor
+        adaptive.militaryGoal=strategy.militaryGoal
+        adaptive.techGroundMinimum=strategy.techGroundMinimum
+        adaptive.raiderShare=strategy.raiderShare
+        adaptive.landScouts=strategy.scoutGoal;adaptive.airScouts=strategy.airScoutGoal
+        adaptive.raidGroundMinimum=math.max(8,strategy.groundCore+2)
+        adaptive.raidGroups=strategy.homeGround and 0 or snapshot.landDisconnected and 0
+            or math.min(4,math.max(1,(adaptive.topology.enemyCount or 1)+1))
+        adaptive.raidShare=strategy.mode=="recover" and 0.15 or strategy.mode=="pressure" and 0.35 or 0.25
+        adaptive.engineerBias=0
+        adaptive.combatBias=strategy.homeGround and 45 or strategy.mode=="recover" and 25 or 0
+    end
+    -- Beachhead views inherit fresh threat facts when reconstructed below.
+    snapshot.rushFactoryView=nil
+    snapshot.mainShieldPowerNeed=Layout.EmergencyShieldPowerNeed(army,snapshot)
+end
+
 function Snapshot(army, force)
     local state, now = State(army), Now()
     if not force and state.snapshot and now >= state.snapshot.time
-        and now - state.snapshot.time < SENSE_SECONDS then return state.snapshot end
+        and now - state.snapshot.time < SENSE_SECONDS then
+        -- Tactical production decisions need fresh alarms, not another census
+        -- of every owned unit, queue and reservation twice as often.
+        if not state.snapshot.threatTime or now-state.snapshot.threatTime>=THREAT_SECONDS then
+            RefreshThreats(army,state.snapshot)
+        end
+        return state.snapshot
+    end
     local alloy, energy = Balance.Resources(army)
     state.snapshotSerial=(state.snapshotSerial or 0)+1
     local snapshot = { time = now, serial=state.snapshotSerial, roles = {}, completeRoles = {}, completeTiers = {}, tiers = {}, bomberTiers = {}, actualBombers = 0,
         advancedCapacity = {}, beachheadBases = {},
-        factories = {}, factoryFunding = {}, idleFactories = 0,
-        groundReady = 0, engineersComplete = 0, engineersQueued = 0, landProductionActive = 0,
+        fireSupportUnits = {}, factories = {}, factoryFunding = {}, idleFactories = 0,
+        groundReady = 0, groundThreat = 0, engineersComplete = 0, engineersQueued = 0, landProductionActive = 0,
+        homeBuildersComplete=0,homeBuildersQueued=0,expansionBuilders=0,reclaimBuilders=0,expansionWorkers={},
         completeFactories = 0, landFactories = 0, airFactories = 0, navalFactories = 0,
         idleFactoriesByDomain = {land=0,air=0,naval=0},
         unassignedFactories = 0, pausedFactories = 0,
@@ -451,10 +547,12 @@ function Snapshot(army, force)
     for _, unit in pairs(army.units or {}) do
         if OwnUnit(army, unit) then
             seenTargets[unit] = true
+            if FireSupport.Kind(unit.tp) then snapshot.fireSupportUnits[#snapshot.fireSupportUnits+1]=unit end
             Reliability.ReconcileUpgrade(unit)
             Balance.ObserveUnit(snapshot, unit)
             Development.ObserveUnit(snapshot, unit)
             Layout.ObserveDefenseAsset(snapshot, unit)
+            Expansion.ObserveWorkforce(snapshot,army,unit)
             local idleBase,idleBaseData=Expansion.IdleEngineerBase(army,unit)
             -- A proven recruit in the return-radius fringe is still local
             -- construction power for its own beach, never for the home base.
@@ -467,6 +565,16 @@ function Snapshot(army, force)
                     snapshot.completeRoles[role]=(snapshot.completeRoles[role] or 0)+1
                     local key=role..":"..Tier(unit.tp)
                     snapshot.completeTiers[key]=(snapshot.completeTiers[key] or 0)+1
+                    if role=="frontline" or role=="raider" or role=="artillery" then
+                        snapshot.groundThreat=snapshot.groundThreat+math.max(0,AF.GetUnitThreatValueByLayer(unit,"Land",false) or 0)
+                    end
+                end
+            end
+            if not Complete(unit) and Roles(unit.tp)=="engineer" then
+                local main=army.ai.bases.MAIN
+                local pos=unit:GetPosition()
+                if unit.assignedToBase=="MAIN" or main and pos and (pos.x-main.position.x)^2+(pos.z-main.position.z)^2<=main.radius^2 then
+                    snapshot.homeBuildersQueued=snapshot.homeBuildersQueued+1
                 end
             end
             if Has(unit.tp, "MOBILE") or Has(unit.tp, "SCFA_MOBILE") then snapshot.mobileCount = snapshot.mobileCount + 1 end
@@ -478,6 +586,7 @@ function Snapshot(army, force)
             local kind = FactoryKind(unit)
             if kind then
                 if Complete(unit) then
+                    if kind=="land" then Handoff.WatchFactory(army,unit) end
                     snapshot.completeFactories = snapshot.completeFactories + 1
                     snapshot[kind .. "Factories"] = snapshot[kind .. "Factories"] + 1
                     snapshot.factories[#snapshot.factories + 1] = unit
@@ -485,7 +594,7 @@ function Snapshot(army, force)
                     if not unit.assignedToBase or not army.ai.bases[unit.assignedToBase] then
                         snapshot.unassignedFactories = snapshot.unassignedFactories + 1
                     end
-                    if unit.GetPause and unit:GetPause() then snapshot.pausedFactories = snapshot.pausedFactories + 1 end
+                    if RushUnitState.IsPaused(unit) then snapshot.pausedFactories = snapshot.pausedFactories + 1 end
                     if not unit.platoon and not Working(unit) and not OrderPresent(unit) then
                         snapshot.idleFactories = snapshot.idleFactories + 1
                         snapshot.idleFactoriesByDomain[kind] = snapshot.idleFactoriesByDomain[kind] + 1
@@ -516,7 +625,10 @@ function Snapshot(army, force)
             if i == 1 and target and seenTargets[target] and not target:IsCompleted()
                 and target.tpId == item.tpId then count = math.max(0, count - 1) end
             if count > 0 then
-                AddCount(snapshot,Template(item.tpId),count,roleMetadata)
+                local queuedRole=AddCount(snapshot,Template(item.tpId),count,roleMetadata)
+                if queuedRole=="engineer" and factory.assignedToBase=="MAIN" then
+                    snapshot.homeBuildersQueued=snapshot.homeBuildersQueued+count
+                end
                 local beach=LocalCensusForUnit(snapshot,factory)
                 if beach then AddCount(beach,Template(item.tpId),count,roleMetadata) end
             end
@@ -527,7 +639,10 @@ function Snapshot(army, force)
         if not OwnUnit(army, unit) or unit ~= pending.factory or now > pending.expires then
             state.pending[index] = nil
         elseif not Working(unit) then
-            AddCount(snapshot, Template(pending.id), 1, roleMetadata)
+            local pendingRole=AddCount(snapshot, Template(pending.id), 1, roleMetadata)
+            if pendingRole=="engineer" and unit.assignedToBase=="MAIN" then
+                snapshot.homeBuildersQueued=snapshot.homeBuildersQueued+1
+            end
             local beach=LocalCensusForUnit(snapshot,unit)
             if beach then AddCount(beach,Template(pending.id),1,roleMetadata) end
         end
@@ -571,40 +686,14 @@ function Snapshot(army, force)
     snapshot.groundReady=(snapshot.completeRoles.frontline or 0)+(snapshot.completeRoles.raider or 0)+(snapshot.completeRoles.artillery or 0)
     snapshot.engineersComplete=snapshot.completeRoles.engineer or 0
     snapshot.engineersQueued=math.max(0,(snapshot.roles.engineer or 0)-snapshot.engineersComplete)
-    local switches = army.ai.strategySwitches or {}
-    local function flag(name)
-        if type(TM.getTargetManagerStrategyFlag) == "function" then
-            local ok, result = Call(army, "sense " .. name, TM.getTargetManagerStrategyFlag, army.id, name)
-            if ok then return result == true end
-        end
-        return switches[name] == true
-    end
-    snapshot.landPanic = flag("EnemyInLandPanicZone")
-    snapshot.airPanic = flag("EnemyInAirPanicZone")
-    snapshot.navalPanic = flag("EnemyInNavalPanicZone")
-    snapshot.airThreat = snapshot.airPanic or flag("EnemyInAirMilitaryZone") or flag("EnemyHasAirAttackUnits")
-    snapshot.navalThreat = snapshot.navalPanic or flag("EnemyHasNavalAttackUnits")
-    snapshot.landPressure = snapshot.landPanic or flag("EnemyInLandMilitaryZone")
-    snapshot.localLandThreat = snapshot.landDisconnected and snapshot.landPanic
-        and Pressure.LocalLandThreat(army) or false
-    -- Publish only the same target-manager flags used by the stock strategy brain.
-    switches.EnemyInLandPanicZone = snapshot.landPanic
-    switches.EnemyInAirPanicZone = snapshot.airPanic
-    switches.EnemyInNavalPanicZone = snapshot.navalPanic
-    -- Local observation can react before the periodic native strategy flags.
-    -- Keep that evidence private; do not manufacture target-manager flags.
-    local alarm=Frontline.MainAlarm(army)
-    snapshot.mainRaid=alarm.localRaid==true
-    snapshot.mainBombardment=alarm.bombardment==true
-    if snapshot.mainRaid then
-        snapshot.landPanic=true;snapshot.landPressure=true
-        if snapshot.landDisconnected and alarm.landRaid then snapshot.localLandThreat=true end
-    end
-    snapshot.mainShieldPowerNeed=Layout.EmergencyShieldPowerNeed(army,snapshot)
-    snapshot.underCap = army:HasUnitCapSpace() and snapshot.mobileCount < 2000
+    Expansion.FinishWorkforce(snapshot)
+    RefreshThreats(army,snapshot)
+    -- Respect the configured native cap; a second fixed mobile limit silently
+    -- stopped this controller well below large-match settings. CanBuild and
+    -- the native production behavior still enforce every accepted order.
+    snapshot.underCap = army:HasUnitCapSpace()
     table.sort(snapshot.factories, function(a, b) return a.id.index < b.id.index end)
     Balance.FinishSnapshot(snapshot)
-    AirDefense.Observe(army,snapshot)
     state.snapshot = snapshot
     return snapshot
 end
@@ -645,7 +734,7 @@ local function AdvancedFactoryReady(army,factory,tier)
     return OwnUnit(army,factory) and Complete(factory) and Tier(factory.tp)>=tier
         and not factory.isSlaveFactory and not factory.CaptureInProgress and not factory.ReclaimInProgress
         and not Reliability.UpgradeTarget(factory) and not (factory.ai and factory.ai.rushUpgradeId)
-        and not (factory.GetPause and factory:GetPause()) and not OrderPresent(factory)
+        and not (RushUnitState.IsPaused(factory)) and not OrderPresent(factory)
 end
 local function AdvancedCombatCapacity(army,snapshot,tier)
     -- This is only a production handoff, so an actual usable native combat
@@ -659,7 +748,7 @@ local function AdvancedCombatCapacity(army,snapshot,tier)
     end
     for _,factory in ipairs(snapshot.factories or {}) do
         if FactoryKind(factory)=="land" and AdvancedFactoryReady(army,factory,tier) then
-            for _,entry in ipairs(Roster(factory.factionTag)) do
+            for _,entry in ipairs(FactoryRoster(factory)) do
                 if entry.tier>=tier and entry.tier<=3 and entry.role=="frontline"
                     and CanFactoryBuild(army,factory,entry.id) then
                     if cache then cache[tier]={factory=factory,id=entry.id} end
@@ -678,7 +767,11 @@ local function AssaultQueueAllowed(army,snapshot,entry)
     -- Retain cheap supporting lines after actual replacements reach the field.
     -- A technology lease never collapses the whole lower-tier army to one head;
     -- T1 orders also cannot consume the separate T2 allowance.
-    local limit=math.max(3,math.ceil((snapshot.landFactories or 0)*(entry.tier==1 and 0.50 or 0.65)))
+    -- A completed advanced screen does not retire the remaining factory bank.
+    -- Allow two paid orders per real factory at this tier; advanced dispatch
+    -- priority and CanFund still protect technology and shared resources.
+    local capacity=snapshot.landFactoryTiers and snapshot.landFactoryTiers[entry.tier] or 0
+    local limit=math.max(3,capacity*2)
     local queued=0
     for _,role in ipairs({"frontline","raider"}) do
         local key=role..":"..entry.tier
@@ -806,9 +899,10 @@ local function AdvancedCombatPriority(snapshot,kind,entry,priority)
     elseif kind=="air" and role=="fighter" then
         local strike=(r.bomber or 0)+(r.gunship or 0)
         if strike>=2 or snapshot.airThreat then
-            local goal=math.max(2,math.min(Balance.Config.FighterMinimum,math.ceil(strike*0.25)))
+            local counterGoal=AirDefense.FighterGoal(snapshot,tier)
+            local goal=math.max(counterGoal,2,math.min(Balance.Config.FighterMinimum,math.ceil(strike*0.25)))
             if TierCount(snapshot,role,tier)<goal then
-                score=snapshot.airRaid and 1040 or 780+tier*20
+                score=snapshot.airRaid and 1040 or TierCount(snapshot,role,tier)<counterGoal and 990 or 780+tier*20
                 critical=snapshot.airRaid or snapshot.airPanic
             end
         end
@@ -826,22 +920,33 @@ function RolePriority(army, snapshot, kind, engineersIdle)
     local engineers = roles.engineer or 0
     local pressure = snapshot.landPanic or snapshot.airPanic or snapshot.navalPanic
     local priorities = {}
+    local adaptive=snapshot.adaptive
+    local strategy=not snapshot.rushBeachheadBase and not snapshot.rushSupportCensus and snapshot.strategy
+    local minimumFront
     local function want(role, score, critical) priorities[role] = { score = score, critical = critical == true } end
     if kind == "land" then
-        local engineerGoal = math.min(60, math.max(6, math.ceil(snapshot.extractors * 0.65 + snapshot.completeFactories * 1.8)))
+        local engineerGoal = Expansion.WorkforceGoal(army,snapshot)
         local recoveryFloor = EconomyPolicy.EngineerFloor(snapshot)
         -- Rebuild a damaged economy even while emergency flags remain set.
         if engineers < recoveryFloor and engineersIdle < 2
             and (snapshot.engineersQueued or 0)==0 then want("engineer", 1000, true)
+        elseif Development.HomeWorkforceNeeded(snapshot,engineersIdle,army) then
+            -- Broad map pressure must not starve the small construction pool.
+            -- This is ordinary paid production: emergency recovery keeps its
+            -- separate permission, and queued engineers satisfy this request.
+            want("engineer", 940)
         elseif engineers < engineerGoal and engineersIdle < 3
             and not EconomyPolicy.AlloyStalled(snapshot)
             and (snapshot.landDisconnected or front >= math.max(2, (engineers - 3)))
-            and (snapshot.engineersQueued or 0)==0 then want("engineer", 720) end
+            and (snapshot.engineersQueued or 0)==0 then want("engineer", 720+(adaptive and adaptive.engineerBias or 0)) end
         -- Tier advancement requires actual tier-appropriate construction power.
-        local minimumFront = math.min(24,math.max(6,snapshot.landFactories*3))
+        minimumFront = math.min(24,math.max(6,snapshot.landFactories*3))
+        if adaptive and not snapshot.rushBeachheadBase and not snapshot.rushSupportCensus then
+            minimumFront=adaptive.militaryGoal
+        end
         local strongFront = front >= minimumFront
         local recoveringFront=EconomyPolicy.GroundReady(snapshot)<EconomyPolicy.GroundFloor(snapshot)
-        if (snapshot.landDisconnected or front >= 4 and (strongFront or not snapshot.landPanic))
+        if (snapshot.landDisconnected or front >= 4 and (strongFront or not (snapshot.mainRaid or snapshot.localLandThreat)))
             and EconomyPolicy.CanStartTech(army,snapshot) then
             priorities.advancedEngineer = { score = strongFront and 840 or 650, critical = engineers < recoveryFloor }
         end
@@ -850,9 +955,9 @@ function RolePriority(army, snapshot, kind, engineersIdle)
         local tankDeficit = (army.faction==1 or army.faction==3) and (roles.frontline or 0)<math.max(3,math.ceil(front*0.65))
         local combatRecovery = front<minimumFront and (engineers>=2 or (snapshot.engineersQueued or 0)>0)
         want("frontline", combatRecovery and 880 or tankDeficit and 735 or 500,
-            recoveringFront or snapshot.landPanic)
+            recoveringFront or snapshot.mainRaid or snapshot.localLandThreat)
         -- Light raiders complement, rather than replace, the sustained combat line.
-        local raiderGoal = math.max(1, math.floor(front * 0.25))
+        local raiderGoal = strategy and strategy.raiderGoal or math.max(1, math.floor(front * (adaptive and adaptive.raiderShare or 0.25)))
         local raiderScore
         if army.faction==1 then
             raiderScore = combatRecovery and 875 or (roles.raider or 0)<raiderGoal and 515 or 470
@@ -862,14 +967,28 @@ function RolePriority(army, snapshot, kind, engineersIdle)
             raiderScore = combatRecovery and 875 or (roles.raider or 0)<raiderGoal and 515 or 470
         end
         want("raider", raiderScore,
-            recoveringFront or snapshot.landPanic)
-        if (roles.landScout or 0) < 1 and engineers >= 2 and front >= 1 and not pressure then want("landScout", 800) end
+            recoveringFront or snapshot.mainRaid or snapshot.localLandThreat)
+        if (roles.landScout or 0) < (strategy and strategy.scoutGoal or adaptive and adaptive.landScouts or 1) and engineers >= 2 and front >= 2 and not (snapshot.mainRaid or snapshot.localLandThreat) then
+            -- Acquire information before filling the entire adaptive army goal.
+            -- Existing/queued scouts satisfy this finite demand; emergency
+            -- defenders and native resource reservations still take precedence.
+            want("landScout", adaptive and 915 or 800)
+        end
         local aaGoal = snapshot.airThreat and math.max(2, math.ceil(front * 0.22)) or math.floor(front * 0.12)
+        if strategy then aaGoal=strategy.mobileAAGoal end
         if snapshot.airPanic then aaGoal = math.max(3, aaGoal) end
         if (roles.mobileAA or 0) < aaGoal then want("mobileAA", snapshot.airPanic and 960 or 680, snapshot.airPanic) end
-        local siege = army.ai.rushCombat and Now() < (army.ai.rushCombat.siegeUntil or 0)
+        local composition=snapshot.enemyComposition or {}
+        local fortified=(composition.landDefenseCount or 0)>=3
+            and (composition.landDefenseThreat or 0)>=math.max(1,composition.landMobileThreat or 0)*0.60
+        local siege = fortified or army.ai.rushCombat and Now() < (army.ai.rushCombat.siegeUntil or 0)
         local artilleryGoal = front >= 4 and math.max(1, math.floor(front * (siege and 0.30 or 0.18))) or 0
-        if (roles.artillery or 0) < artilleryGoal then want("artillery", siege and 740 or 640) end
+        if strategy then artilleryGoal=strategy.artilleryGoal end
+        if (roles.artillery or 0) < artilleryGoal then
+            -- Prepare a paid siege component before spending a wave learning
+            -- that an already-observed defensive wall cannot be rushed.
+            want("artillery", fortified and 910 or siege and 740 or 640)
+        end
         if Frontline.Active(army) and front>=8 then
             -- An observed wall calls for a real paid counter, not another batch
             -- of cheap direct-fire units that make the same failed approach.
@@ -883,14 +1002,15 @@ function RolePriority(army, snapshot, kind, engineersIdle)
         local ground = (roles.bomber or 0) + (roles.gunship or 0)
         local factories=snapshot.development and snapshot.development.factory or {}
         local mature=(factories.air2 or 0)+(factories.air3 or 0)>0
-        local observed=snapshot.airCombatCount or 0
-        local counterGoal=observed>0 and math.min(24,math.ceil(observed*1.25)) or 0
+        local counterGoal=AirDefense.FighterGoal(snapshot)
         local fighterGoal=math.max(Balance.Config.OpeningFighters,math.ceil(ground*0.25),counterGoal,
             snapshot.airRaid and (snapshot.airRaidFighters or 0) or 0,
             mature and Balance.Config.FighterMinimum or 0)
         local fighters=roles.fighter or 0
         local localCombat=snapshot.airPanic and (snapshot.localAirCombatCount or 0)>0
-        if (roles.airScout or 0)<1 and not pressure then want("airScout",780) end
+        if (roles.airScout or 0)<(strategy and strategy.airScoutGoal or adaptive and adaptive.airScouts or 1) and not (snapshot.airRaid or snapshot.airPanic) then
+            want("airScout",adaptive and 950 or 780)
+        end
         if fighters<fighterGoal then
             -- Establish a small usable screen, then launch strike aircraft.
             -- Mature coverage still reaches the six-fighter T3 safety gate.
@@ -926,6 +1046,23 @@ function RolePriority(army, snapshot, kind, engineersIdle)
         -- a lower-tier version; advanced surface production cannot bury it.
         if snapshot.airThreat and (roles.navalAA or 0) < math.max(1, math.ceil(ships / 4)) then want("navalAA", 945, snapshot.airPanic) end
     end
+    if kind=="land" and adaptive and priorities.frontline and front<minimumFront then
+        local ceiling=980
+        if snapshot.airPanic and priorities.mobileAA then ceiling=math.min(ceiling,priorities.mobileAA.score-1) end
+        if not snapshot.landPanic and priorities.artillery and priorities.artillery.score>=900 then
+            ceiling=math.min(ceiling,priorities.artillery.score-1)
+        end
+        -- Recovering the main force cannot bury a required AA or siege counter.
+        priorities.frontline.score=math.min(ceiling,priorities.frontline.score+adaptive.combatBias)
+    end
+    for role,request in pairs(priorities) do
+        if role~="engineer" and role~="advancedEngineer" then
+            local bias=Strategy.RoleBias(army,snapshot,role)
+            if request.critical then request.score=request.score+math.max(0,bias)
+            elseif kind=="land" then request.score=math.min(935,request.score+bias)
+            else request.score=request.score+bias end
+        end
+    end
     return priorities
 end
 
@@ -940,12 +1077,17 @@ function CanFactoryBuild(army, factory, id)
 end
 
 function SelectProduct(army, factory, snapshot, production)
+    local function blocked(reason,product)
+        if Diagnostics.Config and Diagnostics.Config.Enabled==false then return nil end
+        Diagnostics.Count(army,"production_gate",reason,"factory="..tostring(factory and factory.id and factory.id.index).." product="..tostring(product))
+        return nil
+    end
     local continuing=production and ProductionCurrent(production)
     if not OwnUnit(army, factory) or not Complete(factory)
         or not continuing and (factory.platoon or Working(factory) or State(army).pending[factory.id.index])
         or production and not continuing or Reliability.UpgradeTarget(factory) or factory.isSlaveFactory
         or OrderPresent(factory) or factory.CaptureInProgress or factory.ReclaimInProgress
-        or not snapshot.underCap then return nil end
+        or not snapshot.underCap then return blocked(not snapshot.underCap and "unit-cap" or "ownership-or-orders") end
     local kind = FactoryKind(factory)
     if not kind then return nil end
     local localCombat=kind=="land" and SnapshotForFactory(army,snapshot,factory)
@@ -954,10 +1096,10 @@ function SelectProduct(army, factory, snapshot, production)
     local layerEnabled=localCombat and localCombat.rushBeachheadBase~=nil
         or not layers or layers[kind=="naval" and "water" or kind]==true
     local supportLand=kind=="land" and snapshot.landDisconnected
-    if not layerEnabled and not supportLand then return nil end
+    if not layerEnabled and not supportLand then return blocked("layer-disabled") end
     local lease=Development.TechCommitment(army)
-    if lease and lease.unit==factory then return nil end
-    if factory.GetPause and factory:GetPause() then return nil end
+    if lease and lease.unit==factory then return blocked("tech-lease") end
+    if RushUnitState.IsPaused(factory) then return blocked("paused") end
     local engineer
     if not EconomyPolicy.AlloyStalled(snapshot) and not EconomyPolicy.NeedsGroundRecovery(army,combatSnapshot)
         and (not localCombat or not localCombat.rushBeachheadBase
@@ -971,7 +1113,7 @@ function SelectProduct(army, factory, snapshot, production)
         return engineer, "engineer",850,false
     end
     local priorities = RolePriority(army,combatSnapshot,kind,FactoryIdleEngineers(combatSnapshot,factory))
-    local roster = Roster(factory.factionTag)
+    local roster = FactoryRoster(factory)
     do
         local bootstrap,bootstrapTier,bootstrapDuration=nil,0,math.huge
         for _,entry in ipairs(roster) do
@@ -1032,10 +1174,15 @@ function SelectProduct(army, factory, snapshot, production)
                 < (entry.tier == 3 and math.min(6, 2 + math.floor(snapshot.completeFactories / 6)) or 3) then
             priority = priorities.advancedEngineer
         end
-        if priority and priority.score >= bestScore
-            and (kind~="land" or AssaultQueueAllowed(army,combatSnapshot,entry))
-            and CanFactoryBuild(army,factory,entry.id)
-            and CanFund(snapshot,factory,entry.id,priority.critical,lease,localCombat) then
+        local eligible=priority and priority.score>=bestScore
+        if eligible and kind=="land" and not AssaultQueueAllowed(army,combatSnapshot,entry) then
+            blocked("assault-quota",entry.id);eligible=false
+        end
+        if eligible and not CanFactoryBuild(army,factory,entry.id) then blocked("not-buildable",entry.id);eligible=false end
+        if eligible and not CanFund(snapshot,factory,entry.id,priority.critical,lease,localCombat) then
+            blocked("funding",entry.id);eligible=false
+        end
+        if eligible then
             local _, _, duration = ProductionRates(factory, entry.id)
             if priority.score > bestScore or entry.tier > bestTier
                 or (entry.tier == bestTier and duration < bestDuration)
@@ -1045,6 +1192,7 @@ function SelectProduct(army, factory, snapshot, production)
             end
         end
     end
+    if not selected then blocked("no-eligible-product") end
     return selected and selected.id, selected and selected.role, bestScore, bestCritical
 end
 
@@ -1076,7 +1224,10 @@ local function OwnedProductionQueue(record)
 end
 
 local function QueueCount(snapshot,id,delta,factory)
-    AddCount(snapshot,Template(id),delta,{})
+    local role=AddCount(snapshot,Template(id),delta,{})
+    if role=="engineer" and factory and factory.assignedToBase=="MAIN" then
+        snapshot.homeBuildersQueued=math.max(0,(snapshot.homeBuildersQueued or 0)+delta)
+    end
     snapshot.engineersQueued=math.max(0,(snapshot.roles.engineer or 0)-snapshot.engineersComplete)
     local localCombat=snapshot.rushFactoryView
         or factory and LocalCensusForUnit(snapshot,factory)
@@ -1172,7 +1323,7 @@ local function ProductionView(record,snapshot)
     -- stay in every role goal, including fighter, engineer and bomber tiers.
     for i=2,#record.queue do
         local item=record.queue[i]
-        QueueCount(view,item.tpId,-#item.entryIds)
+        QueueCount(view,item.tpId,-#item.entryIds,record.factory)
     end
     return view
 end
@@ -1203,7 +1354,9 @@ end
 local function AppendProduction(record,id,role,snapshot)
     local factory,army=record.factory,record.army
     local count=OwnedProductionQueue(record)
-    if not count or count>=3 or not CanFactoryBuild(army,factory,id) then return false end
+    if not count or count>=3 or not CanFactoryBuild(army,factory,id) then
+        Diagnostics.Count(army,"queue_gate","ownership-cap-or-buildability",id);return false
+    end
     local last=record.queue[#record.queue]
     -- Repeats merge into the protected head in the native engine. Refill a
     -- homogeneous line at completion during roll-off instead of locking an
@@ -1214,12 +1367,19 @@ local function AppendProduction(record,id,role,snapshot)
     record.entries[entries[1]]=id
     buildQueueUtils.AddToBuildQueue(factory,id,entries)
     local after=OwnedProductionQueue(record)
-    if not after or not record.entries[entries[1]] then return false end
+    if not after or not record.entries[entries[1]] then
+        Diagnostics.Count(army,"queue_gate","native-queue-rejected",id);return false
+    end
     QueueCount(snapshot,id,1,record.factory)
-    if not QueueBudget(record,snapshot) then return false end
+    if not QueueBudget(record,snapshot) then
+        Diagnostics.Count(army,"queue_gate","reservation-failed",id);return false
+    end
     local state=State(army)
     state.submitted=state.submitted+1
     state.productionByRole[role]=(state.productionByRole[role] or 0)+1
+    Diagnostics.Event(army,"production_queued",{factory=factory.id.index,base=factory.assignedToBase,
+        product=id,role=role,queue=after,alloyIncome=snapshot.alloy and snapshot.alloy.income,
+        alloyReserved=snapshot.alloy and snapshot.alloy.reserved})
     return true
 end
 
@@ -1242,7 +1402,7 @@ local function RefillProduction(record,snapshot)
         local id,role=SelectProduct(record.army,factory,view,record)
         if not id or id==last then break end
         desired[#desired+1]={id=id,role=role}
-        QueueCount(view,id,1)
+        QueueCount(view,id,1,record.factory)
         last=id
     end
     local keep=head and 1 or 0
@@ -1295,7 +1455,7 @@ function PlanProduction(platoon, armyIndex, baseName, former)
                 or OrderPresent(factory) or Reliability.UpgradeTarget(factory) then break end
             local count=OwnedProductionQueue(record)
             if not count then break end
-            if not factory:GetPause() then
+            if not RushUnitState.IsPaused(factory) then
                 local snapshot=Snapshot(army)
                 if record.snapshotSerial~=snapshot.serial or record.head~=record.queue[1] or count==0 then
                     if not RefillProduction(record,snapshot) then break end
@@ -1427,7 +1587,7 @@ local function CheckConditions(army, baseName, conditions, key)
         local ok, result = Call(army, key .. "/" .. tostring(condition[1]), fn, army.id, baseName, unpackArgs(condition[2] or {}))
         if not BaseAlive(army,baseName,base) then return false,false end
         if not ok then return false, true end
-        if not result then return false, false end
+        if not result then Diagnostics.Count(army,"condition",tostring(condition[1]),key);return false, false end
     end
     return true, false
 end
@@ -1435,7 +1595,8 @@ end
 function ActiveStrategies(army)
     if not BaseAlive(army,"MAIN") then return {} end
     local state, now = State(army), Now()
-    if state.strategies and now - (state.strategiesAt or -100) < STRATEGY_SECONDS then return state.strategies end
+    if state.strategies and now >= (state.strategiesAt or -100)
+        and now - (state.strategiesAt or -100) < STRATEGY_SECONDS then return state.strategies end
     local result = {}
     for _, strategy in pairs(army.ai.strategypool or {}) do
         if not BaseAlive(army,"MAIN") then return {} end
@@ -1502,14 +1663,17 @@ local function IsPowerFormer(former)
     return found
 end
 
-local function CommanderOwnerReady(army,snapshot,baseName)
+function CommanderOwnerReady(army,snapshot,baseName)
     local main=army.ai.bases and army.ai.bases.MAIN
     if baseName~="MAIN" or not main or not main.position
         or (snapshot.completeFactories or 0)<1 or (snapshot.extractors or 0)<1 then return false end
     local radius=(main.radius or 60)+50
-    for _,builder in ipairs(snapshot.balanceEngineers or {}) do
+    -- balanceEngineers contains only idle builders. A working home engineer
+    -- already covers infrastructure and must not keep the commander unowned.
+    for _,builder in pairs(army.units or {}) do
         if OwnUnit(army,builder) and Complete(builder) and builder.assignedToBase=="MAIN"
-            and not Has(builder.tp,"COMMAND") and not builder.CaptureInProgress and not builder.ReclaimInProgress
+            and Has(builder.tp,"ENGINEER") and not Has(builder.tp,"COMMAND")
+            and not builder.CaptureInProgress and not builder.ReclaimInProgress
             and not (builder.toggles and builder.toggles.Pause)
             and builder.construction and Finite(builder.construction.buildPower) and builder.construction.buildPower>0
             and Finite(builder.construction.range) and builder.construction.range>0
@@ -1522,6 +1686,8 @@ local function CommanderOwnerReady(army,snapshot,baseName)
 end
 
 function PolicyAllowsFormer(army, former, snapshot, baseName)
+    if former.RushSupportCap and Combat.ReserveRaidSeed(army,snapshot) then return false end
+    if former.RushFireSupport and not FireSupport.Priority(army,snapshot,baseName,former.RushFireSupport) then return false end
     if former.RushCommanderOwner and not CommanderOwnerReady(army,snapshot,baseName) then return false end
     local shore=Beachhead.BaseConnected(army,baseName)
     local localView=shore and SnapshotForBase(army,snapshot,baseName)
@@ -1580,7 +1746,11 @@ function PolicyAllowsFormer(army, former, snapshot, baseName)
     end
     if (former.RushRaider or former.FormerName=="F123 Land Alloy Hunter")
         and not Balance.CanDispatchRaid(army,snapshot) then return false end
-    if former.RushPersistentExpansion and not Expansion.Needed(army,snapshot) then return false end
+    if former.AIPlan=="planEngineerCapAlloySpot" then
+        local localRecovery=(former.AIPlanData and former.AIPlanData.SearchOuterRing or math.huge)<=30
+            and (snapshot.extractors or 0)<4
+        if not localRecovery and not Expansion.Needed(army,snapshot) then return false end
+    elseif former.AIPlan=="planReclaimMap" and not Expansion.ReclaimAllowed(army,snapshot) then return false end
     if former.RushTechProject then
         if not Development.CanStartFactoryTech(army,snapshot,former.RushUpgradeDomain,
             former.RushUpgradeTier,former.RushUpgradeRollout==true) then return false end
@@ -1592,12 +1762,22 @@ function PolicyAllowsFormer(army, former, snapshot, baseName)
     local factoryDomain,powerTier=Balance.FormerKind(former)
     local firstPower=powerTier and powerTier==Balance.FirstPowerTier(snapshot)
     local powerFormer=IsPowerFormer(former)
-    if powerFormer and not EconomyPolicy.NeedsPower(snapshot)
-        and not Development.NeedsTechPower(army,snapshot) then return false end
-    if firstPower and (snapshot.powerPending and snapshot.powerPending[powerTier] or 0)>0 then return false end
+    local powerProjects
+    if powerFormer then
+        local techPower,techHeadroom=Development.NeedsTechPower(army,snapshot)
+        if not EconomyPolicy.NeedsPower(snapshot) and not techPower then return false end
+        powerProjects=EconomyPolicy.PowerProjects(army,snapshot)
+        if EconomyPolicy.PowerProjectsCover(army,snapshot,
+            EconomyPolicy.PowerPlanningHeadroom(snapshot,techHeadroom,powerTier),powerTier,powerProjects) then return false end
+    end
+    if firstPower and EconomyPolicy.PowerProjectCount(army,snapshot,powerTier,powerProjects)>0 then return false end
     local factoryBuild = factoryDomain ~= nil and not former.RushBeachhead
     local capacityView=localView or factoryDomain=="land" and SupportView(snapshot) or snapshot
     if factoryBuild then
+        if (snapshot.landFactories or 0)==0 and factoryDomain~="land"
+            and (not army.ai.settings.useLayer or army.ai.settings.useLayer.land~=false) then return false end
+        if baseName~="MAIN" and (factoryDomain=="land" or factoryDomain=="air")
+            and EconomyPolicy.OpeningCapacityNeeded(army,snapshot) then return false end
         if factoryDomain=="land" and snapshot.landDisconnected and not shore then
             local homeCapacity=snapshot.landFactories+(snapshot.factoryPending.land or 0)
             for _,c in pairs(snapshot.beachheadBases or {}) do
@@ -1630,7 +1810,8 @@ function PolicyAllowsFormer(army, former, snapshot, baseName)
         if cap and primary:GetNumOfUnits() >= cap then return false end
     end
     if former.RushNeedsGroundDamage then
-        local ready, required = 0, (former.RushIdleSweep or former.RushMainDefense) and 1 or 2
+        local ready, required = 0, former.RushMainDefense and 1
+            or former.RushAssembleCore and math.max(6,Strategy.LandCoreGoal(localView or snapshot)) or 2
         local state = State(army)
         state.combatIdleSince = state.combatIdleSince or setmetatable({}, {__mode="k"})
         -- Build this roster once per one-second controller snapshot, not once
@@ -1673,7 +1854,7 @@ function PolicyAllowsFormer(army, former, snapshot, baseName)
         local idle = capacityView.idleFactoriesByDomain[factoryDomain] or 0
         if count>0 and idle>math.max(1,count*0.30) then return false end
     end
-    if powerFormer and snapshot.powerBuilding >= 6 then return false end
+    if powerFormer and EconomyPolicy.PowerProjectCount(army,snapshot,nil,powerProjects)>=6 then return false end
     if recovering and former.InvestmentType and not powerFormer
         and former.AIPlan ~= "planEngineerCapAlloySpot" and former.AIPlan ~= "planAlloyExtractorUpgrade" then return false end
     return true
@@ -1681,6 +1862,7 @@ end
 
 local function ConstructionPriority(army, baseName, former, snapshot)
     local priority = former.Priority
+    if former.RushFireSupport then return FireSupport.Priority(army,snapshot,baseName,former.RushFireSupport) or 0 end
     if former.RushEmergencyShield then return Layout.EmergencyShieldPriority(army,snapshot,baseName) or 0 end
     if former.RushBomberHarassment and (snapshot.mainRaid or snapshot.mainBombardment) then
         priority=math.max(priority,9900)
@@ -1700,6 +1882,14 @@ local function ConstructionPriority(army, baseName, former, snapshot)
     end
     local domain,powerTier=Balance.FormerKind(former)
     local powerFormer = IsPowerFormer(former)
+    if domain then
+        local capacityView=SnapshotForBase(army,snapshot,baseName) or snapshot
+        priority=math.max(priority,EconomyPolicy.CapacityPriority(army,capacityView,domain))
+    end
+    if baseName=="MAIN" and (domain=="land" or domain=="air")
+        and EconomyPolicy.OpeningFactoryDomain(army,snapshot)==domain then
+        priority=math.max(priority,9650)
+    end
     if powerTier and powerTier==Balance.FirstPowerTier(snapshot) then priority=math.max(priority,9700) end
     if former.RushEarlyAir and snapshot.landDisconnected and snapshot.airFactories==0 then
         priority=math.max(priority,9600)
@@ -1711,10 +1901,16 @@ local function ConstructionPriority(army, baseName, former, snapshot)
         -- Prepare power ahead of expansion, after usable land capacity.
         priority = math.max(priority, 9490)
     end
-    if former.RushEarlyAir and snapshot.airFactories == 0 and snapshot.landFactories >= 2
-        and alloy and energy and alloy.ratio >= 0.90 and energy.ratio >= 0.75 then
-        -- Open the first fighter line before another optional extractor trip.
-        priority = math.max(priority, 9560)
+    if baseName=="MAIN" and powerFormer then
+        -- Try needed home power before optional remote work. Selection still
+        -- falls through immediately if its native builder or budget fails.
+        priority=math.max(priority,9500)
+    end
+    if baseName=="MAIN" and domain=="air" and Development.FirstAirOpportunity(army,snapshot) then
+        -- Reuse the existing first-air request once the ground screen is ready.
+        -- A valid home project acquires its actual capable builder before any
+        -- optional trip; an unfundable project never parks that builder idle.
+        priority=math.max(priority,9560)
     end
     if domain=="land" and snapshot.alloy and snapshot.energy and snapshot.alloy.ratio>=0.75
         and snapshot.energy.ratio>=0.80 then
@@ -1726,12 +1922,11 @@ local function ConstructionPriority(army, baseName, former, snapshot)
         end
     end
     if former.BuildNavalFactory == true and snapshot.navalFactories == 0 then
-        -- Establish two land factories before prioritizing a first yard. Emergency power,
-        -- land tech and the bounded full-bank land bootstrap still take priority.
-        -- Only a candidate that passes its real water-area, builder, template and
-        -- economy checks is dispatched; this does not force navy on a dry map.
+        -- Once the land opening is protected, give a useful first yard a turn
+        -- before optional expansion. First air and needed home power remain
+        -- ahead; native water-area, builder and budget checks still decide.
         priority = math.max(priority, snapshot.landDisconnected and 9550
-            or (snapshot.landFactories>=2 and 9350 or 6800))
+            or (Development.FirstNavalFactoryReady(army,snapshot,baseName) and 9480 or 6800))
     end
     if powerFormer and (snapshot.mainShieldPowerNeed or 0)>0 and snapshot.energy
         and Balance.Balance(snapshot.energy)<snapshot.mainShieldPowerNeed then
@@ -1760,6 +1955,69 @@ local function AirPrimaryForSnapshot(state, former, snapshot)
     return adapted
 end
 
+local function RaidFormerForSnapshot(army,former,snapshot)
+    if not snapshot.adaptive or not (former.RushRaider or former.FormerName=="F123 Land Alloy Hunter")
+        or not former.NeedUnits then return former end
+    local maximum=Balance.RaidUnitLimit(army,snapshot)
+    local adapted,requirements,plan={},{},{}
+    for key,value in pairs(former) do adapted[key]=value end
+    for i,row in ipairs(former.NeedUnits) do
+        local copied={};for key,value in pairs(row) do copied[key]=value end
+        copied[3]=math.min(copied[3],maximum);requirements[i]=copied
+    end
+    for key,value in pairs(former.AIPlanData or {}) do plan[key]=value end
+    plan.RushUnitLimit=maximum
+    adapted.NeedUnits,adapted.AIPlanData,adapted.RushAdaptiveRaid= requirements,plan,true
+    return adapted
+end
+
+-- An eligible home project may lose every builder to long-lived reclaim
+-- platoons. Ask that owner to release one travelling engineer cooperatively;
+-- its coroutine performs the release and the normal selector accepts the job.
+-- No construction order or reservation is created until normal checks pass.
+function RequestHomeConstruction(army,baseName,former)
+    if baseName~="MAIN" or former.RushBuilderRecallOwner~="home-capacity"
+        or not former.WantStructures or #former.WantStructures~=1 then return false end
+    local single=false
+    for _,row in ipairs(former.NeedMobileBuilder or {}) do
+        if (row[2] or 1)<=1 and (row[4] or 0)==0 then single=true;break end
+    end
+    local base=army.ai.bases and army.ai.bases.MAIN
+    if not single or not BaseAlive(army,baseName,base) or not base.position then return false end
+    local state,now=State(army),Now()
+    if now<(state.homeRecallAt or 0) then return false end
+    local retry=state.homeRecallRetry or {};state.homeRecallRetry=retry
+    local key=former.FormerName or former
+    if now<(retry[key] or 0) then return false end
+    local second=math.floor(now)
+    if state.homeRecallSecond~=second then state.homeRecallSecond=second;state.homeRecallAttempts=0 end
+    if state.homeRecallAttempts>=2 then return false end
+    state.homeRecallAttempts=state.homeRecallAttempts+1;retry[key]=now+5
+    -- An unfundable higher-priority project must fall through to a usable
+    -- factory/power request. Retry it later, checking at most two projects per second.
+    local candidates={}
+    for id,wanted in pairs(former.WantStructures[1]) do
+        local tp=wanted and Template(id)
+        local domain=tp and Balance.FactoryDomain(tp)
+        if tp and Playable(id,tp) and (domain=="land" or domain=="air"
+            or Has(tp,"ENERGY_PRODUCTION") and not Has(tp,"ALLOYS_EXTRACTION")) then
+            candidates[#candidates+1]=id
+        end
+    end
+    table.sort(candidates,function(a,b)
+        local ca=Template(a).economy and Template(a).economy.cost
+        local cb=Template(b).economy and Template(b).economy.cost
+        local ma,mb=ca and ca.alloys or math.huge,cb and cb.alloys or math.huge
+        return ma<mb or ma==mb and a<b
+    end)
+    for _,id in ipairs(candidates) do
+        if Reliability.RequestConstructionBuilder(army,id,base.position,"home-capacity",true) then
+            state.homeRecallAt=now+5;return true
+        end
+    end
+    return false
+end
+
 function SelectFormer(army, baseName, lane, plans, snapshot)
     local base = army.ai.bases[baseName]
     if not BaseAlive(army,baseName,base) then return nil end
@@ -1785,8 +2043,18 @@ function SelectFormer(army, baseName, lane, plans, snapshot)
             and now >= (state.retry[baseName .. "/" .. former.FormerName] or 0) then
             local active = former.RushDevelopment == true
             for name, enabled in pairs(former.RunWithStrategyName or {}) do if enabled and strategies[name] then active = true; break end end
-            if (active or bootstrap) and PolicyAllowsFormer(army, former, snapshot, baseName) then
-                candidates[#candidates+1]=former;bootstrapOnly[former]=bootstrap and not active
+            if active or bootstrap then
+                if PolicyAllowsFormer(army,former,snapshot,baseName) then
+                    candidates[#candidates+1]=former;bootstrapOnly[former]=bootstrap and not active
+                else
+                    Diagnostics.Count(army,"former_gate","policy",key)
+                    if former.BuildNavalFactory then Diagnostics.Event(army,"naval_factory_blocked",
+                        {base=baseName,former=former.FormerName,reason="policy"},"naval-gate:"..baseName,10) end
+                end
+            else
+                Diagnostics.Count(army,"former_gate","inactive-strategy",key)
+                if former.BuildNavalFactory then Diagnostics.Event(army,"naval_factory_blocked",
+                    {base=baseName,former=former.FormerName,reason="inactive-strategy"},"naval-gate:"..baseName,10) end
             end
         end
     end
@@ -1804,9 +2072,11 @@ function SelectFormer(army, baseName, lane, plans, snapshot)
         -- Launch the ordinary two-fighter screen; during a known raid,
         -- dispatch even one available fighter through the same guarded plan.
         local former = AirPrimaryForSnapshot(state, candidate, snapshot)
+        former=RaidFormerForSnapshot(army,former,snapshot)
         if not BaseAlive(army,baseName,base) then return nil end
         local key = baseName .. "/" .. former.FormerName
         local valid, failed = CheckConditions(army, baseName, former.FormerConditions, "former " .. key)
+        if former.RushAdaptiveRaid and former.AIPlanData.RushUnitLimit<Balance.Config.RaidMinimum then valid=false end
         if valid and type(plans[former.AIPlan]) ~= "function" then
             Report(army, key, "plan " .. tostring(former.AIPlan) .. " is unavailable")
             valid, failed = false, true
@@ -1830,7 +2100,15 @@ function SelectFormer(army, baseName, lane, plans, snapshot)
                     else
                         ok, passed = Call(army, key .. "/" .. check[2], AF[check[2]], army.id, baseName, former)
                     end
-                    if not ok or not passed then valid, failed = false, not ok; break end
+                    if not ok or not passed then
+                        if ok and check[2]=="GetNeedMobileBuilder" then
+                            RequestHomeConstruction(army,baseName,former)
+                        end
+                        Diagnostics.Count(army,"former_check",check[2],key)
+                        Diagnostics.Event(army,"former_rejected",{base=baseName,former=former.FormerName,
+                            check=check[2],error=not ok},"former:"..key,30)
+                        valid, failed = false, not ok; break
+                    end
                 end
             end
         end
@@ -1846,10 +2124,12 @@ function SelectFormer(army, baseName, lane, plans, snapshot)
             end
             if (counts[former.FormerName] or 0) < (former.FormNumInstances or 1)
                 and not (former.InvestmentType and investments[former.InvestmentType])
-                and (former == candidate or fresh.airRaid or fresh.airPanic)
+                and (former == candidate or former.RushAdaptiveRaid or fresh.airRaid or fresh.airPanic)
+                and (not former.RushAdaptiveRaid or Balance.RaidUnitLimit(army,fresh)>=former.AIPlanData.RushUnitLimit)
                 and (not bootstrapOnly[candidate] or EmptyFactoryOpening(army,baseName))
                 and PolicyAllowsFormer(army,former,fresh,baseName)
                 and Balance.ConstructionBudget(army,baseName,former,fresh,AF) then return former end
+            Diagnostics.Count(army,"former_gate","revalidation-or-construction-budget",key)
         end
         if i % 12 == 0 then WaitTicks(1); fresh=nil end
     end
@@ -1905,7 +2185,10 @@ end
 function CleanupFailedPlan(army, platoon, plans)
     local construction=Reliability.ReleaseConstructionQueue(platoon,true)
     if not army:PlatoonExists(platoon) then return end
-    if platoon.ai and platoon.ai.rushOperation then Combat.Unregister(platoon) end
+    if platoon.ai and platoon.ai.rushOperation then
+        DiagnosticMonitor.Combat(platoon,"end","plan-error",true)
+        Combat.Unregister(platoon)
+    end
     local ok, units = pcall(platoon.GetUnits, platoon)
     if ok then
         -- OnUnitRemoved can mutate the returned array; copy it before removal.
@@ -1947,12 +2230,16 @@ local function Dispatch(army, baseName, former, fn, plans)
     if former.RushAdjacencyStorage and not Layout.StorageSlotAvailable(army) then return false end
     local platoon = army:CreatePlatoon(former.FormerName)
     platoon.ai = { formerTable = former, baseName = baseName, creationTime = GetFormatedGameTime() }
+    local _,powerTier=Balance.FormerKind(former)
+    if powerTier then EconomyPolicy.MarkPowerDispatch(army,platoon,powerTier) end
     if former.RushBeachhead and not Beachhead.Claim(platoon,army.id,baseName,former) then
         army:DisbandPlatoon(platoon);return false
     end
     if former.RushGroundDefense then platoon.ai.rushGroundDefenseStartup=Now() end
     if former.RushAdjacencyStorage then platoon.ai.rushStorageStartup=Now() end
     state.dispatched = state.dispatched + 1
+    Diagnostics.Event(army,"plan_dispatched",{base=baseName,former=former.FormerName,
+        plan=former.AIPlan,platoon=platoon.id,navalFactory=former.BuildNavalFactory})
     state.retry[baseName .. "/" .. former.FormerName] = Now() + 1
     platoon:StartAIFunction(function(p, index, name, f)
         local ok, err = pcall(fn, p, index, name, f)
@@ -2026,8 +2313,30 @@ local function Telemetry(army)
     local state, now = State(army), Now()
     if now - state.lastTelemetry < 30 then return end
     state.lastTelemetry = now
-    local s = Snapshot(army, true)
+    local s = Snapshot(army)
+    -- One bounded summary remains available in normal AI logs. It exposes the
+    -- planned capacity and workforce rather than only the resulting unit count.
+    Log(("[RushV10] army=%s mode=%s land=%d/%d air=%d/%d naval=%d/%d pending=%d/%d/%d "
+        .."homeBuilders=%d/%d homeQueued=%d expansion=%d reclaim=%d ground=%d core=%d "
+        .."alloyIncome=%.2f alloyStored=%.2f energyBalance=%.2f")
+        :format(tostring(army.id),s.strategy and s.strategy.mode or "unknown",
+            s.landFactories,EconomyPolicy.CapacityGoal(army,s,"land"),
+            s.airFactories,EconomyPolicy.CapacityGoal(army,s,"air"),
+            s.navalFactories,EconomyPolicy.CapacityGoal(army,s,"naval"),
+            s.factoryPending.land or 0,s.factoryPending.air or 0,s.factoryPending.naval or 0,
+            s.homeBuildersComplete,EconomyPolicy.HomeBuilderGoal(army,s),s.homeBuildersQueued,
+            s.expansionBuilders,s.reclaimBuilders,s.groundReady,Strategy.LandCoreGoal(s),
+            s.alloy and s.alloy.income or 0,s.alloy and s.alloy.current or 0,
+            s.energy and s.energy.balance-s.energy.reserved or 0),true)
+    if Diagnostics.Config and Diagnostics.Config.Enabled==false then return end
     local x=army.ai.rushExpansion or {}
+    local adaptive=s.adaptive
+    if adaptive then
+        local t=adaptive.topology
+        Log(("[RushAdaptive] army=%s difficulty=%s mode=%s challenge=%.2f enemies=%d allies=%d enemyDistance=%.0f allyDistance=%.0f exposure=%.2f groundFloor=%d techGround=%d")
+            :format(tostring(army.id),adaptive.difficulty,adaptive.mode,adaptive.challenge,t.enemyCount,t.allyCount,
+                t.nearestEnemyDistance or -1,t.nearestAllyDistance or -1,t.exposure,adaptive.groundFloor,adaptive.techGroundMinimum),true)
+    end
     Log(("[RushEconomy] army=%s groundReady=%d engineersReady=%d engineersQueued=%d landWorking=%d "
         .."alloyIncome=%.2f alloyRequest=%.2f alloyReserved=%.2f alloyStored=%.2f alloyStalled=%s expansion=%d/%d")
         :format(tostring(army.id),s.groundReady,s.engineersComplete,s.engineersQueued,s.landProductionActive,
@@ -2059,6 +2368,18 @@ function ProductionThread(armyIndex, baseName)
         and base.luaThreads.RushProductionThread == worker do
         base.rushProductionHeartbeat = Now()
         EnsureSupervisor(army)
+        local handed,ready=pcall(Handoff.Poll,army)
+        if not handed then Report(army,"factory handoff",ready)
+        elseif ready then
+            State(army).snapshot=nil
+            for name,arrival in pairs(ready) do
+                local destination=ai.bases[name]
+                if destination==arrival.base then
+                    destination.rushReadySerial=(destination.rushReadySerial or 0)+1
+                    if arrival.combat then Combat.NotifyRecruits(army,name) end
+                end
+            end
+        end
         local ok,err=pcall(DispatchProduction,army,baseName,plans)
         if not ok then Report(army,"production lane "..baseName,err) end
         WaitTicks(Ticks(0.2))
@@ -2079,6 +2400,7 @@ function LocationThread(armyIndex, baseName)
         and ai.isAlive ~= false and ai.bases[baseName] == base
         and base.luaThreads.AILocationManagerThread == worker end
     while alive() do
+        local readiness=base.rushReadySerial or 0
         base.rushLocationHeartbeat = Now()
         EnsureSupervisor(army)
         -- Independent protected lanes: a broken construction selector cannot suppress production.
@@ -2110,7 +2432,12 @@ function LocationThread(armyIndex, baseName)
         end
         lane("telemetry", function() if baseName == "MAIN" then Telemetry(army) end end)
         local difficulty = ai.settings.difficulty
-        WaitTicks(Ticks(difficulty == "easy" and 2 or difficulty == "medium" and 1 or 0.5))
+        -- GetGameTimeSeconds is integer-valued in this host. Count simulation
+        -- ticks so a 0.3-second scheduler delay does not become a full second.
+        for _=1,Ticks(difficulty=="easy" and 2 or difficulty=="medium" and 0.75 or 0.3) do
+            WaitTicks(1)
+            if not alive() or (base.rushReadySerial or 0)~=readiness then break end
+        end
     end
 end
 
@@ -2135,6 +2462,7 @@ function NormalizeFormers(army, formers)
     local survival=Pressure.SurvivalMap()
     for _, former in pairs(result) do
         local name = former.FormerName or ""
+        if name=="T2 Artillery" or name=="T3 Artillery" then former.Priority,former.FormNumInstances=0,0 end
         if name=="BC123 Factory Land Recover good ECO" or name=="BC123 Factory Land Recover 1st" then
             former.RushFirstFactory=true
         end
@@ -2182,8 +2510,8 @@ function NormalizeFormers(army, formers)
             landPrimary = former
             former.RushDevelopment=true
             former.FormerConditions={}
-            former.NeedUnits[1][2], former.NeedUnits[1][3] = 2, CombatPolicy.Config.PrimaryLimit
-            former.RushNeedsGroundDamage = true
+            former.NeedUnits[1][2], former.NeedUnits[1][3] = 6, CombatPolicy.Config.PrimaryLimit
+            former.RushNeedsGroundDamage,former.RushAssembleCore = true,true
             former.AIPlanData = former.AIPlanData or {}
             former.AIPlanData.AttackEnemyStrength = Balance.Config.PrimaryStrength
             former.AIPlanData.IgnoreLandEmergencyTargets = not survival
@@ -2269,34 +2597,27 @@ function NormalizeFormers(army, formers)
             -- let the second legacy former park the same bomber pool at home.
             former.Priority = 0
         end
-        if former.AIPlan == "planEngineerCapAlloySpot" and former.AIPlanData
-            and (former.AIPlanData.SearchOuterRing or 0)>100
-            and name~="B1 Cap Alloys Early Parallel Range 30-1500"
-            and name~="B1 Cap Alloys Rich Map Range 30-1500" then
-            former.FormNumInstances=math.max(former.FormNumInstances or 1, 3)
+        if former.AIPlan == "planEngineerCapAlloySpot" then
+            former.FormNumInstances=6
             former.InvestmentType=nil
+            former.RushBuilderRecallOwner="alloy-expansion"
             for _,line in ipairs(former.NeedMobileBuilder or {}) do
-                line[3]=math.min(line[3],3)
+                line[2],line[3],line[4]=1,1,0
             end
         end
         if former.AIPlan == "planReclaimMap" then
             former.FormNumInstances=math.max(2,former.FormNumInstances or 1)
-            for _,line in ipairs(former.NeedMobileBuilder or {}) do line[3]=math.min(line[3],2) end
+            -- Two small reclaim jobs leave construction power available at
+            -- home instead of assigning four early engineers to permanent
+            -- map-reclaim owners. Existing paid work is never interrupted.
+            for _,line in ipairs(former.NeedMobileBuilder or {}) do
+                line[3]=math.max(line[2] or 1,math.min(line[3] or 1,1))
+            end
         end
         if name == "F123 Land Alloy Hunter" then
-            if survival then former.Priority=0 end
-            former.FormNumInstances=Balance.Config.RaidInstances
-            former.NeedUnits={{Tags.LAND*Tags.MOBILE*(Tags.DIRECT_FIRE+Tags.INDIRECT_FIRE+Tags.ANTI_SURFACE)
-                -Tags.ENGINEER-Tags.COMMAND-Tags.SCOUT-Tags.TECH4,Balance.Config.RaidMinimum,Balance.Config.RaidMaximum,0}}
-            local kept={}
-            for _,condition in ipairs(former.FormerConditions or {}) do
-                if condition[1]~="AtLeastSupportPlatoonUnitRatioToPrimaryPlatoon"
-                    and condition[1]~="LessThanSupportPlatoonUnitRatioToPrimaryPlatoon" then kept[#kept+1]=condition end
-            end
-            former.FormerConditions=kept
-            former.AIPlanData.RushFlank=true
-            former.AIPlanData.AttackEnemyStrength=Balance.Config.RaidStrength
-            former.AIPlanData.PathEnemyStrength=Balance.Config.RaidStrength
+            -- Alloy Pressure owns raiding through the managed combat adapter.
+            -- The old plan bypasses adaptive routes, support and scouting claims.
+            former.Priority,former.FormNumInstances=0,0
         elseif name == "F123 Land Primary" then
             former.AIPlanData.RushFlank=true
         end
@@ -2333,6 +2654,7 @@ function NormalizeFormers(army, formers)
         defense.FormerName,defense.Priority,defense.FormNumInstances="F123 Main Base Response",9920,4
         defense.AIPlan="planLandAttackPrimary"
         defense.RushMainDefense,defense.RushIndependent,defense.RushDevelopment=true,true,true
+        defense.RushAssembleCore=nil
         defense.RunOnBaseType={MAIN=true,EXPANSION=false,OUTPOST=false,NAVAL=false}
         defense.RunWithStrategyName={};defense.FormerConditions={};defense.InvestmentType=nil
         defense.NeedUnits[1][2],defense.NeedUnits[1][3],defense.NeedUnits[1][4]=1,12,0
@@ -2368,7 +2690,7 @@ function NormalizeFormers(army, formers)
         wave.FormerName, wave.Priority, wave.FormNumInstances = "F123 Land Task Force", 9525, CombatPolicy.Config.WaveInstances
         wave.RushIndependent = true
         wave.RunOnBaseType.EXPANSION, wave.RunOnBaseType.OUTPOST = true, true
-        wave.NeedUnits[1][2], wave.NeedUnits[1][3] = 4, CombatPolicy.Config.WaveLimit
+        wave.NeedUnits[1][2], wave.NeedUnits[1][3] = 6, CombatPolicy.Config.WaveLimit
         wave.AIPlanData.RushUnitLimit = CombatPolicy.Config.WaveLimit
         result[#result + 1] = wave
     end
@@ -2388,7 +2710,7 @@ function NormalizeFormers(army, formers)
         sweep.FormerName, sweep.Priority, sweep.FormNumInstances = "F123 Land Rearguard Sweep", 9515, survival and 1 or 8
         sweep.RushIndependent, sweep.RushIdleSweep = true, true
         sweep.RunOnBaseType.EXPANSION, sweep.RunOnBaseType.OUTPOST = true, true
-        sweep.NeedUnits[1][2], sweep.NeedUnits[1][3] = 1, 12
+        sweep.NeedUnits[1][2], sweep.NeedUnits[1][3] = 6, 12
         -- NeedUnits caps intake; RushUnitLimit also caps later refills and merges.
         sweep.AIPlanData.RushUnitLimit = survival and 12 or CombatPolicy.Config.WaveLimit
         result[#result + 1] = sweep
@@ -2397,6 +2719,7 @@ function NormalizeFormers(army, formers)
         local raid=Clone(landPrimary)
         raid.FormerName,raid.Priority,raid.FormNumInstances="F123 Alloy Pressure",9540,6
         raid.RushIndependent,raid.RushRaider,raid.RushDevelopment=true,true,true
+        raid.RushAssembleCore=nil
         raid.FormerConditions={}
         raid.RunOnBaseType.EXPANSION,raid.RunOnBaseType.OUTPOST=true,true
         raid.NeedUnits={{Tags.MOBILE*Tags.LAND*(Tags.DIRECT_FIRE+Tags.ANTI_SURFACE)-Tags.ENGINEER-Tags.COMMAND-Tags.SCOUT-Tags.TECH4,Balance.Config.RaidMinimum,Balance.Config.RaidMaximum,0}}
@@ -2445,6 +2768,12 @@ function NormalizeFormers(army, formers)
             if condition[1]~="MoreThanGameTimeSeconds" and condition[1]~="LessThanGameTimeSeconds" then kept[#kept+1]=condition end
         end
         f.FormerConditions=kept
+        local domain,powerTier=Balance.FormerKind(f)
+        if f.NeedMobileBuilder and f.WantStructures and #f.WantStructures==1
+            and not f.RushBeachhead and not f.RushPersistentExpansion
+            and (domain=="land" or domain=="air" or powerTier) then
+            f.RushBuilderRecallOwner="home-capacity"
+        end
         local name=f.FormerName or ""
         if name=="T1 Factory Air 1:2 Ratio Land" or f.RushEarlyAir then f.AllowEcoStorageDrain=false end
         if name=="B1 Energy Maintenance" or name=="B1 Energy Generator <-100% Urgent" then
@@ -2481,6 +2810,7 @@ function NormalizeFormers(army, formers)
             f.AIPlanData=f.AIPlanData or {};f.AIPlanData.AttackEnemyStrength=120
         end
     end
+    FireSupport.AddFormers(army,result)
     return result
 end
 
@@ -2551,10 +2881,12 @@ function SupervisionThread(armyIndex)
     local ai = army and army.ai
     if not ai or not IsRushArmy(army) then return end
     local state, worker = State(army), coroutine.running()
+    DiagnosticMonitor.Watch(army)
     while Armies[armyIndex] == army and army.ai == ai and ai.isAlive ~= false and state.supervisor == worker do
         state.supervisorHeartbeat = Now()
         local ok, err = pcall(MaintainProduction, army)
         if not ok then Report(army, "production supervision", err) end
+        if state.snapshot then DiagnosticMonitor.Observe(army,state.snapshot,state) end
         WaitTicks(Ticks(2))
     end
     if Armies[armyIndex]==army and army.ai==ai then
@@ -2568,6 +2900,8 @@ end
 EnsureSupervisor = function(army)
     local state = State(army)
     if StaleThread(state.supervisor, state.supervisorHeartbeat, 15) then
+        Diagnostics.Event(army,"supervisor_start",{replacing=state.supervisor~=nil,
+            previousHeartbeat=state.supervisorHeartbeat})
         if type(state.supervisor) == "thread" then KillThread(state.supervisor) end
         state.supervisorHeartbeat = Now()
         state.supervisor = NewThread(SupervisionThread, army.id)

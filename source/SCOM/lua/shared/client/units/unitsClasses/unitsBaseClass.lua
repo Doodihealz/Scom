@@ -1171,7 +1171,9 @@ function ClientUnit:UpdateAudio(health, maxHealth)
         return
     end
 
-    if self.motorAudio then
+    if self.motorAudio and (self.scoCargoCarrierID or self.scoAirStorageHidden) then
+        self:SetAudioSourceEmitting(self.motorAudio, false)
+    elseif self.motorAudio then
         local _, currentSpeed = Engine.GetMovementCurrentSpeed(self.id)
 
         local isAirUnit = self:HasTags(Tags.AIR)
@@ -2596,6 +2598,7 @@ end
 local SCO_FieldFixPlacementBuildMode
 local SCO_FieldFixPlacementCursor
 local SCO_FieldFixPlacementUtils
+local SCO_FieldFixPlacementSelection
 local SCO_FieldFixPlacementGuideRadiusSquared = 24 * 24
 
 local function SCO_FieldFixHidePlacementGuide(unit)
@@ -2623,6 +2626,20 @@ local function SCO_FieldFixUpdatePlacementGuide(unit)
         SCO_FieldFixPlacementBuildMode = Import("client/input/buildmodeTemp.lua")
         SCO_FieldFixPlacementCursor = Import("client/input/mouseCursor.lua")
         SCO_FieldFixPlacementUtils = Import("common/systems/placementUtils.lua")
+        SCO_FieldFixPlacementSelection = Import("client/input/selectionSystem.lua")
+    end
+    local builderSelected = false
+    for _, selected in pairs(SCO_FieldFixPlacementSelection.GetSelectedUnits()) do
+        if not selected.dead and not selected.deleted
+            and (selected:HasTags(Tags.ENGINEER) or selected:HasTags(Tags.COMMAND))
+        then
+            builderSelected = true
+            break
+        end
+    end
+    if not builderSelected then
+        SCO_FieldFixHidePlacementGuide(unit)
+        return
     end
     local underConstruction = not unit:IsCompleted()
     if underConstruction then
@@ -2951,16 +2968,8 @@ local function SCO_FootfallUpdate(self)
         SCO_FootfallReset(state)
         return
     end
-    local waterCode, hasWater = Engine.HasWater()
-    if waterCode ~= EngineErrorCode.Success then SCO_FootfallReset(state); return end
-    local waterLevel
-    if hasWater then
-        waterCode, waterLevel = Engine.GetWaterLevel()
-        if waterCode ~= EngineErrorCode.Success or not SCO_FootfallFinite(waterLevel) then
-            SCO_FootfallReset(state)
-            return
-        end
-    end
+    -- SCOM terrain footfall projection 1.0.0
+    -- Actual bone/terrain contact owns stamps, including dry below-sea craters.
     for _, foot in ipairs(state.feet) do
         if not foot.id or not Engine.IsValidLocalID(foot.id) then
             foot.id = self:GetBoneId(foot.spec.boneName)
@@ -2978,8 +2987,7 @@ local function SCO_FootfallUpdate(self)
         if valid then
             local point = SCO_FootfallPoint(foot.matrix, foot.spec.contactOffset)
             local groundCode, ground = Engine.SampleTerrainHeight(point)
-            if groundCode == EngineErrorCode.Success and SCO_FootfallFinite(ground)
-                and (not hasWater or ground >= waterLevel - 0.01) then
+            if groundCode == EngineErrorCode.Success and SCO_FootfallFinite(ground) then
                 -- Native Ground movement positions the head at
                 -- terrain + preferredAltitude. Preserve that authored offset.
                 local clearance = point.y - ground - profile.groundOffset
@@ -3276,13 +3284,8 @@ local function update(unit, profile)
     state.time = now
     if elapsed < 0 or elapsed > 0.5 then reset(state) end
     if not eligible(unit) then reset(state); return end
-    local waterCode, hasWater = Engine.HasWater()
-    if waterCode ~= EngineErrorCode.Success then reset(state); return end
-    local waterLevel
-    if hasWater then
-        waterCode, waterLevel = Engine.GetWaterLevel()
-        if waterCode ~= EngineErrorCode.Success or not finite(waterLevel) then reset(state); return end
-    end
+    -- SCOM terrain track projection 1.0.0
+    -- Sampled contact clearance rejects floating/airborne units without a sea-level heuristic.
     if not state.bone or not Engine.IsValidLocalID(state.bone) then
         state.bone = unit:GetBoneId(profile.boneName)
     end
@@ -3310,7 +3313,6 @@ local function update(unit, profile)
         contact.previous = point
         local tolerance = math.max(0.35, contact.spec.width * scale)
         if groundCode ~= EngineErrorCode.Success or not finite(ground)
-            or (hasWater and ground < waterLevel - 0.01)
             or math.abs(point.y - ground - altitude) > tolerance then
             resetContact(contact)
         elseif previous then
@@ -3322,14 +3324,20 @@ local function update(unit, profile)
             elseif distance > 0.0001 then
                 dx, dz = dx / distance, dz / distance
                 local spacing = math.max(0.3, math.min(2.4, contact.spec.width * scale * 1.75))
+                -- Cover the first travelled span immediately; waiting for a whole
+                -- impression leaves a visible gap behind small, slow vehicles.
+                if contact.impressions == 0 and #contact.pending == 0 and distance < spacing then
+                    local middle = {x = (previous.x + point.x) * 0.5,
+                        y = point.y, z = (previous.z + point.z) * 0.5}
+                    queueStamp(contact, middle, ground, dx, dz, distance, scale, now)
+                end
                 local nextDistance = spacing - contact.distance
                 local count = 0
                 while nextDistance <= distance and count < 8 do
                     local at = {x = previous.x + dx * nextDistance,
                         y = point.y, z = previous.z + dz * nextDistance}
                     local result, height = Engine.SampleTerrainHeight(at)
-                    if result == EngineErrorCode.Success and finite(height)
-                        and (not hasWater or height >= waterLevel - 0.01) then
+                    if result == EngineErrorCode.Success and finite(height) then
                         queueStamp(contact, at, height, dx, dz, spacing, scale, now)
                     else
                         -- A water/terrain gap must never be bridged by coalescing.
@@ -3346,11 +3354,13 @@ end
 
 function SCO_UpdateGroundTracks(unit)
     local now = Engine.GetSimulationTime()
-    if finite(now) then drain(now) end
     local profile = unit.tp and unit.tp.additions and unit.tp.additions.scoGroundTracks
-    if not profile or unit.scoGroundTracksDisabled then return end
-    local ok, message = pcall(update, unit, profile)
-    if not ok then disable(unit, message) end
+    if profile and not unit.scoGroundTracksDisabled then
+        local ok, message = pcall(update, unit, profile)
+        if not ok then disable(unit, message) end
+    end
+    -- Admit this tick's sampled contacts before draining the shared queue.
+    if finite(now) then drain(now) end
 end
 
 function SCO_ClearGroundTracks(unit)
@@ -3489,16 +3499,22 @@ local function update(unit)
     if ratio >= 0.75 then stop(unit); return end
     local code, hasWater = Engine.HasWater()
     if code ~= EngineErrorCode.Success then stop(unit); return end
-    local waterLevel, position
+    local waterLevel
     if hasWater then
         code, waterLevel = Engine.GetWaterLevel()
         if code ~= EngineErrorCode.Success or not finite(waterLevel) then stop(unit); return end
-        position = unit:GetPosition()
-        if not position or not finite(position.y) then stop(unit); return end
     end
     for _, effect in ipairs(state.effects) do
-        setEnabled(effect, ratio < effect.threshold
-            and (not hasWater or position.y + effect.height > waterLevel + 0.01))
+        local enabled = ratio < effect.threshold and Engine.IsValidLocalID(effect.id)
+        if enabled and hasWater then
+            -- Native children include the actual hull pitch/roll and parent
+            -- transforms. A root-height estimate can put submerged fires above water.
+            local position
+            code, position = Engine.GetLocalEntityWorldPosition(effect.id)
+            enabled = code == EngineErrorCode.Success and position ~= nil
+                and finite(position.y) and position.y > waterLevel + 0.01
+        end
+        setEnabled(effect, enabled)
     end
 end
 
@@ -3534,7 +3550,7 @@ function ClientUnit:SetUpPersistentEffects()
             local id = self:GetBoneId(effect.effectEntityName)
             if Engine.IsValidLocalID(id) then
                 smoke[#smoke + 1] = {id = id, threshold = effect.scoDamageSmoke or effect.scoDamageFire,
-                    height = effect.positionOffset.y, enabled = false}
+                    enabled = false}
             else
                 warn(self, "missing effect entity " .. tostring(effect.effectEntityName))
             end
@@ -3563,6 +3579,13 @@ local previousRadar = ClientUnit.OnIntelRadar
 function ClientUnit:OnIntelRadar(...)
     previousRadar(self, ...)
     refresh(self, true)
+end
+
+local previousSonar = ClientUnit.OnIntelSonar
+function ClientUnit:OnIntelSonar(...)
+    local result = previousSonar(self, ...)
+    refresh(self, true)
+    return result
 end
 
 function SCO_ClearDamageSmoke(unit)
@@ -3883,18 +3906,6 @@ function SCO_FactionConstructionRenderer.AnchorFactoryPool(unit, factory)
     factoryPoolAnchorPosition(anchor)
     unit.scoFaConstructionFactoryAnchor = anchor
 end
-local function ambient(state)
-    if not state.ambient then
-        local footprint = math.max(state.bounds.size.x * state.scale.x, state.bounds.size.z * state.scale.z)
-        local size = math.min(20, 1 + footprint * .65 * state.fraction)
-        state.ambient = {id = instantiate(state,
-            prefab(nil, nil, constructionPath .. "Seraphim/Ambient.sanvfx", false),
-            state.position, vec(size, size, size), state.rotation)}
-    else
-        checked(Engine.SetLocalEntityLocalPosition(state.ambient.id, state.position))
-        checked(Engine.SetLocalEntityLocalRotation(state.ambient.id, state.rotation))
-    end
-end
 function SCO_FactionConstructionRenderer.Create(state, unit)
     state.sourceId = EngineClasses.LocalID(unit.localId.index, unit.localId.version)
     state.wasEnabled = checked(Engine.GetRendererEnabled(state.sourceId))
@@ -3902,6 +3913,20 @@ function SCO_FactionConstructionRenderer.Create(state, unit)
     state.tpId = unit.tp.general.tpId
     state.model = "Units/" .. state.tpId .. "/LOD0/" .. state.tpId .. "_lod0.sanmodel"
     state.bounds = bounds(state.model)
+    local visualBounds = unit.tp.additions and unit.tp.additions.scoConstructionBounds
+    if visualBounds then
+        local low, high = visualBounds.min, visualBounds.max
+        local center, size = {}, {}
+        for _, axis in ipairs({"x", "y", "z"}) do
+            if not low or not high or not finite(low[axis]) or not finite(high[axis])
+                or high[axis] <= low[axis] then
+                error("invalid construction presentation bounds: " .. state.tpId)
+            end
+            center[axis] = (low[axis] + high[axis]) * 0.5
+            size[axis] = high[axis] - low[axis]
+        end
+        state.bounds = {center = center, size = size}
+    end
     state.bottom = math.max(0, state.bounds.center.y - state.bounds.size.y * .5)
     state.height = math.max(.01, state.bounds.center.y + state.bounds.size.y * .5 - state.bottom)
     state.structure = tag(unit, "STRUCTURE")
@@ -3937,7 +3962,7 @@ function SCO_FactionConstructionRenderer.Update(state, unit, fraction)
         if circuitIndex >= 7 then
             discard(state, "circuits")
         else
-            mesh(state, "circuits", state.model, stepMaterial("Cybran/Circuits", circuitIndex),
+            mesh(state, "circuits", state.model, stepMaterial("Cybran/CircuitsFront", circuitIndex),
                 state.position, vec(state.scale.x * 1.002, state.scale.y * 1.002, state.scale.z * 1.002))
         end
         local current = checked(Engine.GetRendererInstanceData1(state.sourceId))
@@ -3977,7 +4002,6 @@ function SCO_FactionConstructionRenderer.Update(state, unit, fraction)
         -- This private body owns its marker; the animated source is untouched.
         checked(Engine.SetRendererInstanceData1(state.body.id,
             EngineClasses.float4(6 + fraction, 0, 0, 0)))
-        if state.structure or state.factory then ambient(state) end
         hideOriginal(state)
     end
     return true
@@ -4100,6 +4124,145 @@ local function report(unit, key, message)
         .. tostring(unit.tpId) .. ": " .. tostring(message))
 end
 
+-- One original cloud belongs to the work target, even when several Seraphim
+-- builders assist it. Its lifetime is separate from the target's build material
+-- so repairs, other-faction targets and animated upgrades use the same effect.
+local purpleCloudDiameters = {2, 5, 10, 18}
+
+local function clearWorkCloud(target, forget)
+    local state = target.scoSeraphimWorkCloud
+    if not state then return end
+    local remaining = {}
+    for _, id in ipairs(state.instances) do
+        if Engine.IsValidLocalID(id) then
+            local ok, code = pcall(Engine.DeletePrefabInstance, id)
+            if not ok or code ~= EngineErrorCode.Success then
+                -- Stop persistent emission even if teardown cannot finish now.
+                -- Keep ownership for the next render/delete callback to retry.
+                pcall(Engine.SetParticleCanEmit, id, false)
+                pcall(Engine.SetDestroyUponCompletion, id, true)
+                remaining[#remaining + 1] = id
+                report(target, state.identity .. ":cloud", "work cloud cleanup failed")
+            end
+        end
+    end
+    state.instances, state.id = remaining, nil
+    state.cleanupMode = #remaining > 0 and (forget and "forget" or "retain") or nil
+    if forget then
+        for builder in pairs(state.builders) do
+            if builder.scoSeraphimWorkTarget == target then
+                builder.scoSeraphimWorkTarget = nil
+            end
+        end
+        state.builders = {}
+        if #remaining == 0 then target.scoSeraphimWorkCloud = nil end
+    end
+end
+
+local function workCloudTarget(builder)
+    if builder.dead or builder.deleted or not hasTag(builder.tp, "SCFA_SERAPHIM")
+        or (not hasTag(builder.tp, "SCFA_CONSTRUCTION") and not builder:IsUpgrading())
+        or not Engine.IsValidLocalID(builder.localId)
+        or not builder:IsCompleted() or builder:IsPlacementGhost()
+        or builder:GetPause() or builder.isReclaiming or builder.isCapturing
+        or builder:IsIntelVisionVisible() ~= true then return nil end
+    local target = builder.isRepairing and builder.repairTarget
+        or builder.isBuilding and builder.buildTarget
+        or builder:IsUpgrading() and builder:GetUpgradeTarget()
+    if not target or target.entityType ~= "unit" or target.dead or target.deleted
+        or not Engine.IsValidLocalID(target.localId) or target:IsPlacementGhost()
+        or target:IsIntelVisionVisible() ~= true
+        or (not builder.isRepairing and target:IsCompleted()) then return nil end
+    return target
+end
+
+local function detachWorkCloudBuilder(builder)
+    local target = builder.scoSeraphimWorkTarget
+    builder.scoSeraphimWorkTarget = nil
+    local state = target and target.scoSeraphimWorkCloud
+    if not state then return end
+    state.builders[builder] = nil
+    if next(state.builders) == nil then clearWorkCloud(target, true) end
+end
+
+local function observeWorkCloudBuilder(builder)
+    local target = workCloudTarget(builder)
+    local state = target and target.scoSeraphimWorkCloud
+    if builder.scoSeraphimWorkTarget == target
+        and (not target or state and state.builders[builder]
+            and state.identity == identity(target)) then return end
+    detachWorkCloudBuilder(builder)
+    if not target then return end
+    state = target.scoSeraphimWorkCloud
+    local currentIdentity = identity(target)
+    if state and state.identity ~= currentIdentity then
+        clearWorkCloud(target, true)
+        if target.scoSeraphimWorkCloud then return end
+        state = nil
+    end
+    if not state then
+        state = {identity = currentIdentity, builders = {}, instances = {},
+            sourceId = EngineClasses.LocalID(target.localId.index, target.localId.version)}
+        target.scoSeraphimWorkCloud = state
+    end
+    state.builders[builder] = true
+    builder.scoSeraphimWorkTarget = target
+end
+
+local function poseWorkCloud(target, state)
+    readPose(state)
+    if not state.bounds then
+        local general = target.tp.general
+        local model = general.modelTpId or general.tpId
+        state.bounds = bounds("Units/" .. model .. "/LOD0/" .. model .. "_lod0.sanmodel")
+    end
+    local center, size = state.bounds.center, state.bounds.size
+    local point = offset(state, center.x, center.y, center.z)
+    if not state.id then
+        -- Native pooled particles ignore entity scale. Choose an authored world-
+        -- size envelope from the finished target, never its initial build fraction.
+        local extent = math.max(size.x * state.scale.x, size.y * state.scale.y,
+            size.z * state.scale.z)
+        local diameter = purpleCloudDiameters[#purpleCloudDiameters]
+        for _, candidate in ipairs(purpleCloudDiameters) do
+            if extent <= candidate then diameter = candidate; break end
+        end
+        local path = string.format("VFX/SCOM/Construction/Seraphim/PurpleCloud%02d.sanvfx", diameter)
+        state.id = instantiate(state, prefab(nil, nil, path, false),
+            point, vec(1, 1, 1), state.rotation)
+    else
+        checked(Engine.SetLocalEntityLocalPosition(state.id, point))
+        checked(Engine.SetLocalEntityLocalRotation(state.id, state.rotation))
+    end
+end
+
+local function updateWorkCloud(target)
+    local state = target.scoSeraphimWorkCloud
+    if not state then return end
+    if state.cleanupMode then
+        clearWorkCloud(target, state.cleanupMode == "forget")
+        return
+    end
+    if target.dead or target.deleted or state.identity ~= identity(target) then
+        clearWorkCloud(target, true)
+        return
+    end
+    for builder in pairs(state.builders) do
+        if workCloudTarget(builder) ~= target then
+            state.builders[builder] = nil
+            if builder.scoSeraphimWorkTarget == target then builder.scoSeraphimWorkTarget = nil end
+        end
+    end
+    if next(state.builders) == nil then clearWorkCloud(target, true); return end
+    if state.failed then return end
+    local ok, message = pcall(poseWorkCloud, target, state)
+    if not ok then
+        clearWorkCloud(target, false)
+        state.failed = true
+        report(target, state.identity .. ":cloud", message)
+    end
+end
+
 local function dispose(unit, reason, keepFailure)
     local state = unit.scoFactionConstruction
     if not state then return end
@@ -4198,10 +4361,17 @@ local function update(unit, fractionComplete)
         -- Keep the source factory's final fast slide through fog transitions.
         unit.scoFactionConstructionFinishAt = Engine.GetSimulationTime()
     end
+    -- The old structure stays visible while the Seraphim successor grows around
+    -- it. Keep the native target hidden; this renderer owns the growing copy.
+    -- Authored progress-bound transformations retain their source animation.
+    local growingUpgrade = selected == "Seraphim" and unit:IsUpgrade()
+        and hasTag(unit.tp, "STRUCTURE")
+        and not SCO_FieldFixHasProgressBoundUpgrade(unit.upgrader)
     if not selected or not currentIdentity or unit.scoFactionConstructionRetired
         or unit.dead or unit.deleted or unit.isInitialized == false
-        or unit:IsPlacementGhost() or unit:IsUpgrade() or unit:IsUpgrading()
-        or unit.scoFieldFixProgressUpgradeTargetHidden
+        or unit:IsPlacementGhost() or unit:IsUpgrading()
+        or ((unit:IsUpgrade() or unit.scoFieldFixProgressUpgradeTargetHidden)
+            and not growingUpgrade)
         or unit.scoFieldFixProgressUpgradeSourceRetiring
         or unit:IsIntelVisionVisible() ~= true then
         dispose(unit, "ineligible")
@@ -4274,12 +4444,17 @@ local previousRender = ClientUnit.RenderUpdateBeams
 ClientUnit.RenderUpdateBeams = function(self, ...)
     local callbackResult = previousRender(self, ...)
     update(self)
+    if self.scoSeraphimWorkTarget or self.isBuilding or self.isRepairing or self:IsUpgrading() then
+        observeWorkCloudBuilder(self)
+    end
+    updateWorkCloud(self)
     return callbackResult
 end
 
 local previousStartBuild = ClientUnit.OnStartBuildRoutine
 ClientUnit.OnStartBuildRoutine = function(self, ...)
     local callbackResult = previousStartBuild(self, ...)
+    observeWorkCloudBuilder(self)
     local target = self.buildTarget
     if faction(self) and hasTag(self.tp, "FACTORY") and target and faction(target)
         and not self:IsUpgrading() and not target:IsUpgrade() then
@@ -4297,6 +4472,7 @@ end
 local previousCompleted = ClientUnit.OnCompleted
 ClientUnit.OnCompleted = function(self, ...)
     complete(self)
+    updateWorkCloud(self)
     return previousCompleted(self, ...)
 end
 
@@ -4304,6 +4480,8 @@ local previousVision = ClientUnit.OnIntelVision
 ClientUnit.OnIntelVision = function(self, ...)
     local callbackResult = previousVision(self, ...)
     update(self)
+    observeWorkCloudBuilder(self)
+    updateWorkCloud(self)
     return callbackResult
 end
 
@@ -4311,16 +4489,22 @@ for _, name in ipairs({"OnIntelHidden", "OnIntelRadar", "OnIntelSonar"}) do
     local previous = ClientUnit[name]
     ClientUnit[name] = function(self, ...)
         dispose(self, "intel")
+        detachWorkCloudBuilder(self)
+        clearWorkCloud(self, true)
         if self:IsCompleted() then clearCompletionMetadata(self) end
         return previous(self, ...)
     end
 end
 
-for _, name in ipairs({"OnStartUpgrade", "OnEndUpgrade", "OnStartUpgrading", "OnEndUpgrading"}) do
+for _, name in ipairs({"OnStartUpgrade", "OnEndUpgrade", "OnStartUpgrading", "OnEndUpgrading",
+    "ClientOnStopBuilding", "ClientOnStartRepair", "ClientOnStopRepair", "ClientOnRepaired",
+    "ClientOnStartReclaim", "ClientOnStartCapture"}) do
     local previous = ClientUnit[name]
     ClientUnit[name] = function(self, ...)
         local callbackResult = previous(self, ...)
         update(self)
+        observeWorkCloudBuilder(self)
+        updateWorkCloud(self)
         return callbackResult
     end
 end
@@ -4337,6 +4521,8 @@ for _, name in ipairs({"OnDestroy", "OnDelete"}) do
     local previous = ClientUnit[name]
     ClientUnit[name] = function(self, ...)
         self.scoFactionConstructionRetired = true
+        detachWorkCloudBuilder(self)
+        clearWorkCloud(self, true)
         dispose(self, name)
         self.scoFaConstructionFactory = nil
         self.scoFaConstructionFactoryAnchor = nil
@@ -5214,6 +5400,11 @@ function ClientUnit:OnDelete()
 end
 -- Source emitter instances and Novax shell renderer visibility.
 local SpecialVFX=Import("common/loading/vfxTemplateLoader.lua")
+local YthothaEffectsLoaded = {}
+local YthothaFiniteEffects = {
+    ["VFX/SCOM/Seraphim/Death/YthothaExplosion.sanvfx"] = true,
+    ["VFX/SCOM/Seraphim/Death/YthothaDeathPulse.sanvfx"] = true,
+}
 local function Config(unit)
     return unit.tp and unit.tp.additions and unit.tp.additions.scoSpecial
 end
@@ -5289,6 +5480,11 @@ function ClientUnit:SCOSpecialEvent(name,boneOverride)
     if not effect then return end
     local bone=self:GetBoneId(boneOverride~="" and boneOverride or effect.bone)
     if not Engine.IsValidLocalID(bone) then return end
+    if YthothaFiniteEffects[effect.path] and not YthothaEffectsLoaded[effect.path] then
+        assert(Engine.LoadEffect(effect.path) == true,
+            "SCOM Ythotha death effect failed to load: " .. effect.path)
+        YthothaEffectsLoaded[effect.path] = true
+    end
     local prefab=SpecialVFX.GetOrCreateVFXPrefab(effect.path)
     local _,position=Engine.GetLocalEntityWorldPosition(bone)
     local _,rotation=Engine.GetLocalEntityWorldRotation(bone)
@@ -5296,6 +5492,9 @@ function ClientUnit:SCOSpecialEvent(name,boneOverride)
     if not Engine.IsValidLocalID(id) then return end
     Engine.SetDestroyUponCompletion(id,not effect.loop)
     Engine.SetParticleCanEmit(id,self:IsIntelVisionVisible())
+    -- A final explosion can be followed by unit deletion in this same tick.
+    -- Its finite native owner must survive independently at the impact pose.
+    if cfg.kind == "ythotha" and YthothaFiniteEffects[effect.path] then return end
     self.scoSpecialEffects=self.scoSpecialEffects or {}
     self.scoSpecialEffects[#self.scoSpecialEffects+1]={id=id,bone=bone,offset=effect.offset}
 end
@@ -5989,3 +6188,6 @@ function ClientUnit:RenderUpdateBeams(...)
     return result
 end
 end
+
+-- Keep reclaim beam starts ordered behind scenery actor pairing.
+Import("common/systems/scoSceneryReclaim.lua").InstallClient(ClientUnit)

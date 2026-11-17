@@ -207,7 +207,7 @@ UnitTemplate = {
     ["audio"] = {
         ["engine"] = {
             ["looping"] = true,
-            ["name"] = "aglu1520",
+            ["name"] = "aglu1523",
         },
         ["onDestroyed"] = {
             ["looping"] = false,

@@ -1,7 +1,10 @@
 -- Profile-scoped construction and work ownership fixes. No global template edits.
-Version = "9.0.25-rc30"
+Version = "10.0.0"
+CompatibilityVersion = "1.0.1"
+local UnitState=Import("AI/mods/AI-Scom/RushUnitState.lua")
 local Rules=Import("AI/mods/AI-Scom/RushBalance.lua")
 local AF = Import("AI/AIFunctions.lua")
+local Handoff = Import("AI/mods/AI-Scom/RushFactoryHandoff.lua")
 local HeavyPolicy = Import("AI/mods/AI-Scom/RushHeavyPolicy.lua")
 local Available = Import("common/units/availableUnits.lua").AvailableUnits
 local MG = Import("AI/AIMarkerGenerator.lua")
@@ -673,7 +676,7 @@ function RunConstructionQueue(platoon,buildList,maxUnits,hooks)
                     local u=w.unit;local pos=u:GetPosition()
                     distance=math.min(distance,(pos.x-head.position.x)^2+(pos.z-head.position.z)^2)
                     working=working or u.unitBeingBuilt==head.target
-                    paused=paused or type(u.GetPause)=="function" and u:GetPause()
+                    paused=paused or UnitState.IsPaused(u)
                 end
                 if progress>(head.progress or -1) or not head.distance or distance<head.distance-1 then
                     head.progressAt=now;head.progress=progress;head.distance=distance
@@ -715,7 +718,7 @@ local function Recallable(a,u,allowLowTier)
         or Has(u.tp,"COMMAND") or HeavyPolicy.IsT4(u.tp) or u.scoCommanderPodOwner or u.scoSourcePodOwner
         or Working(u) or u.buildBehaviorIsActive or u.ai and u.ai.reservedEco
         or a.ai.ecoReserve and a.ai.ecoReserve[u.id.index]
-        or type(u.GetPause)=="function" and u:GetPause() then return false end
+        or UnitState.IsPaused(u) then return false end
     local f=u.platoon and u.platoon.ai and u.platoon.ai.formerTable
     if not f or f.AIPlan~="planReclaimMap" then return false end
     local tasks=Import("common/commonOrders.lua").OrderTasks
@@ -724,20 +727,96 @@ local function Recallable(a,u,allowLowTier)
     for _,o in pairs(orders.queuedOrders or {}) do if o.orderTask~=tasks.MOVE then return false end end
     return true
 end
-function RequestConstructionBuilder(a,id,pos,owner,allowLowTier)
-    local best,bestD
+-- Home infrastructure may borrow a low-tier reclaimer only for a real, legal
+-- factory/power project. Native rates and commitments still decide funding.
+local function HomeRecallTarget(a,id)
+    local base=a and a.ai and a.ai.bases and a.ai.bases.MAIN
+    local tp=__Templates and __Templates.Units and __Templates.Units[id]
+    if not Rules.Enabled(a) or a.ai.isAlive==false or not base or not base.position
+        or not tp or not AllowedTarget(id,false) or not Has(tp,"STRUCTURE") then return nil end
+    local domain=Rules.FactoryDomain(tp)
+    if domain~="land" and domain~="air"
+        and not (Has(tp,"ENERGY_PRODUCTION") and not Has(tp,"ALLOYS_EXTRACTION")) then return nil end
+    return base
+end
+local function HomeRecallBudget(a,u,id)
+    local mr,er,duration=Rules.ProjectRates(u,id)
+    if not mr or not Finite(duration) or duration<=0 then return false end
+    local alloy,energy=Rules.Resources(a,u)
+    if not alloy or not energy or alloy.income<=0 or energy.income<=0 then return false end
+    local massBalance,energyBalance=Rules.Balance(alloy),Rules.Balance(energy)
+    local domain=Rules.FactoryDomain(__Templates.Units[id])
+    local funded
+    if domain then funded=Rules.CapacityAffordable(u,id)
+    else funded=massBalance+math.max(0,alloy.current-alloy.storage*0.30)/duration>=mr
+        and energyBalance+math.max(0,energy.current-energy.storage*0.30)/duration>=er end
+    -- The last reclaimer can go home only when income alone funds the job or
+    -- its nearly full bank is already wasting the income it would recover.
+    local lastWorker=massBalance>=mr and energyBalance>=er
+        or alloy.storage>0 and alloy.current>=alloy.storage*0.75
+    return funded,lastWorker
+end
+local function HomeReclaimWorker(a,u)
+    local p=u and u.platoon;local data=p and p.ai;local f=data and data.formerTable
+    return Own(a,u) and u.ai and CurrentAssignment(u,a,p,u.ai,data) and u:IsCompleted()
+        and Has(u.tp,"ENGINEER") and not Has(u.tp,"COMMAND")
+        and not u.CaptureInProgress and not u.ReclaimInProgress and not UnitState.IsPaused(u)
+        and f and f.AIPlan=="planReclaimMap"
+end
+local function HomeRecallWorkforce(a)
+    local reclaimers=0
     for _,u in pairs(a.units or {}) do
-        if Recallable(a,u,allowLowTier==true and owner=="alloy-expansion")
-            and not BuilderRecallReserved(u,owner) and CanBuilderBuild(u,id) then
+        if HomeReclaimWorker(a,u) then reclaimers=reclaimers+1 end
+    end
+    return reclaimers
+end
+local function HomeRecallCandidate(a,u,id,base,reclaimers)
+    if u.assignedToBase~="MAIN" or u.CaptureInProgress or u.ReclaimInProgress
+        or not HomeReclaimWorker(a,u) then return false end
+    -- Reserved recalls are excluded from the optional fringe census. Keep the
+    -- handoff inside the native MAIN pool so its consumer can select the worker.
+    local pos=u:GetPosition();local radius=math.min(192,base.radius or 60)
+    if not pos or (pos.x-base.position.x)^2+(pos.z-base.position.z)^2>radius^2 then return false end
+    local funded,lastWorker=HomeRecallBudget(a,u,id)
+    return funded and (reclaimers>=2 or reclaimers==1 and lastWorker)
+end
+function RequestConstructionBuilder(a,id,pos,owner,allowLowTier)
+    local home=owner=="home-capacity"
+    local base=home and HomeRecallTarget(a,id)
+    local reclaimers
+    if home then
+        if not base or allowLowTier~=true then return false end
+        -- A single outstanding handshake, including its released idle worker,
+        -- prevents every failed former from withdrawing another engineer.
+        for _,u in pairs(a.units or {}) do
+            if Own(a,u) then
+                BuilderRecallReserved(u)
+                local r=u.ai and u.ai.rushBuilderRecall
+                if r and r.owner==owner then return true end
+            end
+        end
+        reclaimers=HomeRecallWorkforce(a)
+        if reclaimers<1 then return false end
+    end
+    local best,bestD,bestAI,bestPlatoon,bestPlatoonAI
+    for _,u in pairs(a.units or {}) do
+        local unitAI,p=u.ai,u.platoon;local platoonAI=p and p.ai
+        if Recallable(a,u,allowLowTier==true and (owner=="alloy-expansion" or home))
+            and not BuilderRecallReserved(u,owner) and CanBuilderBuild(u,id)
+            and (not home or HomeRecallCandidate(a,u,id,base,reclaimers))
+            and CurrentAssignment(u,a,p,unitAI,platoonAI) then
             local p=u:GetPosition();local d=(p.x-pos.x)^2+(p.z-pos.z)^2
-            if d<=192^2 and (not bestD or d<bestD or d==bestD and u.id.index<best.id.index) then best=u;bestD=d end
+            if d<=192^2 and (not bestD or d<bestD or d==bestD and u.id.index<best.id.index) then
+                best,bestD,bestAI,bestPlatoon,bestPlatoonAI=u,d,unitAI,u.platoon,platoonAI
+            end
         end
     end
-    if not best then return false end
+    if not best or not CurrentAssignment(best,a,bestPlatoon,bestAI,bestPlatoonAI) then return false end
     best.ai=best.ai or {}
     local r=best.ai.rushBuilderRecall
     if not r then
-        best.ai.rushBuilderRecall={owner=owner,id=id,expires=Now()+20}
+        best.ai.rushBuilderRecall={owner=owner,id=id,expires=Now()+20,
+            homeBase=base,sourcePlatoon=bestPlatoon,sourcePlatoonAI=bestPlatoonAI,sourceUnitAI=bestAI}
         Log("[RushWork] army="..tostring(a.id).." event=recall-request builder="..tostring(best.id.index).." owner="..owner.." unit="..id,true)
     end
     return true
@@ -746,7 +825,19 @@ function ReleaseRecalledBuilder(u,p,plans)
     local r=u.ai and u.ai.rushBuilderRecall
     if not r then return false end
     if r.expires<=Now() then u.ai.rushBuilderRecall=nil;return false end
-    if u.platoon~=p or not Recallable(u.army,u,r.owner=="alloy-expansion") then u.ai.rushBuilderRecall=nil;return false end
+    local home=r.owner=="home-capacity"
+    if u.platoon~=p or not Recallable(u.army,u,r.owner=="alloy-expansion" or home)
+        or r.sourcePlatoon and (r.sourcePlatoon~=p or r.sourcePlatoonAI~=p.ai or r.sourceUnitAI~=u.ai) then
+        u.ai.rushBuilderRecall=nil;return false
+    end
+    if home then
+        local base=HomeRecallTarget(u.army,r.id)
+        if base~=r.homeBase or not CanBuilderBuild(u,r.id)
+            or not HomeRecallCandidate(u.army,u,r.id,base,HomeRecallWorkforce(u.army))
+            or not CurrentAssignment(u,u.army,p,r.sourceUnitAI,r.sourcePlatoonAI) then
+            u.ai.rushBuilderRecall=nil;return false
+        end
+    end
     -- This is called by the OLD owning coroutine, with no yield before removal.
     Import("host/managers/orders/hostOrderManager.lua").HostClearOrder({u})
     u.unitToReclaim=nil
@@ -864,9 +955,9 @@ function RecoverBuildMove(u,destination,threat)
         .." unit="..tostring(w.id).." retry="..w.retries.." buildQueued="..tostring(w.issueBuild),true)
     return "MovingToDestination"
 end
-function Inside(p,margin)
+function Inside(p,margin,area)
     if not p or not Finite(p.x) or not Finite(p.z) then return false end
-    local a=AF.GetPlayableArea(); margin=margin or 0
+    local a=area or AF.GetPlayableArea(); margin=margin or 0
     return p.x>=a.x+margin and p.z>=a.y+margin and p.x<=a.x+a.width-margin and p.z<=a.y+a.height-margin
 end
 function Clamp(p,margin)
@@ -923,8 +1014,7 @@ end
 function PrepareIdleBuilder(u,plans)
     plans=plans or CleanupPlans
     if not u or u.platoon or not Own(u.army,u) or Working(u) or u.buildBehaviorIsActive or u.reclaimBehaviorIsActive
-        or u.CaptureInProgress or u.ReclaimInProgress or u.toggles and u.toggles.Pause
-        or type(u.GetPause)=="function" and u:GetPause() then return false end
+        or u.CaptureInProgress or u.ReclaimInProgress or UnitState.IsPaused(u) then return false end
     if u.scoCommanderPodOwner or u.scoSourcePodOwner then return false end
     local orders=u.orders
     if orders and (orders.activeOrder or (orders.queuedOrders and next(orders.queuedOrders))) then return false end
@@ -967,6 +1057,94 @@ function CanBuilderBuild(u,id)
     return ok and allowed==true
 end
 
+local function SelectableFactionTarget(id)
+    local tp=type(id)=="string" and __Templates.Units[id]
+    return type(tp)=="table" and type(tp.general)=="table"
+        and tp.general.tpId==id and AllowedTarget(id,false)
+end
+
+-- A faction-roster check, not an idle-builder or economy check. The former's
+-- recruitment and native CanBuild checks still decide whether work can start.
+function CanBuildTag(armyIndex,baseName,wantedTags)
+    local army=Armies and Armies[armyIndex]
+    if not army or not army.ai or army.ai.isAlive==false
+        or not Factions[army.faction] or type(wantedTags)~="table" then return false end
+    for id,enabled in pairs(wantedTags) do
+        if enabled and SelectableFactionTarget(id)
+            and HeavyPolicy.FactionMatches(army,__Templates.Units[id]) then return true end
+    end
+    return false
+end
+
+local function FactorySelectionFunded(factory,id,former)
+    local drain=former.AllowEcoStorageDrain
+    if type(drain)=="number" then
+        return AF.IsEcoStorageDrainAllowed(factory,drain,id)
+    end
+    return drain or AF.IsBuildableWithoutEconStorageDrain(factory.army.id,factory.tpId,id)
+end
+
+-- Keep the native faction-keyed row contract while selecting from the actual
+-- factories' menus. An assigned override avoids searching the idle pool again
+-- after planBuildInFactory has already assigned its factories to a platoon.
+-- Selection creates no orders, reservations, availability, or tag mutations.
+function SelectUnits(armyIndex,baseName,former,factoryOverride)
+    local army=Armies and Armies[armyIndex]
+    if not army or not army.ai or army.ai.isAlive==false or not Factions[army.faction]
+        or type(former)~="table" or type(former.WantUnits)~="table" then return false end
+    local factories=factoryOverride
+    if factories==nil then factories=AF.GetNeedFactory(armyIndex,baseName,former) end
+    if type(factories)~="table" then return false end
+    local usable={}
+    for _,factory in ipairs(factories) do
+        if Own(army,factory) and not factory.CaptureInProgress and not factory.ReclaimInProgress
+            and type(factory.IsCompleted)=="function" and factory:IsCompleted() then
+            for index,faction in ipairs(Factions) do
+                if factory.factionTag==faction and HeavyPolicy.FactionMatches(index,factory.tp) then
+                    usable[#usable+1]=factory
+                    break
+                end
+            end
+        end
+    end
+    if #usable==0 then return false end
+    local result={}
+    for _,line in ipairs(former.WantUnits) do
+        if type(line)~="table" then return false end
+        local choices={}
+        for id,enabled in pairs(line) do
+            if enabled and SelectableFactionTarget(id) then
+                for _,factory in ipairs(usable) do
+                    if CanBuilderBuild(factory,id) and FactorySelectionFunded(factory,id,former)
+                        and Own(army,factory) then
+                        local faction=factory.factionTag
+                        choices[faction]=choices[faction] or {}
+                        choices[faction][#choices[faction]+1]=id
+                        break
+                    end
+                end
+            end
+        end
+        local selected={}
+        for _,faction in ipairs(Factions) do
+            local ids=choices[faction]
+            if ids and #ids>0 then
+                table.sort(ids)
+                selected[faction]=ids[math.random(1,#ids)]
+            end
+        end
+        if next(selected) then
+            result[#result+1]=selected
+            -- The live panic selector treats these lines as ordered fallbacks,
+            -- rather than a finite queue that requires every line to exist.
+            if former.SelectHighestTechBuildable then return result end
+        elseif not former.SelectHighestTechBuildable then
+            return false
+        end
+    end
+    return #result>0 and result or false
+end
+
 -- Select only a target that an actual selected builder can construct. The old
 -- category-only random choice admitted hidden hydrocarbons and unavailable ports.
 function SelectStructures(armyIndex,baseName,former,override,maxUnits)
@@ -979,6 +1157,7 @@ function SelectStructures(armyIndex,baseName,former,override,maxUnits)
     local fabrication=former.RushMassFabrication and Import("AI/mods/AI-Scom/RushMassFabrication.lua")
     local beachhead=former.RushBeachhead and Import("AI/mods/AI-Scom/RushBeachhead.lua")
     local function funded(u,id)
+        if former.RushFireSupport then return Import("AI/mods/AI-Scom/RushFireSupport.lua").CanFund(u,id,nil,baseName) end
         if shieldLayout then return shieldLayout.CanFundEmergencyShield(u,id) end
         if groundLayout then return Rules.CanFundGroundDefense(u,id) end
         if storageLayout then return Rules.CanFundAdjacencyStorage(u,id) end
@@ -1145,10 +1324,62 @@ function UpdateUpgrade(u)
     return "Disband"
 end
 
+-- Native satellite/nuke sorts compare techTag strings, but some observed
+-- units and target kinds have no tech tag. Repair this profile's team calls:
+-- team target data is shared with other AIs and may outlive a yielding call.
+local function CopyTargetData(source)
+    local copy={}
+    for key,value in pairs(source) do copy[key]=value end
+    return copy
+end
+local function TargetDataWithSafeTechTags(data)
+    if type(data)~="table" or type(data.targetRecordPool)~="table"
+        or type(data.targetRecordCount)~="number" then return data end
+    local safeData,safePool
+    for index=1,data.targetRecordCount do
+        local record=data.targetRecordPool[index]
+        if type(record)=="table" and type(record.techTag)~="string" then
+            if not safeData then
+                safeData=CopyTargetData(data)
+                safePool=CopyTargetData(data.targetRecordPool)
+                safeData.targetRecordPool=safePool
+            end
+            local safeRecord=CopyTargetData(record)
+            -- Unknown sorts below known tech; do not infer unobserved intel.
+            safeRecord.techTag=""
+            safePool[index]=safeRecord
+        end
+    end
+    return safeData or data
+end
+
+-- Allies share one native target-manager coroutine. Protect its non-Scom
+-- calls too when a living Scom ally depends on that thread; other teams keep
+-- their original input. Match the native static lobby-team grouping exactly.
+local function UsesScomTargetingThread(index)
+    local army=Armies[index]
+    if IsRushArmy(army) then return true end
+    local team=army and army.ai and army.lobbyOptions and army.lobbyOptions.team
+    if team==nil then return false end
+    for _,ally in pairs(Armies) do
+        if ally.ai and ally.ai.isAlive and ally.lobbyOptions and ally.lobbyOptions.team==team
+            and IsRushArmy(ally) then return true end
+    end
+    return false
+end
+
 function Install(isRush)
     IsRushArmy=isRush
     if installed then return end
     installed=true
+    local targetManager=Import("AI/AITargetManager.lua")
+    local oldTargets=targetManager.SetThreatAndTargets
+    if type(oldTargets)=="function" then
+        targetManager.SetThreatAndTargets=function(index,base,shared,...)
+            if UsesScomTargetingThread(index) then shared=TargetDataWithSafeTechTags(shared) end
+            return oldTargets(index,base,shared,...)
+        end
+    end
     -- Older supplied hosts use only this field for native base membership.
     -- Newer hosts retain their own setter and any indexed bookkeeping.
     if AF.SetUnitBaseAssignment==nil then
@@ -1169,6 +1400,18 @@ function Install(isRush)
     AF.GetWantStructures=function(index,base,former,...)
         if IsRushArmy(Armies[index]) then return SelectStructures(index,base,former,...) end
         return oldSelect(index,base,former,...)
+    end
+    -- Only this custom profile uses these selectors. Other AI profiles retain
+    -- their original calls, arguments and return values, including nil results.
+    local oldCanBuildTag=AF.CanBuildTag
+    AF.CanBuildTag=function(index,...)
+        if IsRushArmy(Armies[index]) then return CanBuildTag(index,...) end
+        return oldCanBuildTag(index,...)
+    end
+    local oldWantUnits=AF.GetWantUnits
+    AF.GetWantUnits=function(index,...)
+        if IsRushArmy(Armies[index]) then return SelectUnits(index,...) end
+        return oldWantUnits(index,...)
     end
     local oldClear=AF.ClearReserveEco
     AF.ClearReserveEco=function(index,id)
@@ -1202,7 +1445,7 @@ function Install(isRush)
             if units then
                 local valid={}
                 for _,u in ipairs(units) do
-                    if not HeavyPolicy.IsT4(u.tp) then valid[#valid+1]=u end
+                    if not HeavyPolicy.IsT4(u.tp) and Handoff.Available(u) then valid[#valid+1]=u end
                 end
                 if #valid>=(minimum or 1)+(reserve or 0) then return valid,minimum,maximum,reserve end
             end
@@ -1320,7 +1563,7 @@ function Install(isRush)
                     local orders=u.orders
                     if Rules.Own(army,u) and not u.platoon and u:IsCompleted()
                         and u:HasTags(need[1]) and not Working(u)
-                        and not (type(u.GetPause)=="function" and u:GetPause())
+                        and not (UnitState.IsPaused(u))
                         and not (orders and (orders.activeOrder or orders.queuedOrders and next(orders.queuedOrders))) then
                         local id=type(u.GetUpgradeTpId)=="function" and u:GetUpgradeTpId()
                         if id and AllowedTarget(id,false) and CanBuilderBuild(u,id) then units[#units+1]=u end
@@ -1343,4 +1586,5 @@ function Install(isRush)
         if #valid<(min or 1)+(reserve or 0) then return false end
         return valid,min,max,reserve
     end
+    Log("[AI-Scom compatibility "..CompatibilityVersion.."] Installed profile-scoped faction/factory selectors and safe Scom-team target tech tags.",true)
 end

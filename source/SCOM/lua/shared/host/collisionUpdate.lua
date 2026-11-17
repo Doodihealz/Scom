@@ -1,3 +1,4 @@
+local SCOM_MeshContact = Import("common/systems/scoMeshContact.lua")
 local Layers = Import("common/layers.lua")
 local CollisionLayer = Layers.CollisionLayer
 local TargetingLayer = Layers.TargetingLayer
@@ -18,7 +19,7 @@ function CollisionUpdate()
         xpcall(ProcessEnvironmentCollisionEvent, ErrorHandler, data)
     end
 
-    local rayCollisionEvents = Engine.GetRayCollisionEventsForWorld(_G.CollisionWorld.Collision)
+    local rayCollisionEvents = SCOM_MeshContact.RefineAll(Engine.GetRayCollisionEventsForWorld(_G.CollisionWorld.Collision))
     for i, data in ipairs(rayCollisionEvents) do
         xpcall(ProcessRayCollisionEvent, ErrorHandler, data)
     end
@@ -37,6 +38,29 @@ end
 ---@param hitGlobalID GlobalID The entity that was hit, so the client knows what to play the impact effects of. Invalid when the projectile hit the terrain.
 local function DestroyProjectile(projectileGlobalID, tickImpactTime, hitGlobalID)
     Projectiles[projectileGlobalID.index]:Destroy(tickImpactTime, hitGlobalID)
+end
+
+local function SameCollisionID(left, right)
+    return left and right and left.index==right.index and left.version==right.version
+end
+
+-- Native queries may return several child colliders for one entity. Match the
+-- complete generation before resolving a child to its registered gameplay owner.
+local function ResolveCollisionEntity(entities, id)
+    if not id or id.index==0 or not Engine.IsValidGlobalID(id) then return nil end
+    -- Shield entities belong to a unit hierarchy but must receive shield damage.
+    local shield = Shields[id.index]
+    if entities == Units and shield and SameCollisionID(shield.id, id) then return nil end
+    local entity=entities[id.index]
+    if entity and SameCollisionID(entity.id,id) then
+        return not entity.dead and not entity.deleted and entity or nil
+    end
+    local status,root=Engine.GetGlobalEntityRoot(id)
+    if status~=EngineErrorCode.Success or not root then return nil end
+    entity=entities[root.index]
+    if entity and SameCollisionID(entity.id,root) and not entity.dead and not entity.deleted then
+        return entity
+    end
 end
 
 -- Static artillery clears trees only after an accepted solid impact.
@@ -92,8 +116,8 @@ local function GetDamageThroughShields(hitPosition, targetPosition, damage, shie
 
     for _, collisionEvent in ipairs(shieldCollisionEvents) do
         
-        local shield = Shields[collisionEvent.otherGlobalID.index]
-        local overflow = shieldOverflows[shield]
+        local shield = ResolveCollisionEntity(Shields, collisionEvent.otherGlobalID)
+        local overflow = shield and shieldOverflows[shield]
         
         if overflow then
             damage = math.min(damage, overflow)
@@ -117,9 +141,9 @@ function ProcessAreaDamage(position, radius, damage, army, damageFriendly, sourc
     local collisionEvents = Engine.CapsuleCast(CollisionWorld.Collision, position, radius * 2 + 4, radius, GetIdentityQuaternion(), CollisionLayer.Shields + CollisionLayer.Units)
 
     ---@type HostUnit[]
-    local units = { }
+    local units, seenUnits = {}, {}
     ---@type HostShield[]
-    local shields = { }
+    local shields, seenShields = {}, {}
     ---@type table<HostShield, number> Distance from the hit position to the shield's surface, negative inside the shield.
     local shieldSurfaceDistances = { }
     ---@type table<HostShield, float3> Point on the shield's surface closest to the hit position.
@@ -128,14 +152,16 @@ function ProcessAreaDamage(position, radius, damage, army, damageFriendly, sourc
     -- Sort hits.
     for _, collisionEvent in ipairs(collisionEvents) do
 
-        local unit = Units[collisionEvent.colliderGlobalID.index]
-        local shield = Shields[collisionEvent.colliderGlobalID.index]
+        local unit = ResolveCollisionEntity(Units, collisionEvent.colliderGlobalID)
+        local shield = not unit and ResolveCollisionEntity(Shields, collisionEvent.colliderGlobalID)
 
-        -- Hit unit!
-        if unit and (damageFriendly or army:IsEnemy(unit.army)) then
+        -- Each gameplay owner receives one contribution, regardless of collider count.
+        if unit and not seenUnits[unit] and (damageFriendly or army:IsEnemy(unit.army)) then
+            seenUnits[unit]=true
             table.insert(units, unit)
-        -- Hit Shield
-        elseif shield and shield.enabled and (damageFriendly or army:IsEnemy(shield.army)) then
+        elseif shield and not seenShields[shield] and shield.enabled
+            and (damageFriendly or army:IsEnemy(shield.army)) then
+            seenShields[shield]=true
             table.insert(shields, shield)
 
             local shieldPosition = shield:GetPosition()
@@ -194,7 +220,8 @@ function ProcessRayCollisionEvent(rayCollisionEvent)
     local projectile = Projectiles[rayCollisionEvent.rayGlobalID.index]
 
     -- If the ray global entity is a projectile. A projectile hit a collider.
-    if projectile then
+    if projectile and SameCollisionID(projectile.id,rayCollisionEvent.rayGlobalID)
+        and not projectile.deleted then
 
         -- We subtract a little from the impact time so any collision queries we make will be slightly behind the real impact point.
         -- This will remove any inprecision created when querying with a hit point that is starting on an edge of a collider. 
@@ -204,8 +231,8 @@ function ProcessRayCollisionEvent(rayCollisionEvent)
         -- Hit position of our projectile.
         local hitPosition = math3D.add(rayCollisionEvent.rayOrigin, math3D.scale(rayCollisionEvent.rayDirection, hitDistance))
 
-        -- The percent [0.0, 1.0] from the ray origin to its max distance where the ray hit occured.
-        local rayImpactTime = hitDistance / rayCollisionEvent.rayMaxDistance
+        -- Presentation timing uses the true contact, not the damage-query bias.
+        local rayImpactTime = rayCollisionEvent.hitDistance / rayCollisionEvent.rayMaxDistance
         
         -- Convert the ray impact time [0,0, 1.0] to tick time [0.0, Constants.TickTimeStep]
         -- NOTE: We never want an impact time exactly one whole tick (Constants.TickTimeStep). 
@@ -229,8 +256,8 @@ function ProcessRayCollisionEvent(rayCollisionEvent)
             -- If we hit another global entity, the GlobalID will be valid.
             if Engine.IsValidGlobalID(rayCollisionEvent.otherGlobalID) then
                 ---@type HostUnit
-                local unit = Units[rayCollisionEvent.otherGlobalID.index]
-                local shield = Shields[rayCollisionEvent.otherGlobalID.index]
+                local unit = ResolveCollisionEntity(Units, rayCollisionEvent.otherGlobalID)
+                local shield = not unit and ResolveCollisionEntity(Shields, rayCollisionEvent.otherGlobalID)
 
                 if unit and projectileArmy:IsEnemy(unit.army) then                 
                     if projectile.damageRadius > 0 then
@@ -287,7 +314,7 @@ function ProcessWaterCollisionEvent(rayCollisionEvent)
         return
     end
 
-    local tickImpactTime = math.clamp(hitDistance / rayCollisionEvent.rayMaxDistance, 0.01, 0.99) * Constants.TickTimeStep
+    local tickImpactTime = math.clamp(rayCollisionEvent.hitDistance / rayCollisionEvent.rayMaxDistance, 0.01, 0.99) * Constants.TickTimeStep
 
     projectile:OnCrossedWaterline(hitPosition, tickImpactTime, rayCollisionEvent.otherGlobalID)
 end
@@ -889,8 +916,8 @@ if SCOCommanderAbilityCollisionMarker == nil then
             CollisionLayer.Shields)
         for _, collisionEvent in ipairs(collisionEvents) do
             local shieldId = collisionEvent.colliderGlobalID
-            local shield = shieldId and Shields[shieldId.index]
-            if shield and shield.enabled then snapshot[shieldId.index] = true end
+            local shield = ResolveCollisionEntity(Shields, shieldId)
+            if shield and shield.enabled then snapshot[shield] = true end
         end
         return snapshot
     end
@@ -903,7 +930,8 @@ if SCOCommanderAbilityCollisionMarker == nil then
             CollisionLayer.Shields)
         for _, collisionEvent in ipairs(collisionEvents) do
             local shieldId = collisionEvent.otherGlobalID
-            if shieldId and snapshot[shieldId.index] then return true end
+            local shield = ResolveCollisionEntity(Shields, shieldId)
+            if shield and snapshot[shield] then return true end
         end
         return false
     end
@@ -919,13 +947,12 @@ if SCOCommanderAbilityCollisionMarker == nil then
         local shields = {}
         for _, collisionEvent in ipairs(collisionEvents) do
             local colliderId = collisionEvent.colliderGlobalID
-            local index = colliderId and colliderId.index
-            local unit = index and Units[index]
-            local shield = index and Shields[index]
+            local unit = ResolveCollisionEntity(Units, colliderId)
+            local shield = not unit and ResolveCollisionEntity(Shields, colliderId)
             if unit then
-                units[index] = unit
-            elseif shield and shieldSnapshot[index] then
-                shields[index] = shield
+                units[unit] = unit
+            elseif shield and shieldSnapshot[shield] then
+                shields[shield] = shield
             end
         end
         for _, shield in pairs(shields) do
@@ -945,11 +972,11 @@ if SCOCommanderAbilityCollisionMarker == nil then
         if not otherId or not Engine.IsValidGlobalID(otherId) then
             return false, nil
         end
-        local unit = Units[otherId.index]
+        local unit = ResolveCollisionEntity(Units, otherId)
         if unit and projectileArmy:IsEnemy(unit.army) then return true, nil end
-        local shield = Shields[otherId.index]
+        local shield = not unit and ResolveCollisionEntity(Shields, otherId)
         if shield and shield.enabled and projectileArmy:IsEnemy(shield.army) then
-            return true, otherId
+            return true, shield.id
         end
         return false, nil
     end
@@ -1044,7 +1071,7 @@ if SCOFieldFixStrategicSiloCollisionMarker == nil then
         psn002 = { version = "1.0.0", innerDamage = 70000,
             innerRadius = 30, outerDamage = 500, outerRadius = 40 },
         psn003 = { version = "1.1.0", innerDamage = 140000,
-            innerRadius = 60, outerDamage = 1000, outerRadius = 80,
+            innerRadius = 30, outerDamage = 1000, outerRadius = 40,
             impactProfile = "ApocalypseAeon2x" },
         psn004 = { version = "1.0.0", innerDamage = 70000,
             innerRadius = 30, outerDamage = 500, outerRadius = 40 },
@@ -1151,15 +1178,15 @@ if SCOFieldFixStrategicSiloCollisionMarker == nil then
         if not otherId or not Engine.IsValidGlobalID(otherId) then
             return false, nil
         end
-        local unit = Units[otherId.index]
-        local shield = Shields[otherId.index]
+        local unit = ResolveCollisionEntity(Units, otherId)
+        local shield = not unit and ResolveCollisionEntity(Shields, otherId)
         if unit and projectileArmy:IsEnemy(unit.army) then
             return true, nil
         end
         if shield and shield.enabled
             and projectileArmy:IsEnemy(shield.army)
         then
-            return true, otherId
+            return true, shield.id
         end
         return false, nil
     end
@@ -1189,9 +1216,9 @@ if SCOFieldFixStrategicSiloCollisionMarker == nil then
             CollisionLayer.Shields)
         for _, collisionEvent in ipairs(collisionEvents) do
             local shieldId = collisionEvent.colliderGlobalID
-            local shield = shieldId and Shields[shieldId.index]
+            local shield = ResolveCollisionEntity(Shields, shieldId)
             if shield and shield.enabled then
-                snapshot[shieldId.index] = true
+                snapshot[shield] = true
             end
         end
         return snapshot
@@ -1205,7 +1232,8 @@ if SCOFieldFixStrategicSiloCollisionMarker == nil then
             CollisionLayer.Shields)
         for _, collisionEvent in ipairs(shieldCollisionEvents) do
             local shieldId = collisionEvent.otherGlobalID
-            if shieldId and snapshot[shieldId.index] then
+            local shield = ResolveCollisionEntity(Shields, shieldId)
+            if shield and snapshot[shield] then
                 return true
             end
         end
@@ -1222,13 +1250,12 @@ if SCOFieldFixStrategicSiloCollisionMarker == nil then
         local shields = {}
         for _, collisionEvent in ipairs(collisionEvents) do
             local colliderId = collisionEvent.colliderGlobalID
-            local index = colliderId and colliderId.index
-            local unit = index and Units[index]
-            local shield = index and Shields[index]
+            local unit = ResolveCollisionEntity(Units, colliderId)
+            local shield = not unit and ResolveCollisionEntity(Shields, colliderId)
             if unit then
-                units[index] = unit
-            elseif shield and shieldSnapshot[index] then
-                shields[index] = shield
+                units[unit] = unit
+            elseif shield and shieldSnapshot[shield] then
+                shields[shield] = shield
             end
         end
 
@@ -1262,7 +1289,7 @@ if SCOFieldFixStrategicSiloCollisionMarker == nil then
         if not projectile.scoNukeTreeImpactApplied then
             projectile.scoNukeTreeImpactApplied = true
             Import("common/loading/unitTemplateLoader.lua").SCOMTreeKnockdown.NukeImpact(
-                hitPosition, nuke.outerDamage.radius * 2)
+                hitPosition, nuke.outerDamage.radius * 4)
         end
         if nuke.impactProfile == "ApocalypseAeon2x" then
             SCOSendToAllClients(
@@ -1458,8 +1485,8 @@ if SCOFieldFixStrategicSiloCollisionMarker == nil then
             muzzle:Update()
         end
 
-        local rayCollisionEvents = Engine.GetRayCollisionEventsForWorld(
-            CollisionWorld.Collision)
+        local rayCollisionEvents = SCOM_MeshContact.RefineAll(Engine.GetRayCollisionEventsForWorld(
+            CollisionWorld.Collision))
         local waterCollisionEvents = {}
         local environmentCollisionWorld =
             CollisionWorld and CollisionWorld.EnvironmentCollision
@@ -1852,6 +1879,37 @@ do
     end
 end
 
+
+-- Reject stale generations before any specialized impact owner can act.
+do
+    local previous, previousWater = ProcessRayCollisionEvent, ProcessWaterCollisionEvent
+    local function withContact(callback, event, projectile)
+        local oldPosition = projectile.scoImpactPosition
+        local oldBone, oldBonePosition = projectile.scoImpactBone, projectile.scoImpactBonePosition
+        projectile.scoImpactBone, projectile.scoImpactBonePosition = event.scoImpactBone, event.scoImpactBonePosition
+        -- Source nuke, tactical and overcharge handlers also pass through here.
+        -- Keep contact separate from their damage-query bias; surviving water
+        -- crossings and rejected impacts must not retain it for later deletion.
+        projectile.scoImpactPosition = math3D.add(event.rayOrigin,
+            math3D.scale(event.rayDirection, event.hitDistance))
+        local ok, result = pcall(callback, event)
+        projectile.scoImpactPosition = oldPosition
+        projectile.scoImpactBone, projectile.scoImpactBonePosition = oldBone, oldBonePosition
+        if not ok then error(result, 0) end
+        return result
+    end
+    function ProcessRayCollisionEvent(event)
+        local projectile = event and ResolveCollisionEntity(Projectiles, event.rayGlobalID)
+        if not projectile then return end
+        event = SCOM_MeshContact.Refine(event)
+        if event then return withContact(previous, event, projectile) end
+    end
+    function ProcessWaterCollisionEvent(event)
+        local projectile = event and ResolveCollisionEntity(Projectiles, event.rayGlobalID)
+        if not projectile then return end
+        return withContact(previousWater, event, projectile)
+    end
+end
 
 return {
     CollisionUpdate = CollisionUpdate,

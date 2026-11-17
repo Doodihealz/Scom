@@ -1,12 +1,13 @@
 -- RC22 SCOM adaptation of Balance Rules. State predicates, not build timers.
 -- Costs, construction power, faction menus and host availability remain native.
-Version = "9.0.22-rc26"
-Config = { PrimaryStrength=80, AirStrength=70, RaidStrength=70,
+Version = "10.0.0"
+Config = { PrimaryStrength=100, AirStrength=70, RaidStrength=85,
     RaidMinimum=3, RaidMaximum=10, RaidInstances=6, RaidMainShare=0.5,
-    RaidGroundMinimum=20, OpeningLandFactories=6, TechLandFactories=3,
+    RaidGroundMinimum=12, OpeningLandFactories=6, TechLandFactories=3,
     TechGroundUnits=10, OpeningFighters=2, FighterMinimum=6,
     HighEnergy=0.75, CapacityEnergy=0.20, HomeExtractors=4,
     CombatShare=0.75, HeavyShare=0.30 }
+local UnitState=Import("AI/mods/AI-Scom/RushUnitState.lua")
 local Availability=Import("common/units/availableUnits.lua").AvailableUnits
 local Snapshot, Reliability, InvestmentReserve, CommanderReserve, HeavyReserve, FirstExperimentalPolicy, FabricationPolicy
 local factions={"EDA","CHOSEN","GUARD","SERAPHIM"}
@@ -70,8 +71,7 @@ function RegisteredBuildRates(u,repairTarget)
     local repairing=repairTarget~=nil and u and u.unitBeingRepaired==repairTarget
     if not Own(a,u) or not Own(a,target) or repairTarget~=nil and not repairing
         or Complete(target) and not repairing
-        or type(u.GetPause)=="function" and u:GetPause()
-        or u.toggles and u.toggles.Pause then return 0,0,0 end
+        or UnitState.IsPaused(u) then return 0,0,0 end
     local entity=target.resourceEntities and target.resourceEntities.construction
     local economy=entity and entity.economy
     local source=entity and entity.buildPowerSources and entity.buildPowerSources[u.id]
@@ -301,6 +301,66 @@ function FactoryDomain(tp)
     if Has(tp,"AIR_FACTORY") then return "air" end
     if Has(tp,"LAND_FACTORY") then return "land" end
 end
+-- Capacity planning prices useful native combat products, not a universal
+-- factories-per-income constant. Cache menu metadata; live build power,
+-- availability and the controller's ordinary native permission checks remain
+-- authoritative for actual orders.
+local throughputCatalogue={}
+local throughputTemplates
+local function CombatProduct(tp,domain)
+    if not tp or not Has(tp,"MOBILE") or Has(tp,"ENGINEER") or Has(tp,"SCOUT")
+        or Has(tp,"TRANSPORT") or Has(tp,"COMMAND") or Has(tp,"TECH4")
+        or Has(tp,"DEMO_UI_ONLY") or Has(tp,"SCFA_CIVILIAN")
+        or Has(tp,"SCFA_UNSELECTABLE") or Has(tp,"SCFA_INSIGNIFICANTUNIT") then return false end
+    if domain=="land" then
+        return (Has(tp,"LAND") or Has(tp,"HOVER") or Has(tp,"AMPHIBIOUS"))
+            and (Has(tp,"DIRECT_FIRE") or Has(tp,"ANTI_SURFACE") or Has(tp,"TANK") or Has(tp,"BOT"))
+    elseif domain=="air" then
+        return Has(tp,"AIR") and (Has(tp,"FIGHTER") or Has(tp,"BOMBER") or Has(tp,"GUNSHIP")
+            or Has(tp,"ANTI_SURFACE") or Has(tp,"ANTI_AIR"))
+    end
+    return Has(tp,"NAVAL") and (Has(tp,"ANTI_SURFACE") or Has(tp,"DIRECT_FIRE")
+        or Has(tp,"ANTI_NAVAL") or Has(tp,"ANTI_NAVY") or Has(tp,"SCFA_ANTINAVY"))
+end
+function FactoryProductionRates(u)
+    local tp=u and u.tp;local domain=FactoryDomain(tp)
+    local construction=u and (u.construction or tp and tp.construction)
+    local power=Number(construction and construction.buildPower)
+    local expression=tp and tp.construction and tp.construction.canBuild
+    if not domain or power<=0 or not expression then return nil end
+    local templates=__Templates and __Templates.Units
+    if throughputTemplates~=templates then throughputTemplates=templates;throughputCatalogue={} end
+    local now=GetGameTimeSeconds()
+    local cache=throughputCatalogue[tp]
+    if not cache or cache.expression~=expression or now<cache.at or now-cache.at>=30 then
+        cache={at=now,expression=expression,products={},known=false}
+        throughputCatalogue[tp]=cache
+        local menu=expression
+        if type(menu)=="string" and type(ParseTagsFromString)=="function" then
+            local ok,parsed=pcall(ParseTagsFromString,menu);menu=ok and parsed or nil
+        end
+        if type(menu)~="table" then return nil end
+        cache.known=true
+        for id,on in pairs(menu) do
+            local product=on and Template(id);local e=product and product.economy;local c=e and e.cost
+            if CombatProduct(product,domain) and c and Number(e.buildTime)>0
+                and Number(c.alloys)>0 and Number(c.energy,-1)>=0 and Tier(product)<=Tier(tp) then
+                cache.products[#cache.products+1]={id=id,tier=Tier(product),mass=c.alloys/e.buildTime,
+                    energy=c.energy/e.buildTime}
+            end
+        end
+        table.sort(cache.products,function(a,b)
+            if a.tier~=b.tier then return a.tier>b.tier end
+            return a.mass<b.mass or a.mass==b.mass and a.id<b.id
+        end)
+        throughputCatalogue[tp]=cache
+    end
+    for _,entry in ipairs(cache.products) do
+        if Availability[entry.id]==true then return entry.mass*power,entry.energy*power,entry.id,true end
+    end
+    return nil,nil,nil,cache.known
+end
+
 function FormerKind(f)
     local domain,power,tier
     for _,line in ipairs(f.WantStructures or {}) do
@@ -318,15 +378,36 @@ function InitSnapshot(s)
     s.powerComplete={};s.powerPending={};s.engineersByTier={};s.landFactoryTiers={}
     s.factoryPending={land=0,air=0,naval=0};s.balanceEngineers={};s.balanceProjects={}
     s.productAlloyRate=0;s.productEnergyRate=0
+    s.powerForecastBuilders={}
+    s.factoryThroughput={land={count=0,mass=0,energy=0},air={count=0,mass=0,energy=0},naval={count=0,mass=0,energy=0}}
 end
 function ObserveUnit(s,u)
     local tp,t,complete=u.tp,Tier(u.tp),Complete(u)
+    s.powerForecastArmy=u.army
+    if complete and u.construction and Number(u.construction.buildPower)>0 then
+        s.powerForecastBuilders[#s.powerForecastBuilders+1]=u
+    end
     if Power(tp) then
         local field=complete and s.powerComplete or s.powerPending
         field[t]=(field[t] or 0)+1
     end
     local d=FactoryDomain(tp)
     if d then
+        if complete and not u.isSlaveFactory then
+            local mass,energy,product,known=FactoryProductionRates(u)
+            local rates=s.factoryThroughput and s.factoryThroughput[d]
+            if rates then
+                if mass then
+                    rates.count=rates.count+1;rates.mass=rates.mass+mass;rates.energy=rates.energy+energy
+                end
+                -- A new T1 foundation uses the army's own menu. An unusable
+                -- captured or upgraded menu must not block native rebuilding.
+                if known and t==1 and u.army and Has(tp,factions[u.army.faction]) then
+                    rates.nativeT1Menus=(rates.nativeT1Menus or 0)+1
+                    if product then rates.nativeT1Products=(rates.nativeT1Products or 0)+1 end
+                end
+            end
+        end
         if not complete then s.factoryPending[d]=s.factoryPending[d]+1
         elseif d=="land" then s.landFactoryTiers[t]=(s.landFactoryTiers[t] or 0)+1 end
         local target=u.unitBeingBuilt or u.productionBehaviorTargetUnit
@@ -379,12 +460,20 @@ function FinishSnapshot(s)
     if s.productAlloyRate>0 then s.productionEnergyPerAlloy=s.productEnergyRate/s.productAlloyRate end
     table.sort(s.balanceEngineers,function(a,b) return a.id.index<b.id.index end)
 end
+-- Physical ghosts still occupy layout space, but cannot pretend the first
+-- advanced plant is staffed. Only a live project releases its protected builder.
+local function PendingPowerCount(s,tier)
+    if s.powerForecastArmy then
+        return Import("AI/mods/AI-Scom/RushPowerForecast.lua").Count(s.powerForecastArmy,s,tier)
+    end
+    return Number(s.powerPending and s.powerPending[tier])
+end
 -- Protect one idle, legal advanced power builder, not every advanced engineer.
 -- Existing assignments and paid work are never seized by this rule.
 function PowerBuilderMaximum(a,f,maximum)
     local _,tier=FormerKind(f)
     local s=tier and Snapshot and Snapshot(a)
-    if s and tier>=2 and tier==FirstPowerTier(s) and Number(s.powerPending[tier])==0 then
+    if s and tier>=2 and tier==FirstPowerTier(s) and PendingPowerCount(s,tier)==0 then
         return math.min(maximum,1)
     end
     return maximum
@@ -392,7 +481,7 @@ end
 function ProtectedPowerBuilder(a,f)
     if not Snapshot or not Enabled(a) then return nil end
     local s=Snapshot(a);local t=FirstPowerTier(s)
-    if not t or Number(s.powerPending and s.powerPending[t])>0 then return nil end
+    if not t or PendingPowerCount(s,t)>0 then return nil end
     local _,ft=FormerKind(f)
     if ft and ft>=t then return nil end
     s.powerTemplateIds=s.powerTemplateIds or {}
@@ -476,10 +565,20 @@ function RaidAllocation(a)
     end
     return main,raids,groups,primary
 end
-function CanDispatchRaid(a,s)
-    if Number(s.groundReady)<Config.RaidGroundMinimum then return false end
+function RaidUnitLimit(a,s)
+    local adaptive=s.adaptive
+    if Number(s.groundReady)<(adaptive and adaptive.raidGroundMinimum or Config.RaidGroundMinimum) then return 0 end
+    if adaptive and (adaptive.raidGroups==0 or s.landPanic) then return 0 end
     local main,raids,groups,primary=RaidAllocation(a)
-    return primary>0 and main>=Config.RaidMinimum and groups<Config.RaidInstances and raids<main*Config.RaidMainShare
+    local reserve=adaptive and adaptive.groundFloor or Config.RaidMinimum
+    local limit=adaptive and adaptive.raidGroups or Config.RaidInstances
+    local share=adaptive and adaptive.raidShare or Config.RaidMainShare
+    if primary<=0 or main<reserve or groups>=limit then return 0 end
+    if not adaptive then return raids<main*share and Config.RaidMaximum or 0 end
+    return math.max(0,math.min(Config.RaidMaximum,math.floor(main*share)-raids))
+end
+function CanDispatchRaid(a,s)
+    return RaidUnitLimit(a,s)>=Config.RaidMinimum
 end
 function FighterBudget(s,mr,er,panic)
     if panic then return true end
@@ -494,9 +593,14 @@ function CapacityAffordable(u,id)
     local mr,er,duration=ProjectRates(u,id)
     if not mr or not Own(u and u.army,u) or not FactoryDomain(Template(id)) then return false end
     local a,e=Resources(u.army,u)
-    return a and a.income>0 and e.income>0
-        and Balance(a)+math.max(0,a.current-a.storage*0.30)/duration>=mr
-        and Balance(e)+math.max(0,e.current-e.storage*0.30)/duration>=er or false
+    if not a or not e or a.income<=0 or e.income<=0 then return false end
+    -- One finite paid foundation can run at a modest supply-limited rate while
+    -- the army fights. Price the whole real cost over that longer horizon;
+    -- current requests and all other owned reservations stay charged.
+    local scale=0.65
+    local horizon=duration/scale
+    return Balance(a)+math.max(0,a.current-a.storage*0.10)/horizon>=mr*scale
+        and Balance(e)+math.max(0,e.current-e.storage*0.15)/horizon>=er*scale
 end
 local function ProtectTechFromConstruction(f,s,powerTier)
     -- Targeted point defense always pays its native rate from real surplus or
@@ -592,8 +696,12 @@ function ConstructionBudget(a,base,f,s,AF)
     local domain,powerTier=FormerKind(f)
     RefreshInvestment(a,s)
     local protected=ProtectTechFromConstruction(f,s,powerTier)
-    local funded=f.RushStoredCost==true or domain=="land" and Number(s.landFactories)==1
-    if not funded and not f.RushCapacityDomain and not protected then return true end
+    local funded=f.RushStoredCost==true
+    -- The second factory is paid over its real construction duration. Requiring
+    -- its entire price in storage delayed sustainable openings for minutes.
+    -- Keep the projected-rate check for both proactive and legacy formers.
+    local capacity=f.RushCapacityDomain or domain=="land" and Number(s.landFactories)==1
+    if not funded and not capacity and not protected and not f.RushFireSupport then return true end
     local shieldLayout=f.RushEmergencyShield and Import("AI/mods/AI-Scom/RushBaseLayout.lua")
     local groundLayout=f.RushGroundDefense and Import("AI/mods/AI-Scom/RushBaseLayout.lua")
     local storageLayout=f.RushAdjacencyStorage and Import("AI/mods/AI-Scom/RushBaseLayout.lua")
@@ -616,7 +724,9 @@ function ConstructionBudget(a,base,f,s,AF)
                     for id,on in pairs(line) do
                         local tp=on and Template(id)
                         local affordable
-                        if shieldLayout then
+                        if f.RushFireSupport then
+                            affordable=tp and Import("AI/mods/AI-Scom/RushFireSupport.lua").CanFund(u,id,s,base)
+                        elseif shieldLayout then
                             affordable=tp and shieldLayout.IsEmergencyShieldTemplate(tp)
                                 and shieldLayout.CanFundEmergencyShield(u,id)
                         elseif groundLayout then
@@ -630,7 +740,7 @@ function ConstructionBudget(a,base,f,s,AF)
                         elseif beachhead then affordable=tp and beachhead.CanFund(u,id)
                         else
                             affordable=tp and CanBuild(u,id) and ProjectRates(u,id)
-                                and (not f.RushCapacityDomain or CapacityAffordable(u,id))
+                                and (not capacity or CapacityAffordable(u,id))
                                 and (not protected or ProtectedProjectAffordable(u,id))
                         end
                         if affordable and (not best or tp.economy.cost.alloys<best.economy.cost.alloys) then best=tp end
@@ -664,8 +774,8 @@ function EarlyExpansionRequired(index,baseName)
 end
 
 function HeavyReady(a,s)
-    if not s or not s.alloy or not s.energy or s.landPanic or s.airPanic or s.navalPanic
-        or FirstPowerTier(s) or a.economy.isEnergyDown then return false end
+    if not s or not s.alloy or not s.energy or s.mainRaid or s.mainBombardment
+        or s.localLandThreat or s.airRaid or FirstPowerTier(s) or a.economy.isEnergyDown then return false end
     local layer=a.ai.settings.useLayer
     if not s.landDisconnected and (not layer or layer.land~=false) then
         local economy=Import("AI/mods/AI-Scom/RushEconomyPolicy.lua")
@@ -682,7 +792,7 @@ end
 function HeavyInvestmentBudget(a,u,id,snapshot)
     local s=snapshot or Snapshot and Snapshot(a,true)
     if not HeavyReady(a,s) or not Own(a,u) or not Complete(u)
-        or type(u.GetPause)=="function" and u:GetPause() then return nil end
+        or UnitState.IsPaused(u) then return nil end
     Reliability=Reliability or Import("AI/mods/AI-Scom/RushReliability.lua")
     if not Reliability.AllowedTarget(id,true) or not Reliability.CanBuilderBuild(u,id) then return nil end
     local mr,er,duration=ProjectRates(u,id);local m,e=Resources(a,u)

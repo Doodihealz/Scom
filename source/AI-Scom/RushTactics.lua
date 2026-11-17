@@ -1,12 +1,14 @@
 -- Native Sanctuary tactical policy. Enemy knowledge is the existing AI's knowledge;
 -- no new visibility grants, map reveals, movement bypasses or weapon modifications.
-Version = "9.0.25-rc30"
+Version = "10.0.0"
+local UnitState=Import("AI/mods/AI-Scom/RushUnitState.lua")
 local AF=Import("AI/AIFunctions.lua")
 local MG=Import("AI/AIMarkerGenerator.lua")
 local TM=Import("AI/AITargetManager.lua")
 local Orders=Import("host/managers/orders/hostOrderManager.lua")
 local Tasks=Import("common/commonOrders.lua").OrderTasks
 local Reliability=Import("AI/mods/AI-Scom/RushReliability.lua")
+local Movement=Import("AI/mods/AI-Scom/RushMovement.lua")
 local PathBudget=Import("AI/mods/AI-Scom/RushPathBudget.lua")
 local Intel=Import("AI/mods/AI-Scom/RushCombatIntel.lua")
 local Development=Import("AI/mods/AI-Scom/RushDevelopment.lua")
@@ -27,16 +29,179 @@ local function Heat(army,pos,layer)
     return ok and type(v)=="number" and math.max(0,v) or nil
 end
 local function VisibleEnemy(army,unit)
-    return unit and not unit.dead and not unit.deleted and not unit.CaptureInProgress
-        and not unit.ReclaimInProgress and unit.army and army:IsEnemy(unit.army)
-        and ((type(unit.IsIntelVisionVisible)=="function" and unit:IsIntelVisionVisible(army))
-            or (type(unit.IsIntelRadarVisible)=="function" and unit:IsIntelRadarVisible(army))) or false
+    return Intel.Detected(army,unit)
 end
 local function Enemies(army)
     return AF.GetEnemyUnitsOnMap(army.id)
 end
+-- Adapted from the supplied vanilla land micro. These helpers only choose a
+-- position; the existing SCOM micro dispatcher retains order and unit ownership.
+-- Commanders, ships, indirect fire and minimum-range guns keep their own micro.
+function SetLandTankEvasionPosition(unit,unitPosition,targetPosition,targetWeaponRange,maximumAttackRadius,attackPosition)
+    local ai=unit.ai
+    local weapon=ai and ai.weaponMicroData and ai.weaponMicroData.primaryWeapon
+    local tp=weapon and (weapon.tp or weapon)
+    if not ai or not Has(unit.tp,"TANK") or Has(unit.tp,"COMMAND") or Has(unit.tp,"NAVAL")
+        or ai.rangeRingType~="DirectFire" or ai.Blocked or targetWeaponRange<=0
+        or tp and (tp.rangeMin or 0)>0
+        or ai.maxWeaponRange>targetWeaponRange+1.5
+        or D2(unitPosition,targetPosition)>(targetWeaponRange+4)^2 then return false end
+    local radius=math.min(3,maximumAttackRadius/4)
+    if radius<=0 then return false end
+    local dx,dz=attackPosition.x-targetPosition.x,attackPosition.z-targetPosition.z
+    local length=math.sqrt(dx*dx+dz*dz)
+    if length<0.01 then return false end
+    local distance=math.max(1,math.min(length,maximumAttackRadius-radius))
+    local sx,sz=targetPosition.x+dx/length*distance,targetPosition.z+dz/length*distance
+    local side=unit.id.index%2==0 and 1 or -1
+    local angle=math.atan2(unitPosition.z-sz,unitPosition.x-sx)
+    local far=(unitPosition.x-sx)^2+(unitPosition.z-sz)^2>(radius+2)^2
+    angle=angle+side*(far and math.pi/3 or math.pi*100/180)
+    attackPosition.x,attackPosition.y,attackPosition.z=sx+math.cos(angle)*radius,unitPosition.y,sz+math.sin(angle)*radius
+    local clamped=Movement.Clamp(attackPosition)
+    attackPosition.x,attackPosition.z=clamped.x,clamped.z
+    SnapToGround(attackPosition,attackPosition)
+    return true
+end
+
+-- Reuse the local observer contacts already gathered by native combat micro.
+-- This does not scan enemy army tables or add another sensing thread.
+function PrepareLandMicroThreatData(platoon,enemyUnits,targetLayer,targetPositions,targetWeaponRanges)
+    local data=platoon.ai.landMicroThreatData
+    if not data then
+        data={enemies={},count=0,unsafeChecks=0,otherTargetChecks=0,redirectedApproaches=0,
+            moveOrders=0,evasionOrders=0,lastTelemetryTime=Now()}
+        platoon.ai.landMicroThreatData=data
+    end
+    local previous=data.count;data.count=0
+    for _,enemy in ipairs(enemyUnits) do
+        if VisibleEnemy(platoon.army,enemy) and enemy:IsCompleted() then
+            local range=targetWeaponRanges[enemy] or AF.GetUnitMaximumWeaponRangeByLayer(enemy,targetLayer)
+            if type(range)=="number" and range>0 then
+                local pos=targetPositions[enemy] or enemy:GetPosition()
+                data.count=data.count+1
+                local record=data.enemies[data.count] or {}
+                record.unit,record.x,record.z,record.weaponRange=enemy,pos.x,pos.z,range
+                record.safetyDistance=range+1;record.safetyDistanceSquared=(range+1)^2
+                data.enemies[data.count]=record
+            end
+        end
+    end
+    for i=data.count+1,previous do data.enemies[i]=nil end
+    return data
+end
+
+local function RangeAdvantage(unit,record)
+    return unit.ai.maxWeaponRange>record.weaponRange+1.5
+end
+local function CrossesGunCircle(position,dx,dz,lengthSquared,record)
+    if lengthSquared<=0 then return false end
+    local current=(position.x-record.x)^2+(position.z-record.z)^2
+    local fraction=math.max(0,math.min(1,((record.x-position.x)*dx+(record.z-position.z)*dz)/lengthSquared))
+    local closest=(position.x+dx*fraction-record.x)^2+(position.z+dz*fraction-record.z)^2
+    -- A unit already under fire may leave its current circle, but cannot move
+    -- deeper into it or cut through another observed weapon's firing circle.
+    return closest+0.0001<math.min(current,record.safetyDistanceSquared)
+end
+
+function AdjustLandMicroAttackPositionForThreats(unit,unitPosition,attackPosition,data)
+    if not data or Has(unit.tp,"COMMAND") or Has(unit.tp,"NAVAL") then return false,false end
+    local currentUnsafe,attackUnsafe,otherUnsafe=false,false,false
+    local mx,mz=attackPosition.x-unitPosition.x,attackPosition.z-unitPosition.z
+    local lengthSquared=mx*mx+mz*mz
+    for i=1,data.count do
+        local record=data.enemies[i]
+        if RangeAdvantage(unit,record) then
+            if (unitPosition.x-record.x)^2+(unitPosition.z-record.z)^2<record.safetyDistanceSquared then
+                currentUnsafe=true
+                if record.unit~=unit.ai.microTarget then otherUnsafe=true end
+            end
+            if (attackPosition.x-record.x)^2+(attackPosition.z-record.z)^2<record.safetyDistanceSquared
+                or CrossesGunCircle(unitPosition,mx,mz,lengthSquared,record) then attackUnsafe=true end
+        end
+    end
+    if not currentUnsafe and not attackUnsafe then return false,false end
+    if currentUnsafe then attackPosition.x,attackPosition.y,attackPosition.z=unitPosition.x,unitPosition.y,unitPosition.z end
+    for pass=1,3 do
+        local adjusted=false
+        for i=1,data.count do
+            local record=data.enemies[i]
+            if RangeAdvantage(unit,record) then
+                local dx,dz=attackPosition.x-record.x,attackPosition.z-record.z
+                local squared=dx*dx+dz*dz
+                if squared<record.safetyDistanceSquared then
+                    if squared<0.0001 then
+                        dx,dz=unitPosition.x-record.x,unitPosition.z-record.z;squared=dx*dx+dz*dz
+                        if squared<0.0001 then dx,dz,squared=1,0,1 end
+                    end
+                    local scale=(record.safetyDistance+0.5)/math.sqrt(squared)
+                    attackPosition.x,attackPosition.z=record.x+dx*scale,record.z+dz*scale
+                    adjusted=true
+                end
+            end
+        end
+        if not adjusted then break end
+    end
+    local clamped=Movement.Clamp(attackPosition)
+    attackPosition.x,attackPosition.z=clamped.x,clamped.z
+    mx,mz=attackPosition.x-unitPosition.x,attackPosition.z-unitPosition.z
+    lengthSquared=mx*mx+mz*mz
+    for i=1,data.count do
+        local record=data.enemies[i]
+        if RangeAdvantage(unit,record) and CrossesGunCircle(unitPosition,mx,mz,lengthSquared,record) then
+            attackPosition.x,attackPosition.y,attackPosition.z=unitPosition.x,unitPosition.y,unitPosition.z
+            break
+        end
+    end
+    SnapToGround(attackPosition,attackPosition)
+    if currentUnsafe then data.unsafeChecks=data.unsafeChecks+1 else data.redirectedApproaches=data.redirectedApproaches+1 end
+    if otherUnsafe then data.otherTargetChecks=data.otherTargetChecks+1 end
+    return currentUnsafe and D2(unitPosition,attackPosition)>0.01,true
+end
+
+-- Vanilla AILayerSuperiority keeps identified factory locations through fog.
+-- Memory contains only the observer's saved position and identity, never a host
+-- enemy reference whose live position/death could disclose hidden information.
+function FactoryMemoryValid(army,memory)
+    if not memory or type(AF.IsPositionInVisualCoverage)~="function"
+        or type(AF.GetEnemyIntelUnit)~="function" then return false end
+    local enemy=Armies and Armies[memory.armyIndex]
+    if not enemy or not army:IsEnemy(enemy) or not enemy:IsAlive() then return false end
+    if not AF.IsPositionInVisualCoverage(army.id,memory.pos) then return true end
+    local contact=AF.GetEnemyIntelUnit(army.id,memory.id)
+    return VisibleEnemy(army,contact) and contact.army==enemy and Has(contact.tp,"STRUCTURE")
+        and Has(contact.tp,"FACTORY") and D2(contact:GetPosition(),memory.pos)<=20^2 or false
+end
+
+function KnownFactoryObjectives(platoon,origin)
+    local army=platoon.army
+    local candidates={}
+    if type(AF.IsPositionInVisualCoverage)~="function" or type(AF.GetEnemyIntelUnit)~="function" then return candidates end
+    for _,known in pairs(army.ai.knownEnemyUnits or {}) do
+        local tp=known.tp
+        if not known.dead and known.hasVisualIdentification and known.id and known.armyIndex
+            and Has(tp,"STRUCTURE") and Has(tp,"FACTORY") and not Has(tp,"NAVAL_FACTORY") then
+            local point=known:GetPosition()
+            local memory={armyIndex=known.armyIndex,id={index=known.id.index,version=known.id.version},pos=Copy(point)}
+            if AF.isPosWithinPlayableArea(point) and FactoryMemoryValid(army,memory) then
+                local rank=Has(tp,"LAND_FACTORY") and 2 or Has(tp,"AIR_FACTORY") and 1 or 0
+                local cost=tp.economy and tp.economy.cost and tp.economy.cost.alloys or 0
+                candidates[#candidates+1]={pos=memory.pos,kind="factory-pressure",factoryMemory=memory,
+                    rank=rank,cost=cost,distance=D2(origin,point),id=known.id.index}
+            end
+        end
+    end
+    table.sort(candidates,function(a,b)
+        if a.rank~=b.rank then return a.rank>b.rank end
+        if a.distance~=b.distance then return a.distance<b.distance end
+        if a.cost~=b.cost then return a.cost>b.cost end
+        return a.id<b.id
+    end)
+    return candidates
+end
+
 function ValidAirTarget(platoon,target)
-    if not VisibleEnemy(platoon.army,target) or target.isAirborne~=true
+    if not VisibleEnemy(platoon.army,target) or target.isAirborne==false
         or not Has(target.tp,"AIR") then return false end
     for _,u in pairs(platoon:GetUnits()) do
         if not u.dead and not u.deleted and u.army==platoon.army and u.platoon==platoon
@@ -44,7 +209,7 @@ function ValidAirTarget(platoon,target)
             and not (u.ai and u.ai.eState=="RepairHome") then
             for _,w in ipairs(u.weapons or {}) do
                 if w.enabled and not w.isDeathExplosion and type(w.CanShootAt)=="function"
-                    and w:CanShootAt(target) then return true end
+                    and Intel.CanShootAt(platoon.army,w,target) then return true end
             end
         end
     end
@@ -105,7 +270,7 @@ function AirTarget(platoon,position,radius)
     local enemies=Enemies(army)
     radius=radius or 2048
     for _,enemy in ipairs(enemies) do
-        if VisibleEnemy(army,enemy) and enemy.isAirborne==true and Has(enemy.tp,"AIR") then
+        if VisibleEnemy(army,enemy) and enemy.isAirborne~=false and Has(enemy.tp,"AIR") then
             local p=Copy(enemy:GetPosition())
             local distance=D2(origin,p)
             if distance<=radius*radius and ValidAirTarget(platoon,enemy) then
@@ -267,47 +432,119 @@ function FlankPath(platoon,start,destination,layer,maxThreat,direct)
     return best
 end
 
+-- Reclaim decisions can inspect tens of thousands of authored props. Keep
+-- the exact score/id heap in dense arrays instead of allocating one temporary
+-- table per prop. Arrays remain private across yielding native path requests.
+local function ReclaimCandidateRanksAhead(props,scores,a,b)
+    if scores[a]~=scores[b] then return scores[a]>scores[b] end
+    return props[a].id.index<props[b].id.index
+end
+local function SiftReclaimCandidateDown(props,positions,scores,index,count)
+    local prop,position,score=props[index],positions[index],scores[index]
+    while index*2<=count do
+        local child=index*2
+        if child<count and ReclaimCandidateRanksAhead(props,scores,child+1,child) then child=child+1 end
+        if scores[child]<score or scores[child]==score and props[child].id.index>=prop.id.index then break end
+        props[index],positions[index],scores[index]=props[child],positions[child],scores[child]
+        index=child
+    end
+    props[index],positions[index],scores[index]=prop,position,score
+end
+local function ReclaimReservationGrid(reserved)
+    if #reserved<16 then return nil end
+    local grid={}
+    for _,position in ipairs(reserved) do
+        local x,z=math.floor(position.x/10),math.floor(position.z/10)
+        local row=grid[x];if not row then row={};grid[x]=row end
+        local cell=row[z];if not cell then cell={};row[z]=cell end
+        cell[#cell+1]=position
+    end
+    return grid
+end
+local function ReclaimPositionAvailable(position,reserved,grid)
+    if not grid then
+        for _,r in ipairs(reserved) do if D2(position,r)<=100 then return false end end
+        return true
+    end
+    -- Include an extra cell halo: floating-point subtraction can round a
+    -- separation just beyond ten units back onto the exact circle boundary.
+    -- The unchanged distance check still decides every candidate.
+    local x,z=math.floor(position.x/10),math.floor(position.z/10)
+    for cx=x-2,x+2 do
+        local row=grid[cx]
+        if row then
+            for cz=z-2,z+2 do
+                local cell=row[cz]
+                if cell then
+                    for _,r in ipairs(cell) do if D2(position,r)<=100 then return false end end
+                end
+            end
+        end
+    end
+    return true
+end
+
 function ReclaimTarget(builder,reserved,unreachable)
     local platoon,army=builder.platoon,builder.army
     local unitAI,platoonAI=builder.ai,platoon and platoon.ai
     if not Reliability.CurrentAssignment(builder,army,platoon,unitAI,platoonAI) then return nil end
     local origin=Copy(builder:GetPosition())
-    local candidates={}
+    local candidates,positions,scores,weights={},{},{},{}
+    local area
+    reserved=reserved or {}
+    local reservationGrid=ReclaimReservationGrid(reserved)
     for _,prop in pairs(__Entities.Props or {}) do
         local blocked=unreachable[prop]
         if type(blocked)=="number" and Now()-blocked>60 then unreachable[prop]=nil;blocked=nil end
         if not prop.dead and not prop.deleted and not blocked and not (prop.reclaimers and next(prop.reclaimers)) then
-            local p=Copy(prop:GetPosition());local clear=true
-            for _,r in ipairs(reserved or {}) do if D2(p,r)<=100 then clear=false;break end end
             local harvest=prop.tp and prop.tp.economy and prop.tp.economy.harvest
             local value=harvest and (harvest.alloys or 0) or 0
-            if clear and value>0 and Reliability.Inside(p,1) then
-                -- Valuable wreck clusters can beat nearby low-value rocks.
-                local score=math.sqrt(value)/(30+math.sqrt(D2(origin,p)))
-                candidates[#candidates+1]={prop=prop,pos=p,score=score}
+            if value>0 then
+                -- Native prop position getters return a fresh snapshot.
+                local position=prop:GetPosition()
+                area=area or AF.GetPlayableArea()
+                if Reliability.Inside(position,1,area) then
+                    if ReclaimPositionAvailable(position,reserved,reservationGrid) then
+                        -- Valuable wreck clusters can beat nearby low-value rocks.
+                        -- Harvest is template data; share its square root only
+                        -- within this non-yielding census, never across updates.
+                        local weight=weights[harvest]
+                        if not weight then weight=math.sqrt(value);weights[harvest]=weight end
+                        local n=#candidates+1
+                        candidates[n],positions[n],scores[n]=prop,position,weight/(30+math.sqrt(D2(origin,position)))
+                    end
+                end
             end
         end
     end
-    table.sort(candidates,function(a,b)
-        if a.score~=b.score then return a.score>b.score end
-        return a.prop.id.index<b.prop.id.index
-    end)
+
+    -- Build the heap in one pass. Rank only as far as heat and path checks need.
+    local count=#candidates
+    for index=math.floor(count/2),1,-1 do
+        SiftReclaimCandidateDown(candidates,positions,scores,index,count)
+    end
     local pathChecks=0
-    for _,item in ipairs(candidates) do
-        local land=Heat(army,item.pos,"Land")
-        local air=Heat(army,item.pos,"Air")
+    while count>0 do
+        local prop=candidates[1]
+        local position=Copy(positions[1])
+        local land=Heat(army,position,"Land")
+        local air=Heat(army,position,"Air")
         if land and land==0 and air and air==0 then
             pathChecks=pathChecks+1
-            local path=MG.GeneratePathTo(army.id,origin,item.pos,platoon.ai.movementLayer,true,0)
+            local path=MG.GeneratePathTo(army.id,origin,position,platoon.ai.movementLayer,true,0)
             if not Reliability.CurrentAssignment(builder,army,platoon,unitAI,platoonAI) then return nil end
-            if not item.prop.dead and not item.prop.deleted then
-                if type(path)=="table" and #path>0 and not (item.prop.reclaimers and next(item.prop.reclaimers)) then
-                    return item.prop,path
+            if not prop.dead and not prop.deleted then
+                if type(path)=="table" and #path>0 and not (prop.reclaimers and next(prop.reclaimers)) then
+                    return prop,path
                 end
-                if type(path)~="table" or #path==0 then unreachable[item.prop]=Now() end
+                if type(path)~="table" or #path==0 then unreachable[prop]=Now() end
             end
             if pathChecks>=8 then break end
         end
+        candidates[1],positions[1],scores[1]=candidates[count],positions[count],scores[count]
+        candidates[count],positions[count],scores[count]=nil,nil,nil
+        count=count-1
+        if count>0 then SiftReclaimCandidateDown(candidates,positions,scores,1,count) end
     end
     return nil
 end
@@ -424,7 +661,7 @@ function CommanderCombatProfile(platoon,unit,target)
     local layer=platoon.ai.targetLayer or "Land"
     for _,weapon in ipairs(unit.weapons or {}) do
         local tp=weapon.tp or weapon;local range=tp.rangeMax or 0
-        local allowed=target and type(weapon.CanShootAt)=="function" and weapon:CanShootAt(target)
+        local allowed=target and type(weapon.CanShootAt)=="function" and Intel.CanShootAt(platoon.army,weapon,target)
         if not target and tp.rangeRingType~="AntiAir" then
             local limits=tp.layerTargetLimits or {}
             allowed=#limits==0
@@ -452,7 +689,7 @@ function CommanderCombatProfile(platoon,unit,target)
         local distance=math.sqrt(D2(position,targetPosition))
         local commandTarget=Has(target.tp,"COMMAND") or Has(target.tp,"SCFA_COMMAND")
         local inContact=type(strongest.weapon.IsTargetInRange)=="function"
-            and strongest.weapon:IsTargetInRange(target)
+            and Intel.IsTargetInRange(platoon.army,strongest.weapon,target)
         local seekClose=not support and profile.canAdvance and health>=maxHealth*0.70
             and distance<=longest.range+20
         if commandTarget or strongest~=longest and (inContact or seekClose) then
@@ -537,7 +774,7 @@ local function SupportTroop(army,unit)
         and Has(unit.tp,"MOBILE") and not Has(unit.tp,"AIR") and not Has(unit.tp,"NAVAL")
         and not Has(unit.tp,"ENGINEER") and not Has(unit.tp,"COMMAND") and not Has(unit.tp,"SCFA_COMMAND")
         and not Has(unit.tp,"SCOUT") and (AF.GetUnitThreatValueByLayer(unit,"Land")>0 or AF.GetUnitThreatValueByLayer(unit,"Air")>0)
-        and not (unit.ai and unit.ai.eState=="RepairHome") and not (unit.toggles and unit.GetPause and unit:GetPause())
+        and not (unit.ai and unit.ai.eState=="RepairHome") and not (UnitState.IsPaused(unit))
         and not (ai and (ai.withdraw or ai.eState=="Withdraw" or operation and operation.policy and operation.policy.phase=="Retreat"))
 end
 -- Position an actual aura/area shield with useful own troops. The caller owns
@@ -627,7 +864,7 @@ function CanDefendHome(platoon,lethal)
             if Has(u.tp,"AIR") then enemyAir=enemyAir+value else enemyLand=enemyLand+value end
             if value>0 and not Has(u.tp,"AIR") and D2(base,u:GetPosition())<=70*70 then
                 for _,weapon in ipairs(commander.weapons or {}) do
-                    if weapon.enabled and not weapon.isDeathExplosion and weapon.CanShootAt and weapon:CanShootAt(u) then target=u;break end
+                    if weapon.enabled and not weapon.isDeathExplosion and weapon.CanShootAt and Intel.CanShootAt(platoon.army,weapon,u) then target=u;break end
                 end
             end
         end
@@ -662,7 +899,7 @@ function FinishCommanderTarget(platoon)
                 for _,unit in ipairs(platoon:GetUnits()) do
                     for _,weapon in ipairs(unit.weapons or {}) do
                         if not unit.dead and weapon.enabled and not weapon.isDeathExplosion
-                            and weapon.CanShootAt and weapon:CanShootAt(target) then targetable=true;break end
+                            and weapon.CanShootAt and Intel.CanShootAt(platoon.army,weapon,target) then targetable=true;break end
                     end
                     if targetable then break end
                 end

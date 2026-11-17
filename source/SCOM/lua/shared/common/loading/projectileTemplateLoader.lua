@@ -1,6 +1,7 @@
 local HierarchyTemplateLoader = Import("common/loading/hierarchyTemplateLoader.lua") 
 local ParticleTemplateLoader  = Import("common/loading/particleTemplateLoader.lua")
 local CollisionLayer = Import("common/layers.lua").CollisionLayer
+local SCOM_MeshContact = Import("common/systems/scoMeshContact.lua")
 
 local ProjectileIconHeightCutoff = 100
 --This sorting priority mean projectiles always render on top of selected/hovered unit icons.
@@ -49,7 +50,7 @@ function CreateProjectilePrefab(tp)
             EngineClasses.float3(0, 0, 0),
             CollisionWorld.Collision,
             CollisionLayer.Projectiles,
-            CollisionLayer.Units + CollisionLayer.Shields,
+            CollisionLayer.Units + CollisionLayer.Shields + SCOM_MeshContact.ProjectileLayer,
             ColliderFlags.None
         ),
         EngineClasses.RayColliderTemplate(WaterColliderEntityName,
@@ -1244,7 +1245,7 @@ local SCO_CommanderBrightnessPaths = {
     ["VFX/" .. "SCOM/Source/psf0006/impact_land.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/a753f539e23e5049a925.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0006/ribbon_0.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/4e2f5e9fc1f1d5efd250.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0006/ribbon_particles.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/d3cab48804ab441af8f0.sanvfx",
-    ["VFX/" .. "SCOM/Source/psf0012/impact_land.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/9eb4aa17fc4bed62a378.sanvfx",
+    ["VFX/" .. "SCOM/Source/psf0012/impact_land.sanvfx"] = "VFX/SCOM/WS/9eb4aa17fc4bed62a378.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0015/impact_land.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/5847e76679a584338ad2.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0015/ribbon_1.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/9f3dd24a5ae411bf5eb7.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0015/ribbon_2.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/cc13dfe027f25df1d8e6.sanvfx",
@@ -1257,11 +1258,11 @@ local SCO_CommanderBrightnessPaths = {
     ["VFX/" .. "SCOM/Source/psf0033/ribbon_particles.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/e54f59cd41169573c73b.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0148/trail.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/4f754cd9e209ab6dd121.sanvfx",
     ["VFX/" .. "SCOM/Source/psf0168/impact_land.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/3ad0ef98fef395a9f6c8.sanvfx",
-    ["VFX/" .. "SCOM/Source/pxd003/beam_end.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/d084b2aff6961fe6fa85.sanvfx",
-    ["VFX/" .. "SCOM/Source/ucl4002/muzzle_rightreactoncannon.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/1c80798ce6e7f387deb7.sanvfx",
-    ["VFX/" .. "SCOM/Source/uel5007/muzzle_rightheavyplasmacannon.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/c1809bf171bd828f4fb8.sanvfx",
-    ["VFX/" .. "SCOM/Source/ugl5004/muzzle_nmissile.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/65349bb416e05b0eb805.sanvfx",
-    ["VFX/" .. "SCOM/Source/usl4002/muzzle_lightchronatroncannon.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/67f193c0a63061c7fda6.sanvfx",
+    ["VFX/" .. "SCOM/Source/pxd003/beam_end.sanvfx"] = "VFX/SCOM/WS/d084b2aff6961fe6fa85.sanvfx",
+    ["VFX/" .. "SCOM/Source/ucl4002/muzzle_rightreactoncannon.sanvfx"] = "VFX/SCOM/WS/1c80798ce6e7f387deb7.sanvfx",
+    ["VFX/" .. "SCOM/Source/uel5007/muzzle_rightheavyplasmacannon.sanvfx"] = "VFX/SCOM/WS/c1809bf171bd828f4fb8.sanvfx",
+    ["VFX/" .. "SCOM/Source/ugl5004/muzzle_nmissile.sanvfx"] = "VFX/SCOM/WS/65349bb416e05b0eb805.sanvfx",
+    ["VFX/" .. "SCOM/Source/usl4002/muzzle_lightchronatroncannon.sanvfx"] = "VFX/SCOM/WS/67f193c0a63061c7fda6.sanvfx",
     ["VFX/" .. "SupremeCommanderOverhaul/Materials/Monkeylord/monkeylord_microwave_beam.sanmaterial"] = "VFX/SCOM/Source/CommanderBrightness/bf77ab57130f809e25e7.sanmaterial",
     ["VFX/" .. "Trails/vct1101_cannon_plasma_small_trail.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/73e106fbe835042423ce.sanvfx",
     ["VFX/" .. "Trails/vct1241_cannon_artillery_medium_trail.sanvfx"] = "VFX/SCOM/Source/CommanderBrightness/854b8003056d5750b3af.sanvfx",
@@ -1431,6 +1432,7 @@ function SCO_FieldFixAttachProjectileMesh(tp, prefab)
         or tp.general.tpId == 'pst001' or tp.general.tpId == 'pst002'
         or tp.general.tpId == 'pst003' or tp.general.tpId == 'pst005'
         or tp.general.tpId == 'psf0174' or tp.general.tpId == 'psf0073' or tp.general.tpId == 'psf0021'
+        or tp.general.tpId == 'psf0018' or tp.general.tpId == 'psf0040' or tp.general.tpId == 'psf0020' or tp.general.tpId == 'psn003'
     local materialState = unitMaterial
         and EngineClasses.float4(0, 0, 0, 0) or EngineClasses.float4(0, 1, 0, 0)
     table.insert(localTemplate.meshTemplates, EngineClasses.MeshTemplate(
@@ -1456,7 +1458,10 @@ function SCO_SourceNukeParticles(tp,prefab)
     for phase,effect in ipairs(phases) do
         assert(effect.phase==phase and effect.startTime==({0,2.5,5})[phase]
             and effect.boneName:match('^SCO_SourceNuke_%l+$')
-            and effect.particleName:match('^VFX/SCOM/Source/')
+            and (effect.particleName:match('^VFX/SCOM/Source/')
+                or (tp.general.tpId=='psf0040'
+                    and ((phase==2 and effect.particleName=='VFX/SCOM/Stonager/nuke_launch.sanvfx')
+                        or (phase==3 and effect.particleName=='VFX/SCOM/Stonager/nuke_thrust.sanvfx'))))
             and effect.particleName:sub(-7)=='.sanvfx'
             and not effect.particleName:find('..',1,true),'Invalid source nuclear phase descriptor')
         if not names[effect.boneName] then

@@ -1,14 +1,27 @@
 -- RC10 land-operation policy. Pure decisions: no engine calls, wall-clock time,
 -- random choices, hidden-enemy access, or changes to unit/weapon templates.
-Version = "9.0.23-rc28"
+Version = "9.3.0"
 Config = {
     PrimaryLimit = 64, WaveLimit = 48, SupportLimit = 12, SupportInstances = 3,
-    WaveInstances = 48, GroupSeconds = 8, CommitSeconds = 12,
+    WaveInstances = 48, GroupSeconds = 4, CommitSeconds = 12,
     RetreatMinimum = 6, RetreatMaximum = 24, RetreatDistance = 72,
     ObjectiveCooldown = 60, ObjectiveRetry = 8, ContactGrace = 3,
     RepathSeconds = 20, AbandonSeconds = 45, MaximumRepaths = 2,
     NoContactSeconds = 24, SnapshotSeconds = 0.5, CoreRadiusLimit = 64,
+    ContactSenseSeconds = 0.3, MovingSenseSeconds = 0.5, IdleSenseSeconds = 1,
+    OpportunitySeconds = 8, ForwardProbeMinimum = 4, ForwardProbeSeconds = 30,
 }
+
+-- Fast local reassessment shares the army's spatial snapshot; it never starts
+-- another full-map sensor thread or shortens retreat/commitment hysteresis.
+function SenseSeconds(s, underFire, exposed)
+    if s.phase == "Acquire" then return 0.1 end
+    if s.phase == "Engage" or s.phase == "Retreat" or underFire or exposed then
+        return Config.ContactSenseSeconds
+    end
+    if s.phase == "Advance" or s.phase == "Group" then return Config.MovingSenseSeconds end
+    return Config.IdleSenseSeconds
+end
 
 function New(now)
     return { phase = "Group", phaseAt = now, lastProgressAt = now,
@@ -25,6 +38,7 @@ function GoalStarted(s, now)
     s.lastProgressAt, s.repaths, s.nextRepath = now, 0, nil
     s.goalChanges = s.goalChanges + 1
     s.unfavourableAt, s.noContactAt = nil, nil
+    s.nextOpportunity = now + Config.OpportunitySeconds
 end
 
 function Hold(s, now, reason)
@@ -40,6 +54,28 @@ end
 
 function Progress(s, now)
     s.lastProgressAt = now
+end
+
+-- Only actual reinforcements wake a force waiting for more strength. Existing
+-- attacks, committed retreats and path-failure cooldowns keep their ownership.
+function Reinforced(s, now)
+    if s.phase ~= "Hold" or now < (s.nextReinforcementCheck or 0) then return false end
+    local reason = s.holdReason
+    if reason ~= "no-safe-objective" and reason ~= "assembling-front"
+        and reason ~= "containment" and reason ~= "retreat-reassess" then return false end
+    s.nextReinforcementCheck = now + 2
+    s.nextAcquire = math.min(s.nextAcquire or now, now)
+    return true
+end
+
+-- Reconsider exploration orders on a bounded cadence. Actual attack, defense,
+-- siege, contact, deferred paths and withdrawal missions are never interrupted.
+function OpportunityDue(s, i, kind)
+    if s.phase ~= "Advance" or (kind ~= "alloy-patrol" and kind ~= "probe")
+        or i.nearTarget or i.underFire or i.pathPending or not i.goalValid or i.goalExpired
+        or not CanEngage(s, i, false) or i.now < (s.nextOpportunity or 0) then return false end
+    s.nextOpportunity = i.now + Config.OpportunitySeconds
+    return true
 end
 
 local function EnterCombat(s, i)
@@ -60,6 +96,16 @@ function Retreat(s, i, reason)
     return "retreat", reason
 end
 
+-- Do not let a weak nearby target pull an otherwise safe group into a defended
+-- position. Only observed, predominantly static resistance asks for assembly;
+-- ordinary mobile contacts retain the existing engagement/retreat policy.
+function NeedsAssaultAssembly(own, friendly, assessment, ratio)
+    local total=assessment and assessment.total or 0
+    local fixed=assessment and assessment.static or 0
+    return own>0 and fixed>0 and fixed>=total*0.60
+        and total>math.max(0,own+(friendly or 0))*(ratio or 0.80)
+end
+
 -- Entry and exit thresholds differ. Merely seeing a distant enemy is not a
 -- committed engagement; the adapter supplies actual weapon-range contact.
 function CanEngage(s, i, retaining)
@@ -68,7 +114,11 @@ function CanEngage(s, i, retaining)
     if i.enemy <= effective * (i.attackRatio or 1.05) then return true end
     if not retaining then return false end
     if i.primary then
-        return i.nearTarget==true and i.enemy<=effective/math.max(0.01,i.attackRatio or 0.80)
+        -- Retention follows entry caution monotonically, with the established
+        -- 0.80 entry / 1.25 retention baseline as its upper ceiling.
+        local entry=i.attackRatio or 0.80
+        local retention=math.max(entry,math.min(1.25,entry+0.45))
+        return i.nearTarget==true and i.enemy<=effective*retention
     end
     if i.raider then return false end
     if i.enemy > effective * 1.8 then return false end

@@ -1,11 +1,13 @@
 -- RC15: spend on a sustainable field army before optional development.
 -- Inputs are the controller's per-second, owned-unit snapshot. This module
 -- never changes income, prices, build power, paid work, or native permissions.
-Version = "9.0.24-rc29"
+Version = "10.0.0"
+local UnitState=Import("AI/mods/AI-Scom/RushUnitState.lua")
 local Rules=Import("AI/mods/AI-Scom/RushBalance.lua")
 local Pressure=Import("AI/mods/AI-Scom/RushPressure.lua")
 local AF=Import("AI/AIFunctions.lua")
 local Reliability
+local PowerForecast=Import("AI/mods/AI-Scom/RushPowerForecast.lua")
 local function Number(n, default)
     if type(n)=="number" and n==n and math.abs(n)<math.huge then return n end
     return default or 0
@@ -41,6 +43,10 @@ function EngineerFloor(s)
     return math.min(8,math.max(4,math.ceil(Number(s.extractors)*0.35+Number(s.landFactories)*0.25)))
 end
 function GroundFloor(s)
+    if s.strategy and not s.rushBeachheadBase and not s.rushSupportCensus then
+        return math.max(0,math.min(6,Number(s.strategy.groundFloor,4)))
+    end
+    if s.adaptive and not s.rushBeachheadBase and not s.rushSupportCensus then return s.adaptive.groundFloor end
     return math.min(16,math.max(6,Number(s.landFactories)*2))
 end
 -- A technology unlock is not a field replacement. Count only completed
@@ -56,10 +62,25 @@ local function CombatAtTier(s,tier)
 end
 function GroundTransitionReady(s,tier)
     if tier~=2 and tier~=3 then return false end
-    local minimum=math.max(Rules.Config.TechGroundUnits,GroundFloor(s),tier==3 and 16 or 0)
-    if s.landPressure or s.landPanic then minimum=minimum+4 end
-    if GroundReady(s)<minimum then return false end
-    return tier==2 or CombatAtTier(s,2)>=math.max(6,math.ceil(minimum*0.35))
+    local strategy=s.strategy
+    local localAttack=s.mainRaid or s.mainBombardment or s.localLandThreat
+    local minimum=tier==2 and (strategy and Number(strategy.techGroundMinimum,6) or 6) or 10
+    -- A broad map panic flag is not an attack on the construction base. The
+    -- actual local alarm asks for a modest screen; native funding and another
+    -- live production line decide whether the selected upgrade can proceed.
+    minimum=math.max(tier==2 and 4 or 8,math.min(tier==2 and 10 or 14,minimum))
+    if localAttack then minimum=math.max(minimum,tier==2 and 8 or 12) end
+    if GroundStrength(s)<minimum then return false end
+    return tier==2 or CombatAtTier(s,2)>=2
+end
+function FirstLandTechOpportunity(s)
+    if not s or s.landDisconnected or s.rushBeachheadBase or s.rushSupportCensus then return false end
+    local c=s.development;local factories=c and c.factory
+    if not factories or Number(factories.land2)+Number(factories.land3)>0 then return false end
+    local a,e=s.alloy,s.energy
+    return a and e and Number(a.income)>=7 and Number(e.income)>=60
+        and Number(s.landFactories)>=2 and GroundTransitionReady(s,2)
+        and not AlloyStalled(s) and (Balance(e)>=0 or Number(e.current)>=-Balance(e)*30)
 end
 function GroundReplacementReady(s,tier)
     if tier~=2 and tier~=3 or GroundReady(s)<GroundFloor(s) then return false end
@@ -118,6 +139,18 @@ function PowerHeadroom(s)
     end
     return math.max(headroom,Number(s.mainShieldPowerNeed))
 end
+-- Legacy and proactive builders use one future-load margin at admission.
+function PowerPlanningHeadroom(s,techHeadroom,tier)
+    local e=s.energy or {};local c=s.development or {}
+    local total=Number(c.totalFactories,Number(s.landFactories)+Number(s.airFactories)+Number(s.navalFactories))
+    local headroom=math.max(40,Number(e.income)*0.25,total*18,PowerHeadroom(s),Number(techHeadroom))
+    if Number(s.airFactories)+Number(s.airFactoriesBuilding)>0
+        and Number(s.roles and s.roles.bomber)<2 and total>=1 then headroom=math.max(headroom,90) end
+    if tier and tier>=2 and Number(c.power and c.power[tier])<1 then
+        headroom=math.max(headroom,Number(e.income)*0.40)
+    end
+    return headroom
+end
 function NeedsPower(s)
     local e=s.energy
     if not e then return false end
@@ -138,23 +171,154 @@ function NeedsPower(s)
     return balance<headroom
         or (Number(e.ratio)<0.35 and balance<math.max(40,income*0.25))
 end
-function CanAddCapacity(army,s,domain)
-    if not s.alloy or not s.energy then return false end
-    if domain=="land" and Number(s.landFactories)<2 then
-        if Number(s.landFactories)==0 then return true end
-        if s.rushBeachheadBase then
-            return Number(s.energy.ratio)>=Rules.Config.CapacityEnergy and Balance(s.energy)>=0 and not AlloyStalled(s)
-        end
-        local generators=0
-        for _,n in pairs(s.powerComplete or {}) do generators=generators+Number(n) end
-        for _,n in pairs(s.powerPending or {}) do generators=generators+Number(n) end
-        return Number(s.extractors)>0 and generators>0
+-- Future supply only filters a new power order. NeedsPower and every funding
+-- calculation continue to use current native resources and reservations.
+function PowerProjects(army,snapshot)
+    return PowerForecast.Read(army,snapshot)
+end
+function PowerProjectsCover(army,snapshot,headroom,tier,projects)
+    return PowerForecast.Covers(army,snapshot,headroom,tier,projects)
+end
+function PowerProjectCount(army,snapshot,tier,projects)
+    return PowerForecast.Count(army,snapshot,tier,projects)
+end
+function MarkPowerDispatch(army,platoon,tier)
+    PowerForecast.MarkDispatch(army,platoon,tier)
+end
+local function LayerEnabled(army,layer)
+    local layers=army and army.ai and army.ai.settings and army.ai.settings.useLayer
+    return not layers or layers[layer]~=false
+end
+local function DomainEnabled(army,domain)
+    return LayerEnabled(army,domain=="naval" and "water" or domain)
+end
+local function CapacityShares(army,s)
+    local strategy=s.strategy or {}
+    local connected=not s.landDisconnected and DomainEnabled(army,"land")
+    local shares={land=Number(strategy.landShare,connected and 0.78 or 0.05),
+        air=Number(strategy.airShare,connected and 0.22 or 0.70),
+        naval=Number(strategy.navalShare,connected and 0 or 0.25)}
+    local sum=0
+    for domain,share in pairs(shares) do
+        if not DomainEnabled(army,domain) then share=0 end
+        shares[domain]=math.max(0,share);sum=sum+shares[domain]
     end
-    if domain=="air" and LandEnabled(army) and Number(s.landFactories)<2 then return false end
-    -- Only new ordinary capacity: never cancel a paid foundation. Current
-    -- Energy plus already committed work must support another factory.
-    return Number(s.energy.ratio)>=Rules.Config.CapacityEnergy and Balance(s.energy)>=0
-        and not AlloyStalled(s)
+    if sum>0 then for domain,share in pairs(shares) do shares[domain]=share/sum end end
+    return shares
+end
+local function CapacityRate(s,domain)
+    local rates=s.factoryThroughput and s.factoryThroughput[domain]
+    if rates and Number(rates.count)>0 and Number(rates.mass)>0 then
+        return math.max(0.25,rates.mass/rates.count)
+    end
+    -- Before the first native menu exists this is a conservative planning
+    -- estimate only. Selection still prices the real faction-specific project.
+    return domain=="naval" and 6 or 4
+end
+function CapacityGoal(army,s,domain)
+    if not s or not DomainEnabled(army,domain) then return 0 end
+    local current=Number(s[domain.."Factories"])
+    local native=s.factoryThroughput and s.factoryThroughput[domain]
+    if native and Number(native.nativeT1Menus)>0 and Number(native.nativeT1Products)==0 then return current end
+    if domain=="land" and s.landDisconnected and not s.rushBeachheadBase then return 1 end
+    local a=s.alloy or {};local e=s.energy or {}
+    local share=CapacityShares(army,s)[domain] or 0
+    local minimum=0
+    if domain=="land" then minimum=Number(s.extractors)>=2 and 2 or 1
+    elseif domain=="air" then
+        if s.landDisconnected or not DomainEnabled(army,"land") or s.airRaid or s.airPanic
+            or Number(s.landFactories)>=2 and GroundReady(s)>=4 then minimum=1 end
+    elseif share>0 and (current>0 or s.navalThreat or s.navalPanic or s.landDisconnected) then minimum=1 end
+    if share<=0 then return math.max(minimum,current) end
+    local bank=math.max(0,Number(a.current)-Number(a.storage)*0.20)/75
+    local spending=math.max(0,Number(a.income)*1.10+bank)
+    local goal=math.ceil(spending*share/CapacityRate(s,domain))
+    -- Aircraft/ships never steal the first two useful ground lines except for
+    -- the already-observed emergency/disconnected cases above.
+    if domain=="air" and not s.landDisconnected and DomainEnabled(army,"land")
+        and Number(s.landFactories)<2 and not s.airRaid and not s.airPanic then goal=0 end
+    if domain=="naval" and current==0 and minimum==0 then goal=0 end
+    if Number(e.income)<=0 then goal=minimum end
+    return math.max(minimum,goal)
+end
+function OpeningFactoryGoal(army,s)
+    if s.rushBeachheadBase or s.rushSupportCensus then return 0 end
+    local land,air=DomainEnabled(army,"land"),DomainEnabled(army,"air")
+    if not land then return air and 2 or 0 end
+    if s.landDisconnected then return air and 2 or 1 end
+    -- This ends the bootstrap phase. CapacityGoal continues growing with the
+    -- economy afterwards; it is not a factory cap or a permanent tech gate.
+    return air and 3 or 2
+end
+function OpeningCapacityNeeded(army,s)
+    return Number(s.landFactories)+Number(s.airFactories)<OpeningFactoryGoal(army,s)
+end
+function OpeningFactoryDomain(army,s)
+    if not OpeningCapacityNeeded(army,s) then return nil end
+    local pending=s.factoryPending or {}
+    if Number(pending.land)+Number(pending.air)>0 then return nil end
+    local land,air=DomainEnabled(army,"land"),DomainEnabled(army,"air")
+    if Number(s.landFactories)==0 and land then return "land" end
+    if not land then return air and "air" or nil end
+    if air and (s.landDisconnected or s.airRaid or s.airPanic) then return "air" end
+    if s.landDisconnected then return nil end
+    if Number(s.landFactories)<2 or s.mainRaid or s.mainBombardment then return "land" end
+    if air and Number(s.airFactories)==0 and Number(s.energy and s.energy.income)>=65
+        and GroundReady(s)>=4 then return "air" end
+    return "land"
+end
+local function OpeningCapacityAffordable(s)
+    local a,e=s.alloy,s.energy
+    if not a or not e or Number(s.extractors)<2 or Number(a.income)<=0 or Number(e.income)<=0 then return false end
+    local generators=0
+    for _,n in pairs(s.powerComplete or {}) do generators=generators+Number(n) end
+    return generators>0 and Number(e.ratio)>=0.15
+        and Balance(e)+math.max(0,Number(e.current)-Number(e.storage)*0.10)/30>=0
+        and (Number(a.current)>=40 or Balance(a)>=1) and not AlloyStalled(s)
+end
+function CanAddCapacity(army,s,domain)
+    if not s or not s.alloy or not s.energy or not DomainEnabled(army,domain) then return false end
+    local current=Number(s[domain.."Factories"])
+    local pending=Number(s.factoryPending and s.factoryPending[domain])
+    local total=Number(s.landFactories)+Number(s.airFactories)+Number(s.navalFactories)
+    if total==0 then return domain==OpeningFactoryDomain(army,s) or domain=="naval"
+        and not DomainEnabled(army,"land") and not DomainEnabled(army,"air") end
+    local goal=CapacityGoal(army,s,domain)
+    if current+pending>=goal then return false end
+    if (domain=="land" or domain=="air") and OpeningCapacityNeeded(army,s) then
+        return domain==OpeningFactoryDomain(army,s) and OpeningCapacityAffordable(s)
+    end
+    if domain=="land" and s.landDisconnected and not s.rushBeachheadBase and current+pending>=1 then return false end
+    local idle=Number(s.idleFactoriesByDomain and s.idleFactoriesByDomain[domain])
+    if current>0 and idle>math.max(1,current*0.30) then return false end
+    local a,e=s.alloy,s.energy
+    return Number(a.income)>0 and Number(e.income)>0 and not AlloyStalled(s)
+        and Number(e.ratio)>=0.12 and (Balance(e)>=0 or Number(e.current)>=-Balance(e)*45)
+end
+function CapacityPriority(army,s,domain)
+    if not CanAddCapacity(army,s,domain) then return 0 end
+    local current=Number(s[domain.."Factories"])
+    if domain=="land" and current<2 then return current==0 and 9900 or 9860 end
+    local goal=math.max(1,CapacityGoal(army,s,domain))
+    local pending=Number(s.factoryPending and s.factoryPending[domain])
+    local debt=math.max(0,goal-current-pending)
+    local overflow=Number(s.alloy.ratio)>=0.75 and Number(s.energy.ratio)>=0.50
+    return 9600+math.floor(math.min(1,debt/goal)*180)+(overflow and 120 or 0)
+end
+function HomeBuilderGoal(army,s)
+    local debt=0
+    for _,domain in ipairs({"land","air"}) do
+        debt=debt+math.max(0,CapacityGoal(army,s,domain)-Number(s[domain.."Factories"])
+            -Number(s.factoryPending and s.factoryPending[domain]))
+    end
+    return math.min(6,2+math.ceil(debt/2)+(NeedsPower(s) and 1 or 0))
+end
+function ExtractorInvestmentReady(army,s)
+    if not s then return false,"no-snapshot" end
+    if LandEnabled(army) and Number(s.landFactories)<2 then return false,"opening-factories" end
+    if s.mainRaid and GroundReady(s)<math.min(6,GroundFloor(s)) then return false,"base-defense" end
+    if LandEnabled(army) and GroundReady(s)<4 then return false,"ground-army" end
+    return true,"ready"
 end
 function CanRecoverEngineer(s,massRate,energyRate,tier,engineersIdle)
     if tier~=1 or not s.alloy or not s.energy then return false end
@@ -181,7 +345,8 @@ end
 function CanRecoverTechEngineer(s,massRate,energyRate,tier)
     if not NeedsTechEngineer(s,tier) or not s.alloy or not s.energy
         or Number(massRate,-1)<0 or Number(energyRate,-1)<0 then return false end
-    if not s.landDisconnected and (s.landPanic or s.airPanic) and GroundReady(s)<2 then return false end
+    if not s.landDisconnected and (s.mainRaid or s.mainBombardment or s.localLandThreat or s.airRaid)
+        and GroundReady(s)<2 then return false end
     local a,e=s.alloy,s.energy
     return Number(a.income)>0 and Number(e.income)>0
         and massRate<=math.max(6,Number(a.income)*1.25)
@@ -230,7 +395,7 @@ function CanUpgradeExtractor(unit,s)
     local army=unit and unit.army
     if not Rules.Own(army,unit) or not unit:IsCompleted()
         or not Rules.Has(unit.tp,"STRUCTURE") or not Rules.Has(unit.tp,"ALLOYS_EXTRACTION")
-        or AF.IsUnderAttack(unit) or type(unit.GetPause)=="function" and unit:GetPause()
+        or AF.IsUnderAttack(unit) or UnitState.IsPaused(unit)
         or type(unit.GetUpgradeTpId)~="function" then return false end
     Reliability=Reliability or Import("AI/mods/AI-Scom/RushReliability.lua")
     local orders=unit.orders
@@ -242,7 +407,7 @@ function CanUpgradeExtractor(unit,s)
         or not Rules.Has(target,"ALLOYS_EXTRACTION") or not Reliability.AllowedTarget(id,false)
         or not Reliability.CanBuilderBuild(unit,id) then return false end
     s=s or Rules.CurrentSnapshot(army,false)
-    if not s or Number(s.extractors)<2 then return false end
+    if not s or Number(s.extractors)<2 or not ExtractorInvestmentReady(army,s) then return false end
     local ground=GroundStrength(s)
     if LandEnabled(army) and ground<math.min(4,GroundFloor(s)) then return false end
     local a,e=Rules.Resources(army,unit)
@@ -264,7 +429,7 @@ function CanUpgradeExtractor(unit,s)
         or a.techOwner or a.commanderOwner or a.heavyOwner or Number(s.upgrades)>0
         or Number(s.development and s.development.factoryUpgrades)>0
         or Number(s.development and s.development.experimentalBuilding)>0
-        or s.landPanic or s.airPanic or s.navalPanic
+        or s.mainRaid or s.mainBombardment or s.localLandThreat or s.airRaid
         or LandEnabled(army) and ground<GroundFloor(s) then return false end
     local demand=Number(a.request)+Number(a.reserved)
     return mass<=a.income*0.30+massBank and demand<=a.income*1.10
@@ -273,7 +438,7 @@ end
 
 function ExtractorShare(army,s,currentUpgradeCost)
     if not s or not s.alloy or not s.energy then return 0 end
-    if LandEnabled(army) and GroundReady(s)<4 then return 0 end
+    if not ExtractorInvestmentReady(army,s) then return 0 end
     local a,e=s.alloy,s.energy
     if Number(a.income)<=0 or Number(e.income)<=0 then return 0 end
     local bank=math.max(0,Number(a.current)-Number(a.storage)*0.15)/60

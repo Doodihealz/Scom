@@ -875,6 +875,11 @@ function HostUnit:UpdateUIValues()
     EconomyCommands.SetEconomyValues.Send(self.id, result)
 end
 
+local function TraceSelfDestruct(unit, phase)
+    local trace = rawget(_G, "SCOSelfDestructTrace")
+    if trace then trace(unit, phase) end
+end
+
 --- When the unit dies, turn into wreckage
 ---@param overkillRatio number
 ---@param destroyType DestroyType?
@@ -897,10 +902,12 @@ function HostUnit:Destroy(overkillRatio, destroyType)
         and (destroyType == DestroyType.Kinetic or destroyType == DestroyType.Unspecified)
 
     self:OnDestroy(destroyType)
+    TraceSelfDestruct(self, "cleanup-complete")
 
     -- Custom command to client which is UnitDestroy command.
     -- This spawns the destroy effects for now
     UnitCommands.DestroyUnit.Send(self.id, destroyType)
+    TraceSelfDestruct(self, "destroy-command-sent")
 
     -- SCOM naval death handoff 1.3.0
     local navalTerrainHeight
@@ -941,6 +948,7 @@ end
 --- resource entities and notifies associated systems.
 ---@param destroyType DestroyType
 function HostUnit:OnDestroy(destroyType)
+    TraceSelfDestruct(self, "base-cleanup")
     self.army.economy.EnergyDownTrigger:RemoveHandler(self.energyDownCallback)
     self.army.economy.EnergyUpTrigger:RemoveHandler(self.energyUpCallback)
     
@@ -1014,6 +1022,7 @@ function HostUnit:OnDestroy(destroyType)
     for _, weapon in ipairs(self.weapons) do
         weapon:Delete()
     end
+    TraceSelfDestruct(self, "weapons-cleared")
 
     self.visionLayer:Delete()
     self.radarLayer:Delete()
@@ -1026,6 +1035,7 @@ function HostUnit:OnDestroy(destroyType)
     end
     
     if destroyType ~= DestroyType.Delete and not self:IsPlacementGhost() then
+        TraceSelfDestruct(self, "death-explosions")
         self:CreateDeathExplosions()
     end
 
@@ -1042,12 +1052,31 @@ function HostUnit:CreateDeathExplosions()
         end
         if radius > 0 then
             self.scoCommanderTreeImpactApplied = true
-            Import("common/loading/unitTemplateLoader.lua").SCOMTreeKnockdown.Impact(self:GetPosition(), radius)
+            local trees = Import("common/loading/unitTemplateLoader.lua").SCOMTreeKnockdown
+            local tpId = self.tpId
+            if tpId == "uel0000" or tpId == "ugl0000" or tpId == "ucl0000" or tpId == "usl0000" then
+                local position = self:GetPosition()
+                TraceSelfDestruct(self, "tree-impact-call")
+                trees.NukeImpact(position, 100)
+                TraceSelfDestruct(self, "tree-impact-return")
+                if _G.SCO_HeavyTerrainEnabled == true then
+                    local signalTerrainImpact = CollisionUpdate.__HOTD_SignalTerrainImpactCode
+                    if type(signalTerrainImpact) == "function" then
+                        TraceSelfDestruct(self, "terrain-signal-call")
+                        signalTerrainImpact(90, position)
+                        TraceSelfDestruct(self, "terrain-signal-return")
+                    end
+                end
+            else
+                trees.Impact(self:GetPosition(), radius)
+            end
         end
     end
     for _, weapon in ipairs(self.tp.weapons or {}) do
         if weapon.category and weapon.category == "DeathExplosion" and weapon.damageRadius and weapon.damage then
+            TraceSelfDestruct(self, "area-damage-call")
             CollisionUpdate.ProcessAreaDamage(self:GetPosition(), weapon.damageRadius, weapon.damage, self.army, weapon.damageFriendly or false, self)
+            TraceSelfDestruct(self, "area-damage-return")
         end
     end
 end
@@ -1601,8 +1630,8 @@ function HostUnit:UpdateAnimations()
 
         if not self.isWalking and self.tp.visuals.animations.run then
             if movementSpeed < (self.tp.visuals.animations.run.startSpeed or 0) then
-                -- Imported walkers use the low-speed clip as idle; settle promptly after a stop.
-                local idleBlendSeconds = self.tp.hasTags and self.tp.hasTags.SCFA_ALLUNITS and 0.2 or 1
+                -- Imported walkers blend gradually from their stopped gait into the planted rest pose.
+                local idleBlendSeconds = self.tp.hasTags and self.tp.hasTags.SCFA_ALLUNITS and 0.6 or 1
                 Engine.PlayAnimation(self.id, self.tp.visuals.animations.walk.id, idleBlendSeconds);
                 self.isWalking = true
                 --Engine.Error("Walking: MovementSpeed: "..tostring(movementSpeed))
@@ -3684,6 +3713,12 @@ function HostUnit:__init(...)
 end
 
 function HostUnit:SCOApplyVeterancyLevel(level)
+    -- Delayed kill credit can outlive its native unit. Keep Lua stats, but
+    -- never revive dead units or call health APIs on deleted handles.
+    if self.dead or self.deleted or not Engine.IsValidGlobalID(self.id) then
+        return
+    end
+
     local rule = SCO_GetVeterancyRule(self.tpId)
     local oldMaxHealth = self:GetMaxHealth()
     local newMaxHealth = (self.scoVeterancyBaseMaxHealth or oldMaxHealth) * (1 + level * 0.1)
@@ -3722,7 +3757,7 @@ function HostUnit:SCOSetVeterancyKills(kills, synchronize)
         self:SCOApplyVeterancyLevel(desiredLevel)
     end
 
-    if synchronize then
+    if synchronize and Engine.IsValidGlobalID(self.id) then
         UnitCommands.SetVeterancyCommand.Send(self.id, kills)
     end
 end
@@ -3948,8 +3983,8 @@ if SCOFieldFixStrategicSiloHostMarker == nil then
             innerDamage = 70000 },
         ucs3102 = { muzzle = "Turret_Muzzle01", projectile = "psn003", maxAmmo = 5,
             rangeMin = 0, rangeMax = 20000, alloys = 12000, energy = 1350000,
-            innerDamage = 140000, innerRadius = 60,
-            outerDamage = 1000, outerRadius = 80,
+            innerDamage = 140000, innerRadius = 30,
+            outerDamage = 1000, outerRadius = 40,
             nukeVersion = "1.1.0", impactProfile = "ApocalypseAeon2x",
             creativeSpawnAmmo = 5,
             apocalypseFlight = {
@@ -4355,6 +4390,14 @@ if SCOFieldFixStrategicSiloHostMarker == nil then
         state.launch = nil
         local config = state.contract.launchAnimation
         if config and not unit.dead then
+            local deploy = unit.tp.additions.faAnimationClosureWeaponDeploy
+            local construction = deploy and deploy.constructionOpen
+            if construction and unit.scoFaAnimationConstructionReady == true then
+                -- Keep the completed structure open; Rest is its preconstruction pose.
+                SCOSampleLaunchAnimation(unit, construction.animationKey,
+                    construction.authoredDurationSeconds)
+                return true
+            end
             local packed = SCOAnimation(unit, config.packedKey)
             if not packed or not packed.id then
                 error(unit.tpId .. " requires strategic packed animation ", 2)
@@ -6289,7 +6332,7 @@ do
             assert(_G.SCO_SourceApplyNukeRings,"Strategic shield snapshot owner missing")(position,state.rings,state.source)
             local radius=0
             for _,ring in ipairs(state.rings) do radius=math.max(radius,ring.radius) end
-            Import("common/loading/unitTemplateLoader.lua").SCOMTreeKnockdown.NukeImpact(position,radius*2)
+            Import("common/loading/unitTemplateLoader.lua").SCOMTreeKnockdown.NukeImpact(position,radius*4)
             projectile:Destroy(tick or 0,hitGlobalID)
         end
         function Source.NukeTick(projectile,position,now)
@@ -6709,7 +6752,18 @@ local function CargoNextPickup(carrier)
     if carrier.scoCargoPending then return end
     local queue=carrier.scoCargoLoadQueue or {}
     if #queue==0 then carrier.scoCargoRequestClientID=nil;return end
-    local pending=table.remove(queue,1)
+    -- Queued units can die, transfer, or start conflicting work while another
+    -- pickup runs. Release their slots before reading a native world position.
+    local pending
+    while #queue>0 do
+        local candidate=table.remove(queue,1)
+        if CargoEligible(carrier,candidate.unit) then
+            pending=candidate
+            break
+        end
+        CargoReleasePending(carrier,candidate)
+    end
+    if not pending then carrier.scoCargoRequestClientID=nil;return end
     carrier.scoCargoPending=pending
     pending.expires=_G.Time+60
     pending.lastApproach=_G.Time
@@ -8258,6 +8312,14 @@ local function HiveAlive(unit)
         and GetUnitById(unit.id) == unit
 end
 
+-- A stationary Hive can service grounded aircraft; it cannot reach a flying
+-- target through the construction detector's tall overlap volume.
+local PreviousHiveRepairValid = HostUnit.RepairBehaviorIsValidFor
+function HostUnit:RepairBehaviorIsValidFor(target)
+    if IsHive(self) and target and target.isAirborne == true then return false end
+    return PreviousHiveRepairValid(self, target)
+end
+
 local function EligibleHiveTarget(hive, target)
     if not target or target == hive or target.dead or target.deleted then return false end
     if GetUnitById(target.id) ~= target or target:IsPlacementGhost() then return false end
@@ -8429,3 +8491,7 @@ do
         return destroy(self, ...)
     end
 end
+
+-- Construction waits for host-owned scenery reclaim, including cancellation.
+Import("common/systems/scoSceneryReclaim.lua").InstallHost(HostUnit)
+Import("common/systems/scoMeshContact.lua").InstallHost(HostUnit)

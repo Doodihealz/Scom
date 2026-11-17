@@ -280,6 +280,10 @@ UnitTemplate = {
                 },
                 ["scoDamageFire"] = 0.1,
             },
+            [6] = {
+                ["boneName"] = "Exhaust01",
+                ["particleName"] = "VFX/SCOM/UEF/ues1611_lightning.sanvfx",
+            },
         },
         ["mesh"] = {
             ["lod0distance"] = 70,

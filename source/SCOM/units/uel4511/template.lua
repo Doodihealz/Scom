@@ -3,6 +3,16 @@
 -- Explicit ranges control range rings; coordinate them with weapon range edits.
 -- host.lua and client.lua own behavior and class inheritance.
 UnitTemplate = {
+    ["audio"] = {
+        ["engine"] = {
+            ["looping"] = true,
+            ["name"] = "aelu1130",
+        },
+        ["onDestroyed"] = {
+            ["looping"] = false,
+            ["name"] = "aeod1040",
+        },
+    },
     ["additions"] = {
         ["buildBeamBones"] = {
             [1] = "Arm_Right01_Build_Emitter",
@@ -168,10 +178,10 @@ UnitTemplate = {
         ["displayName"] = "Fatboy",
         ["icon"] = {
             ["shape"] = "experimental1",
-            ["symbol"] = "land",
+            ["symbol"] = "direct",
             ["tech"] = "t1",
         },
-        ["iconUI"] = "tech3_land1_direct.png",
+        ["iconUI"] = "tech1_experimental1_direct.png",
         ["iconUIBuildSortPriority"] = 80,
         ["iconUIType"] = "amphibious",
         ["name"] = "Fatboy",

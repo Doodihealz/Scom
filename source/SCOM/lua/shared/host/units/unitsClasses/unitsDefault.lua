@@ -1624,7 +1624,8 @@ function HostCommander:Destroy(overkillRatio, destroyType, instigator)
 end
 
 function HostCommander:DashBehaviorIsValidFor()
-    return self:CanMove()
+    -- SCOM commanders use their source abilities; reject native dash orders.
+    return false
 end
 
 

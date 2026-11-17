@@ -79,6 +79,32 @@ local function getTemplateFromLocation(fileLocation, tpType)
     return tp, tpId
 end
 
+-- Removed optional packs may leave directory entries without their templates.
+-- Match Import's cache and replacement paths before skipping only those owners.
+local function isRemovedOptionalUnitFolder(folder)
+    if type(folder) ~= 'string' then
+        return false
+    end
+    local folderId = string.match(folder, '[^/]+$')
+    if not folderId then
+        return false
+    end
+    local tpId = string.lower(folderId)
+    if not (tpId:match('^w%a%a%d+$') or tpId:match('^sc2r_')) then
+        return false
+    end
+    local filePath = folder .. "/" .. tpId .. ".santp"
+    if package.loaded[filePath] then
+        return false
+    end
+    for i = #Mods_Active, 1, -1 do
+        if Engine.FileExists(Mods_Active[i] .. filePath) then
+            return false
+        end
+    end
+    return not Engine.FileExists(libPath .. "/" .. filePath)
+end
+
 --- First time load of all available templates.
 -- Projectiles need to be loaded before units, since unit weapons are referencing projectiles.
 -- Units need to be loaded before props, since wreckage templates are generated based on units.
@@ -98,13 +124,22 @@ function LoadAllTemplates()
 
     -- Load unit templates
     tpsFolders = ScanDir("common/units/unitsTemplates/")
+    local removedOptionalTemplateFolders = 0
     for _, folder in pairs(tpsFolders) do
-        local result, tp, tpId = xpcall(getTemplateFromLocation, ErrorHandler, folder, "UnitTemplate")
-        if not result then
-            table.insert(faultyTemplates, folder)
+        if isRemovedOptionalUnitFolder(folder) then
+            removedOptionalTemplateFolders = removedOptionalTemplateFolders + 1
         else
-            ReadUnitTemplate(tp, tpId)
+            local result, tp, tpId = xpcall(getTemplateFromLocation, ErrorHandler, folder, "UnitTemplate")
+            if not result then
+                table.insert(faultyTemplates, folder)
+            else
+                ReadUnitTemplate(tp, tpId)
+            end
         end
+    end
+    if removedOptionalTemplateFolders > 0 then
+        Warn("[SCOM] Skipped " .. removedOptionalTemplateFolders ..
+            " template folders from removed optional mods.")
     end
 
     -- Load prop templates
@@ -124,7 +159,8 @@ function LoadAllTemplates()
 
     local selectionWorldID = -1
     if IsClient then
-        selectionWorldID = Engine.CreateCollisionWorld(VolumeCollisionEventMode.EnterExit)
+        -- Selection uses casts; map scenery must not allocate pairwise event matrices.
+        selectionWorldID = Engine.CreateCollisionWorld(VolumeCollisionEventMode.Disabled)
     end
 
     local intelVisionWorldID = -1
@@ -217,7 +253,7 @@ function LoadAllTemplates()
     _G.NukeVFXPrefabID = VFXTemplateLoader.GetOrCreateVFXPrefab("VFX/Death/vcd0301_death_rdu.sanvfx")
 
 -- SCOM Field Fix: Apocalypse impact VFX and commander audio prefabs 1.1.0
-_G.SCO_ApocalypseNukeVFXPrefabID = VFXTemplateLoader.GetOrCreateVFXPrefab("VFX/SCOM/Apocalypse/apoc_impact.sanvfx")
+_G.SCO_ApocalypseNukeVFXPrefabID = VFXTemplateLoader.GetOrCreateVFXPrefab("VFX/SCOM/Source/AeonNuke/apoc_impact.sanvfx")
 local SCOApocalypseAudioPrefabLoader = Import("common/loading/audioPrefabLoader.lua")
 _G.SCO_ApocalypseCommanderExplosionAudioPrefabID = SCOApocalypseAudioPrefabLoader.CreateOneShotAudioPrefab("SCOM_Apocalypse_CommanderExplosion", "acod0000", "impacts")
     _G.TarmacEDAPrefabID = DecalTemplateLoader.CreateDecalPrefab("Environment/Common/Decals/tarmac_eda.sandecal")

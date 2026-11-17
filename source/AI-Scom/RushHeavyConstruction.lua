@@ -1,6 +1,7 @@
 -- Shared faction-native experimental and T3 artillery construction.
 -- Real menus, paid foundations, native placement and resource commitments win.
-Version = "9.0.25-rc30"
+Version = "9.1.1"
+local UnitState=Import("AI/mods/AI-Scom/RushUnitState.lua")
 local Rules = Import("AI/mods/AI-Scom/RushBalance.lua")
 local AF=Import("AI/AIFunctions.lua")
 local Movement=Import("AI/mods/AI-Scom/RushMovement.lua")
@@ -250,7 +251,7 @@ local function Builder(a,u,t3)
         and not u.scoCommanderPodOwner and not u.scoSourcePodOwner
 end
 local function Paused(u)
-    return u.toggles and u.toggles.Pause or type(u.GetPause)=="function" and u:GetPause()==true
+    return UnitState.IsPaused(u)
 end
 local function Power(u)
     local n=u.construction and u.construction.buildPower
@@ -794,14 +795,18 @@ local function LandReachable(a,tp,snapshot)
     return false
 end
 local function Choices(a,snapshot,c)
-    local choices={};local s=State(a)
+    local choices={}
+    -- Every candidate requires the same completed T3 builder and economy gate.
+    -- Check them once before scanning templates, especially during the opening.
+    if #c.builders==0 or not Rules.HeavyReady(a,snapshot) then return choices end
+    local s=State(a)
     c.safeBase=not snapshot.landPanic and not snapshot.airPanic and not snapshot.navalPanic
     for id,tp in pairs(__Templates.Units) do
         local kind=P.Kind(a,tp)
         local count=c.byId[id] or 0
         local cap=kind and P.DesiredCount(a,tp,snapshot,c) or 0
         if kind and Legal(a,id) and LayerAllows(a,tp) and count<cap and LandReachable(a,tp,snapshot)
-            and Now()>=(s.retry[id] or 0) and Rules.HeavyReady(a,snapshot)
+            and Now()>=(s.retry[id] or 0)
             and (not WaterProject(tp) or c.hasHarbor)
             and (kind~="artillery" and kind~="siege" or PossibleRange(a,tp)) then
             local legal=false
@@ -980,9 +985,24 @@ end
 function ControlArtillery(a)
     if not Enabled(a) or type(AF.GetEnemyUnitsAroundPosition)~="function" then return end
     local s=State(a)
+    -- Every gun evaluates the same observed marker list. A native radius query
+    -- scans the entire enemy roster; share its candidates during this call,
+    -- while retaining live detection, weapon permission and range checks below.
+    local queries={}
+    local function targets(i,r)
+        local query=queries[i]
+        if not query or query.tick~=Tick or query.marker~=r or query.tags~=r.tags
+            or query.x~=r.pos.x or query.y~=r.pos.y or query.z~=r.pos.z then
+            query={tick=Tick,marker=r,tags=r.tags,x=r.pos.x,y=r.pos.y,z=r.pos.z,
+                units=AF.GetEnemyUnitsAroundPosition(a.id,r.pos,2,r.tags,true) or {}}
+            queries[i]=query
+        end
+        return query.units
+    end
     local function canFire(u,t)
         if not Own(a,u) or u.CaptureInProgress or u.ReclaimInProgress or R.Working(u)
-            or not t or t.dead or t.deleted or t.CaptureInProgress or t.ReclaimInProgress then return false end
+            or not t or t.dead or t.deleted or t.CaptureInProgress or t.ReclaimInProgress
+            or not Intel.Detected(a,t) then return false end
         local from,to=Position(u:GetPosition()),Position(t:GetPosition())
         if not from or not to then return false end
         local distance=Dist(from,to)
@@ -991,16 +1011,18 @@ function ControlArtillery(a)
             if weapon.enabled and not weapon.isDeathExplosion and not tp.isDeathExplosion
                 and (AF.GetWeaponDamagePerSecond(tp) or 0)>0 and type(weapon.CanShootAt)=="function"
                 and Finite(tp.rangeMax) and distance>=math.max(0,tp.rangeMin or 0) and distance<=tp.rangeMax
-                and weapon:CanShootAt(t)
-                and (type(weapon.IsTargetInRange)~="function" or weapon:IsTargetInRange(t)) then return true end
+                and Intel.CanShootAt(a,weapon,t)
+                and (type(weapon.IsTargetInRange)~="function" or Intel.IsTargetInRange(a,weapon,t)) then return true end
         end
         return false
     end
     for _,u in pairs(a.units or {}) do
         local kind=P.Kind(a,u.tp)
-        if Own(a,u) and u:IsCompleted() and not u.platoon and not Paused(u) and not R.Working(u)
-            and not u.CaptureInProgress and not u.ReclaimInProgress
-            and (kind=="artillery" or kind=="siege" or kind=="strategic") then
+        -- Ordinary mobile units never belong to the artillery controller.
+        -- Filter the role before querying runtime construction/toggle state.
+        if (kind=="artillery" or kind=="siege" or kind=="strategic")
+            and Own(a,u) and u:IsCompleted() and not u.platoon and not Paused(u) and not R.Working(u)
+            and not u.CaptureInProgress and not u.ReclaimInProgress then
             local old=s.fireOrders[u];local active=Order(u)
             local queued=u.orders and u.orders.queuedOrders and next(u.orders.queuedOrders)
             if not queued and (not active or old and active==old.order) and (not old or Now()-old.at>=10) then
@@ -1008,7 +1030,7 @@ function ControlArtillery(a)
                 for i,r in ipairs(a.ai.targets and a.ai.targets.artilleryTargets or {}) do
                     if i>24 then break end
                     if r.pos and r.tags and not r.underWater then
-                        for _,t in ipairs(AF.GetEnemyUnitsAroundPosition(a.id,r.pos,2,r.tags,true) or {}) do
+                        for _,t in ipairs(targets(i,r)) do
                             if canFire(u,t) then
                                 local score=1000-i*10+(P.IsExperimental(t.tp) and 180 or 0)
                                     +(Has(t.tp,"ARTILLERY") and 120 or 0)+(Has(t.tp,"ENERGY_PRODUCTION") and 80 or 0)
@@ -1019,11 +1041,11 @@ function ControlArtillery(a)
                 end
                 if chosen and canFire(u,chosen) and not u.platoon and not Paused(u)
                     and Order(u)==active and not (u.orders.queuedOrders and next(u.orders.queuedOrders)) then
-                    if old and old.target==chosen and active==old.order then old.at=Now()
+                    if old and Intel.SameTarget(old.target,chosen) and active==old.order then old.at=Now()
                     else
                         Orders.HostIssueOrder(Tasks.ATTACKUNIT,{u},false,chosen:GetPosition(),{targetGlobalId=chosen.id})
                         local accepted=Order(u)
-                        if accepted and accepted.orderTask==Tasks.ATTACKUNIT and accepted.targetUnit==chosen then
+                        if accepted and accepted.orderTask==Tasks.ATTACKUNIT and Intel.SameTarget(accepted.targetUnit,chosen) then
                             s.fireOrders[u]={at=Now(),target=chosen,order=accepted}
                         end
                     end

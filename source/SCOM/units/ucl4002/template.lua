@@ -610,7 +610,7 @@ UnitTemplate = {
             ["damageRadius"] = 0,
             ["damageType"] = "Normal",
             ["effects"] = {
-                ["onFire"] = "VFX/SCOM/Source/CommanderBrightness/1c80798ce6e7f387deb7.sanvfx",
+                ["onFire"] = "VFX/SCOM/WS/1c80798ce6e7f387deb7.sanvfx",
             },
             ["firingRandomness"] = 0,
             ["layerTargetLimits"] = {

@@ -296,7 +296,7 @@ UnitTemplate = {
                 [1] = {
                     ["audioName"] = "Sounds/videvo.net_royalFree_soundEffects/Explosions/mi explosion 03 hpx.ogg",
                     ["boneName"] = "Root",
-                    ["particleName"] = "VFX/Death/vcd1101_death_land_small.sanvfx",
+                    ["particleName"] = "VFX/SCOM/Death/vcd3101_death_air_small.sanvfx",
                 },
             },
         },

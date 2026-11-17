@@ -568,7 +568,7 @@ UnitTemplate = {
             ["audio"] = {
                 ["onFire"] = {
                     ["looping"] = false,
-                    ["name"] = "aeom1130",
+                    ["name"] = "aeom1122",
                 },
             },
             ["damage"] = 100,

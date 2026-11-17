@@ -1,7 +1,8 @@
+local RushUnitState = Import("AI/mods/AI-Scom/RushUnitState.lua")
 -- RC16: short-lived, army-private memory of observed static resistance.
 -- Failed approaches produce siege/containment objectives, not endless home laps.
 -- Nothing here reveals enemy units, issues orders, or creates artificial strength.
-Version = "9.0.17-rc18"
+Version = "9.1.3"
 Config={MemorySeconds=180,MaximumFronts=24,FrontRadius=80,ProbeSeconds=30,BatteryLimit=12,BatteryInstances=12}
 local Intel=Import("AI/mods/AI-Scom/RushCombatIntel.lua")
 local AF=Import("AI/AIFunctions.lua")
@@ -15,7 +16,26 @@ local function State(army)
         s={at=now,fronts={},observations=0,avoided=0,sites=0};army.ai.rushFronts=s
     end
     s.at=now
-    for i=#s.fronts,1,-1 do if now>=s.fronts[i].expires then table.remove(s.fronts,i) end end
+    for i=#s.fronts,1,-1 do
+        local front=s.fronts[i];local unit=front.unit
+        -- Retained full host objects can change after sight is lost. Only an
+        -- observer-owned record, our own registered unit, or current vision can
+        -- authorize early removal; hidden destruction/capture keeps the timer.
+        local gone=false
+        local changed=unit and (unit.dead or unit.deleted or unit.army and
+            (not army:IsEnemy(unit.army) or front.owner and unit.army~=front.owner))
+        if now<front.expires and changed then
+            gone=unit.aiIntelObserverArmyIndex==army.id
+                or unit.id and army.units and army.units[unit.id.index]==unit
+            if not gone and not unit.deleted and type(unit.IsIntelVisionVisible)=="function" then
+                -- Deleted host objects cannot safely answer visibility queries.
+                -- A stale visibility method also grants no observation authority.
+                local ok,visible=pcall(unit.IsIntelVisionVisible,unit,army)
+                gone=ok and visible
+            end
+        end
+        if now>=front.expires or gone then table.remove(s.fronts,i) end
+    end
     return s
 end
 function Remember(army,assessment,strength)
@@ -28,8 +48,15 @@ function Remember(army,assessment,strength)
         if #s.fronts>=Config.MaximumFronts then table.remove(s.fronts,1) end
         front={pos=Copy(pos),first=now};s.fronts[#s.fronts+1]=front
     end
-    front.strength,front.range,front.unit=assessment.static,assessment.maxStaticRange,assessment.staticUnit
-    front.expires=now+Config.MemorySeconds;front.probeAt=now+Config.ProbeSeconds
+    -- A smaller observed sample may omit guns that were visible before.
+    -- It cannot replace or perpetually renew a stronger remembered aggregate;
+    -- the bounded probe below credits verified changes to its visible anchor.
+    if assessment.static>=(front.strength or 0) then
+        front.strength,front.range,front.unit=assessment.static,assessment.maxStaticRange,assessment.staticUnit
+        front.owner=front.unit and front.unit.army
+        front.anchorStrength=assessment.staticValue or 0
+        front.expires=now+Config.MemorySeconds;front.probeAt=now+Config.ProbeSeconds
+    end
     s.observations=s.observations+1
     army.ai.rushCombat=army.ai.rushCombat or {operations={},supports={},lastReport=0,
         stats={merges=0,detached=0,goals=0,repaths=0,retreats=0,rejected=0}}
@@ -40,6 +67,11 @@ function Active(army)
     for _,f in ipairs(State(army).fronts) do if (f.strength or 0)>0 then return true end end
     return false
 end
+function RememberedCurrent(army,front)
+    if not front then return false end
+    for _,current in ipairs(State(army).fronts) do if current==front then return true end end
+    return false
+end
 function Blocked(army,pos,strength)
     local s=State(army);local now=Now()
     for _,f in ipairs(s.fronts) do
@@ -48,8 +80,23 @@ function Blocked(army,pos,strength)
             -- veto a newly opened breach forever, and reinforcement may attack
             -- immediately when enough mobile strength is physically assembled.
             if now>=f.probeAt then
+                local observed=f.unit and Intel.Contact(army,f.unit)
+                if observed then f.unit=observed end
                 local a=Intel.Exposure(army,f.pos,"Land",12)
-                f.strength=a.static;f.probeAt=now+Config.ProbeSeconds
+                local strength=f.strength or 0
+                if observed and type(observed.IsIntelVisionVisible)=="function"
+                    and observed:IsIntelVisionVisible(army) then
+                    -- Seeing one anchor does not reveal every remembered gun.
+                    -- Apply only that anchor's verified change; radar-only
+                    -- or partial aggregate samples cannot erase unseen defenses.
+                    local anchor=Intel.KnownThreat(army,observed,"Land")
+                    if f.anchorStrength then strength=math.max(0,strength+anchor-f.anchorStrength) end
+                    f.anchorStrength=anchor
+                end
+                f.strength=math.max(strength,a.static or 0)
+                -- No probe extends the original expiry. Only Remember receives
+                -- fresh observed resistance that can renew the front's lifetime.
+                f.probeAt=now+Config.ProbeSeconds
             end
             if f.strength>math.max(1,strength)*1.20 then s.avoided=s.avoided+1;return true,f end
         end
@@ -81,12 +128,24 @@ local function Rejected(platoon,pos)
     end
     return false
 end
+local function RememberedDanger(fronts,g,pos)
+    for _,front in ipairs(fronts) do
+        if (front.strength or 0)>math.max(1,g.own)*0.35
+            and D2(pos,front.pos)<=((front.range or 0)+g.radius+6)^2 then return true end
+    end
+    return false
+end
+function AssemblyPositionSafe(platoon,g)
+    return not RememberedDanger(State(platoon.army).fronts,g,g.position)
+end
 local function ChooseSite(platoon,g,candidates,kind,target)
     local claims=Claims(platoon);local best,bestScore
+    local fronts=State(platoon.army).fronts
     for _,candidate in ipairs(candidates) do
         local pos=Copy(AF.GetPositionWithinPlayableArea(Copy(candidate)))
         -- Clamping is not authority to use a different (possibly stacked) site.
-        if D2(pos,candidate)<1 and not Rejected(platoon,pos) and Intel.ClearRendezvous(platoon.army,pos,12)
+        if D2(pos,candidate)<1 and not Rejected(platoon,pos) and not RememberedDanger(fronts,g,pos)
+            and Intel.ClearRendezvous(platoon.army,pos,12)
             and MG.CanGraphAreaTo(g.position,pos,platoon.ai.movementLayer) then
             local exposure=Intel.Exposure(platoon.army,pos,"Land",g.radius+6)
             if exposure.total<=math.max(1,g.own)*0.35 then
@@ -102,13 +161,24 @@ local function ChooseSite(platoon,g,candidates,kind,target)
         return {pos=Copy(best),kind=kind,unit=target}
     end
 end
-function Stage(platoon,g,target,assessment)
-    if not target or not Intel.Visible(platoon.army,target) or not Intel.IsStatic(target) then return nil end
-    local tp=Copy(target:GetPosition());local dx,dz=g.position.x-tp.x,g.position.z-tp.z
+local function StagePoint(platoon,g,target,tp,range)
+    tp=Copy(tp);local dx,dz=g.position.x-tp.x,g.position.z-tp.z
     local distance=math.sqrt(dx*dx+dz*dz);if distance<1 then return nil end
     local battery=platoon.ai.formerTable.RushSiege==true
     local radius=battery and math.max(20,g.range-10)
-        or math.max(80,(assessment and assessment.maxStaticRange or 0)+g.radius+36)
+        or math.max(80,(range or 0)+g.radius+36)
+    if not battery then
+        -- Partial current intel cannot move assembly inside a remembered gun.
+        -- Expand beyond overlapping remembered reach; the shared site check
+        -- below also protects approach/deploy choices and distant other fronts.
+        local original=radius
+        for _,front in ipairs(State(platoon.army).fronts) do
+            local distance=math.sqrt(D2(tp,front.pos));local range=front.range or 0
+            if (front.strength or 0)>math.max(1,g.own)*0.35 and distance<=original+range+g.radius+6 then
+                radius=math.max(radius,distance+range+g.radius+36)
+            end
+        end
+    end
     local sites={};local phase=((tonumber(platoon.id) or 0)%3-1)*0.18
     for _,offset in ipairs({0,0.45,-0.45,0.90,-0.90,1.25,-1.25}) do
         local c,s=math.cos(offset+phase),math.sin(offset+phase)
@@ -116,6 +186,19 @@ function Stage(platoon,g,target,assessment)
     end
     return ChooseSite(platoon,g,sites,battery and "siege" or "stage",target)
 end
+function Stage(platoon,g,target,assessment)
+    if not target or not Intel.Visible(platoon.army,target) or not Intel.IsStatic(target) then return nil end
+    return StagePoint(platoon,g,target,target:GetPosition(),assessment and assessment.maxStaticRange)
+end
+-- Stored observation geometry can support assembly while the protecting gun
+-- is out of sight. Never read that gun's current position or renew its memory.
+function StageRemembered(platoon,g,front,target)
+    if not RememberedCurrent(platoon.army,front) or not target or not Intel.Visible(platoon.army,target) then return nil end
+    local goal=StagePoint(platoon,g,target,front.pos,front.range)
+    if goal then goal.memoryFront=front end
+    return goal
+end
+
 -- A rejected assault can still make safe forward progress against mobile
 -- resistance or a modest strength deficit. This does not admit the attack:
 -- each real site must remain clear, reachable and outside strong exposure.
@@ -175,14 +258,14 @@ local function StaticTemplate(tp)
     return Has(tp,"STRUCTURE") or Has(tp,"SCFA_STRUCTURE")
         or Has(tp,"DEFENCE") and not Has(tp,"MOBILE") and not Has(tp,"SCFA_MOBILE")
 end
-function IsStrategicArtillery(unit)
+function IsStrategicArtillery(unit,knownThreat,knownRange)
     local tp=unit and unit.tp
     local tier=tp and tp.general and tp.general.techNumber
     if not tp or not StaticTemplate(tp) or not (Has(tp,"ARTILLERY") or Has(tp,"SCFA_ARTILLERY"))
         or not (Has(tp,"TECH3") or Has(tp,"SCFA_TECH3") or Has(tp,"TECH4")
             or Has(tp,"EXPERIMENTAL") or Has(tp,"SCFA_EXPERIMENTAL") or type(tier)=="number" and tier>=3) then return false end
-    return (AF.GetUnitThreatValueByLayer(unit,"Land",false) or 0)>0
-        and (AF.GetUnitMaximumWeaponRangeByLayer(unit,"Land") or 0)>0
+    return (knownThreat or AF.GetUnitThreatValueByLayer(unit,"Land",false) or 0)>0
+        and (knownRange or AF.GetUnitMaximumWeaponRangeByLayer(unit,"Land") or 0)>0
 end
 local function MainOwned(army,unit)
     return unit and not unit.dead and not unit.deleted and unit.army==army
@@ -265,14 +348,13 @@ function MainAlarm(army)
     local artillery={};local localCause=false
     for _,record in ipairs(intel.enemy) do
         local unit=record.unit
-        if record.completed~=false and Intel.Visible(army,unit) then
-            local threat=Intel.KnownThreat(army,unit,"Land")
+        if record.completed~=false then
+            local threat,range=Intel.KnownArmament(army,unit,"Land")
             if threat>0 then
-                local range=math.max(0,AF.GetUnitMaximumWeaponRangeByLayer(unit,"Land") or 0)
                 local distance=D2(record.pos,view.base)
                 if distance<=(view.radius+range+32)^2 then
                     local aiming=AimingAtHome(unit,assets)
-                    if IsStrategicArtillery(unit) then
+                    if IsStrategicArtillery(unit,threat,range) then
                         artillery[#artillery+1]={unit=unit,pos=Copy(record.pos),range=range,
                             distance=distance,confirmed=aiming}
                     else
@@ -307,6 +389,11 @@ function MainAlarm(army)
             end
         end
         if record.confirmed then sources[unit]=now+45;confirmed=true end
+        if not sources[unit] then
+            for known,expiry in pairs(sources) do
+                if Intel.SameTarget(known,unit) then sources[known]=nil;sources[unit]=expiry;break end
+            end
+        end
         if sources[unit] then
             record.confirmed=true;view.artilleryTargets[#view.artilleryTargets+1]=record
         end
@@ -376,12 +463,11 @@ function Defense(army)
     table.sort(bases,function(a,b) return a.key<b.key end)
     for _,record in ipairs(intel.enemy) do
         local unit=record.unit
-        if record.completed~=false and Intel.Visible(army,unit) and not unit:HasTags(Tags.AIR)
+        if record.completed~=false and not unit:HasTags(Tags.AIR)
             and (not unit:HasTags(Tags.ENGINEER) or unit:HasTags(Tags.COMMAND) or alarm.byRaider[unit]) then
-            local threat=Intel.KnownThreat(army,unit,"Land")
+            local threat,range=Intel.KnownArmament(army,unit,"Land")
             if threat>0 then
                 local closest,distance
-                local range=math.max(0,AF.GetUnitMaximumWeaponRangeByLayer(unit,"Land") or 0)
                 for _,base in ipairs(bases) do
                     local d=D2(base.pos,record.pos)
                     local reach=Intel.IsStatic(unit) and range+24 or math.max(base.radius+32,range+24)
@@ -394,7 +480,7 @@ function Defense(army)
                     local key=closest.key..":"..sector
                     -- Remote strategic guns belong to air retaliation/shields;
                     -- do not send the ground army across the map after them.
-                    local remoteArtillery=IsStrategicArtillery(unit) and distance>(closest.radius+64)^2
+                    local remoteArtillery=IsStrategicArtillery(unit,threat,range) and distance>(closest.radius+64)^2
                     local emergency=closest.main and alarm.byRaider[unit]~=nil
                     if not remoteArtillery and (not unit:HasTags(Tags.ENGINEER) or emergency) then
                         local front=view.byKey[key]
@@ -469,15 +555,15 @@ function Defense(army)
                 and not unit:HasTags(Tags.AIR+Tags.ENGINEER+Tags.COMMAND)
                 and not (unit.ai and unit.ai.eState=="RepairHome")
                 and not (data and (data.withdraw or data.eState=="Withdraw"))
-                and not (unit.toggles and unit.GetPause and unit:GetPause()) then
+                and not (RushUnitState.IsPaused(unit)) then
                 local distance=D2(unit:GetPosition(),front.pos)
                 if not support[unit] or distance<support[unit].distance then
                     local firing=false
                     for _,weapon in ipairs(unit.weapons or {}) do
                         if weapon.enabled and not weapon.isDeathExplosion then
                             for _,target in ipairs(front.targets) do
-                                if Intel.Visible(army,target.unit) and weapon:CanShootAt(target.unit)
-                                    and weapon:IsTargetInRange(target.unit) then firing=true;break end
+                                if Intel.Visible(army,target.unit) and Intel.CanShootAt(army,weapon,target.unit)
+                                    and Intel.IsTargetInRange(army,weapon,target.unit) then firing=true;break end
                             end
                         end
                         if firing then break end
