@@ -1,16 +1,12 @@
 # SCOM — Supreme Commander Overhaul
 
-A **Supreme Commander: Forged Alliance** overhaul for **Sanctuary: Shattered Sun**.
+SCOM brings the UEF, Cybran, Aeon, and Seraphim factions from *Supreme Commander: Forged Alliance* to *Sanctuary: Shattered Sun*. It includes land, air, and naval forces, experimental units, commander enhancements, veterancy, Construction Plans, an optional SupCom-style interface, and the AI-Scom opponent.
 
-**For full transparency, this mod is 100% vibe coded and made with ChatGPT Astra. I am very open and honest about that.**
+**[Download SCOM 1.4.0](https://github.com/Doodihealz/Scom/releases/tag/V1.4.0)** · [Discord community](https://discord.gg/quqwHcDb3A) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
 
-**[Download SCOM 1.3.0](https://github.com/Doodihealz/Scom/releases/download/V1.3.0/ScomInstaller.zip)** · [Releases](https://github.com/Doodihealz/Scom/releases) · [Discord community](https://discord.gg/quqwHcDb3A) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
+## New in 1.4.0
 
-## Features
-
-- Land, air, and naval forces, including experimental units.
-- Commander enhancements, veterancy, economy systems, and Construction Plans.
-- SupCom Style UI and **AI-Scom** for economy, production, expansion, and combat.
+The Seraphim T4 Yolona now fractures the terrain on impact. The ground collapses into a chasm, land units route around the opening, and waterfalls form where the fracture meets water. The effect and its assets ship inside `Scom-patcher.dll`.
 
 | Faction | Sanctuary slot |
 | --- | --- |
@@ -21,56 +17,30 @@ A **Supreme Commander: Forged Alliance** overhaul for **Sanctuary: Shattered Sun
 
 ## Installation
 
-Download **ScomInstaller.zip** using the link above. It includes SCOM, SupCom Style UI, AI-Scom, and required components.
+1. Download [ScomInstaller.zip](https://github.com/Doodihealz/Scom/releases/download/V1.4.0/ScomInstaller.zip) and [ScomAssets.zip](https://github.com/Doodihealz/Scom/releases/download/V1.4.0/ScomAssets.zip).
+2. Close Sanctuary. Extract **both ZIPs into the same folder**, so `Install SCOM.cmd` and `payload` sit side by side.
+3. Run `Install SCOM.cmd` and select your Sanctuary installation. To verify the extracted package first, run `Install SCOM.cmd /check`.
 
-### Recommended: setup
+Use setup for upgrades. It preserves settings, retires recognized standalone UI and shatter DLLs, and reports conflicts with modified files. For a manual installation, follow `Manual Installation.txt` in the extracted folder.
 
-1. Close Sanctuary and extract the entire `ScomInstaller.zip`.
-2. Run `Install SCOM.cmd` from the extracted folder.
-3. Select your installed Sanctuary game folder when prompted.
+To use **AI-Scom 10.0.0**, select **AI-Scom** for an AI player in the lobby. The installed profile is under `engine/LJ/lua/AI/mods/AI-Scom`.
 
-Setup checks your game version and protects existing files. Keep the extracted scripts and `payload` folder together.
+## Source
 
-### Manual installation
+| Component | Contents |
+| --- | --- |
+| [Unit definitions](source/SCOM/units/index.lua) | Unit index, templates, host scripts, and client scripts |
+| [Shared gameplay Lua](source/SCOM/lua) | Gameplay systems, movement settings, and source manifest |
+| [AI-Scom](source/AI-Scom) | Economy, production, expansion, and combat logic |
+| [Yolona Shatter](source/yolona-shatter) | C# runtime and integration code for the 1.4.0 terrain fracture |
+| [Menu and UI](source/menu-ui) | Editable interface source and rebuild tools |
+| [Installer](installer) | Release setup scripts and payload manifest |
+| [Historical managed source](source/managed) | C# recovered from the October 28, 2026 binaries, with [binary provenance](source/managed/provenance.json) |
 
-1. Close Sanctuary and extract the entire `ScomInstaller.zip`.
-2. Open the game's `engine` folder containing `Sanctuary.exe`.
-3. Copy **all files and folders inside `payload`** directly into `engine`, preserving the folder structure.
+The release downloads include the compiled runtime, game assets, and dependencies. The recovered C# projects are provided for inspection and have not been verified as standalone builds.
 
-Copy the contents of `payload` so there is no extra `engine/payload` folder.
+## Project and support
 
-### Enable AI-Scom
+SCOM is a community fan project in active development. The author used ChatGPT Astra throughout development. When [reporting a bug](https://github.com/Doodihealz/Scom/issues), include the game and SCOM versions, faction, map, steps to reproduce, and relevant logs.
 
-Select **AI-Scom** for AI players in the lobby. Its profile belongs at:
-
-```text
-engine/LJ/lua/AI/mods/AI-Scom
-```
-
-**Upgrades:** use `Install SCOM.cmd` so compatibility and file-conflict checks run.
-
-## Bug reports
-
-[Open an issue](https://github.com/Doodihealz/Scom/issues) with your game and mod versions, faction, map, reproduction steps, and relevant logs.
-
-## Source code
-
-Browse the readable source directly in this repository:
-
-- [Unit index](source/SCOM/units/index.lua): find units by name, then open their `template.lua`, `host.lua`, or `client.lua`.
-- [Shared SCOM Lua](source/SCOM/lua): shared gameplay, client, host, native movement settings, and the loader's `source-manifest.tsv`.
-- [AI-Scom](source/AI-Scom): the complete installed AI profile, currently `10.0.0`.
-- [Managed components](source/managed): recovered C# for the SCOM patcher, its embedded runtimes, loader, UI, and movement/tree components.
-- [Installer](installer): the setup scripts and exact release payload manifest.
-
-The Lua and installer files match the 1.3.0 release. Editable menu/UI source and rebuild tools are in [source/menu-ui](source/menu-ui). C# is decompiled from the shipped mod assemblies because the original projects were unavailable; comments and original project structure are not recoverable. `source/managed/provenance.json` identifies the binaries and decompiler. The managed recovery is a historical 2026-10-28 snapshot, with its original binary hashes recorded in the provenance file; it is not the complete 1.3.0 managed source. The managed recovery is a historical 2026-10-28 snapshot, with its original binary hashes recorded in the provenance file; it is not the complete 1.3.0 managed source. Recovered projects are for inspection and are not verified as buildable replacements.
-
-The asset pack and compiled runtime dependencies remain in the release download. They are not duplicated in the source tree, and no `.sanpack` extraction is required to read the code. Preserve the relative Lua paths and `source-manifest.tsv` when editing an installation.
-
-## Development status
-
-SCOM is approximately 85% complete and under heavy development.
-
-## Credits and licensing
-
-SCOM is a community fan project. Original game assets belong to their respective creators. Readable source is provided for inspection and modification under the applicable component terms. No repository-wide license has been assigned; third-party code and assets retain their existing terms. See the managed-source provenance for recovery details.
+Original game assets belong to their respective creators. Source is available for inspection and modification under the applicable component terms. There is no repository-wide license. Third-party code and assets retain their existing terms.

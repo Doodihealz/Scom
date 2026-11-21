@@ -55,7 +55,7 @@ function Invoke-ScomInstaller {
     )
     $installationStarted = $false
     try {
-        Write-Host 'SCOM Setup 1.3.0' -ForegroundColor Cyan
+        Write-Host 'SCOM Setup 1.4.0' -ForegroundColor Cyan
         Write-Host 'Installs SCOM, SupCom Style UI, AI-Scom and required components.'
         Write-Host 'Existing settings and other mods are kept. You can back up your mods before installing.'
         Write-Host ''

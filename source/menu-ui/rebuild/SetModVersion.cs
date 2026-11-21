@@ -25,20 +25,20 @@ internal static class SetModVersion
             if (Hash(File.ReadAllBytes(args[0])) != args[2]) throw new InvalidDataException("Input hash changed.");
             using (var assembly = AssemblyDefinition.ReadAssembly(args[0]))
             {
-                if (assembly.Name.Name != Identity || assembly.Name.Version != new Version(1, 2, 1, 0))
+                if (assembly.Name.Name != Identity || assembly.Name.Version != new Version(1, 3, 0, 0))
                     throw new InvalidDataException("Unexpected original mod identity/version.");
                 ReportReferences(assembly);
-                assembly.Name.Version = new Version(1, 3, 0, 0);
-                SetAttribute(assembly, FileAttribute, "1.3.0.0");
-                SetAttribute(assembly, InfoAttribute, "1.3.0");
+                assembly.Name.Version = new Version(1, 4, 0, 0);
+                SetAttribute(assembly, FileAttribute, "1.4.0.0");
+                SetAttribute(assembly, InfoAttribute, "1.4.0");
                 assembly.Write(args[1]);
             }
             UpdateWin32Version(args[1]);
             Verify(args[0], args[1]);
             var native = FileVersionInfo.GetVersionInfo(args[1]);
-            if (native.FileVersion != "1.3.0.0" || native.ProductVersion != "1.3.0")
+            if (native.FileVersion != "1.4.0.0" || native.ProductVersion != "1.4.0")
                 throw new InvalidDataException("Native Windows version properties were not updated.");
-            Console.WriteLine("PASS: assembly 1.3.0.0, file 1.3.0.0, informational/product 1.3.0, including Windows properties.");
+            Console.WriteLine("PASS: assembly 1.4.0.0, file 1.4.0.0, informational/product 1.4.0, including Windows properties.");
             Console.WriteLine("Output SHA256 " + Hash(File.ReadAllBytes(args[1])));
             return 0;
         }
@@ -62,9 +62,9 @@ internal static class SetModVersion
     {
         using var before = AssemblyDefinition.ReadAssembly(original);
         using var after = AssemblyDefinition.ReadAssembly(candidate);
-        if (after.Name.Version != new Version(1, 3, 0, 0)) throw new InvalidDataException("Wrong final assembly version.");
-        if ((string)after.CustomAttributes.Single(a => a.AttributeType.FullName == FileAttribute).ConstructorArguments[0].Value != "1.3.0.0" ||
-            (string)after.CustomAttributes.Single(a => a.AttributeType.FullName == InfoAttribute).ConstructorArguments[0].Value != "1.3.0")
+        if (after.Name.Version != new Version(1, 4, 0, 0)) throw new InvalidDataException("Wrong final assembly version.");
+        if ((string)after.CustomAttributes.Single(a => a.AttributeType.FullName == FileAttribute).ConstructorArguments[0].Value != "1.4.0.0" ||
+            (string)after.CustomAttributes.Single(a => a.AttributeType.FullName == InfoAttribute).ConstructorArguments[0].Value != "1.4.0")
             throw new InvalidDataException("Wrong final version attributes.");
         StripVersions(before); StripVersions(after);
         if (Shape(before) != Shape(after)) throw new InvalidDataException("Unrelated metadata or method behavior changed.");
@@ -168,14 +168,14 @@ internal static class SetModVersion
                 if (valueLength != 52 || U32(data, value) != 0xfeef04bd) throw new InvalidDataException("Unexpected fixed version info.");
                 foreach (int at in new[] { value + 8, value + 16 })
                 {
-                    Write(at, BitConverter.GetBytes((uint)((1 << 16) | 3)));
+                    Write(at, BitConverter.GetBytes((uint)((1 << 16) | 4)));
                     Write(at + 4, BitConverter.GetBytes((uint)0));
                 }
                 fixedUpdated = true;
             }
             if (key == "FileVersion" || key == "ProductVersion")
             {
-                string next = key == "FileVersion" ? "1.3.0.0" : "1.3.0";
+                string next = key == "FileVersion" ? "1.4.0.0" : "1.4.0";
                 byte[] encoded = Encoding.Unicode.GetBytes(next + "\0");
                 if (encoded.Length > bytes) throw new InvalidDataException("New native version string does not fit existing allocation.");
                 Write(position + 2, BitConverter.GetBytes((ushort)(next.Length + 1)));

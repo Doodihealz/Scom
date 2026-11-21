@@ -168,7 +168,8 @@ function Read-ScomPackage {
             $relative = ConvertTo-ScomRelativePath $entry.path
             if (($relative -notmatch '^LJ\\lua\\AI\\mods\\AI-Scom\\.+\.(?:lua|txt)$' -and
                  $relative -cne 'BepInEx\plugins\SCOMLandMotion\ScomLandMotion.dll' -and
-                 $relative -cne 'BepInEx\plugins\SupComStyleUI\SupComStyleUI.dll') -or
+                 $relative -cne 'BepInEx\plugins\SupComStyleUI\SupComStyleUI.dll' -and
+                 $relative -cne 'SanctuaryMods\SCOM\ScomYolonaShatter.dll') -or
                 -not $obsoletePaths.Add($relative) -or $filePaths.Contains($relative) -or $allPaths.ContainsKey($relative)) {
                 throw "Invalid or duplicate obsolete file path: $relative"
             }
@@ -178,7 +179,7 @@ function Read-ScomPackage {
             }
             $previousVersions = @()
             if ($entry.PSObject.Properties['previousVersions']) {
-                if ($relative -cne 'BepInEx\plugins\SupComStyleUI\SupComStyleUI.dll' -or
+                if ($relative -cnotin @('BepInEx\plugins\SupComStyleUI\SupComStyleUI.dll', 'SanctuaryMods\SCOM\ScomYolonaShatter.dll') -or
                     $entry.previousVersions -isnot [array] -or $entry.previousVersions.Count -eq 0 -or
                     $entry.previousVersions.Count -gt 8) {
                     throw "Invalid obsolete file versions: $relative"

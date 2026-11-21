@@ -1,6 +1,8 @@
-SCOM 1.3.0 - Manual Installation
+SCOM 1.4.0 - Manual Installation
 
 Recommended: extract ScomInstaller.zip and run "Install SCOM.cmd".
+For the GitHub release, extract ScomInstaller.zip and ScomAssets.zip into the
+same folder before running setup.
 Setup checks your game version and protects existing files.
 
 To install manually:
@@ -14,7 +16,9 @@ Select AI-Scom for AI players in the lobby.
 
 Use setup for upgrades so compatibility and file-conflict checks run and the
 previous standalone SupComStyleUI.dll is retired after its exact hash matches.
-The current menu and UI are included in Scom-patcher.dll.
+The menu, UI, and Yolona T4 shatter effect are included in Scom-patcher.dll.
+For manual upgrades, move ScomYolonaShatter.dll out of SanctuaryMods/SCOM
+before starting the game. Setup retires recognized standalone versions automatically.
 
 SCOM menu changes include centered mod branding with an animated shine,
 mod and game version labels,

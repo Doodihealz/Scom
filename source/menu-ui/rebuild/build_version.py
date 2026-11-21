@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Update SCOM 1.2.1 release metadata to 1.3.0, preserving IL and resources."""
+"""Update SCOM 1.3.0 release metadata to 1.4.0, preserving IL and resources."""
 import argparse
 import json
 import os
