@@ -17,9 +17,9 @@ The Seraphim T4 Yolona now fractures the terrain on impact. The ground collapses
 
 ## Installation
 
-1. Download [ScomInstaller.zip](https://github.com/Doodihealz/Scom/releases/download/V1.4.0/ScomInstaller.zip) and [ScomAssets.zip](https://github.com/Doodihealz/Scom/releases/download/V1.4.0/ScomAssets.zip).
-2. Close Sanctuary. Extract **both ZIPs into the same folder**, so `Install SCOM.cmd` and `payload` sit side by side.
-3. Run `Install SCOM.cmd` and select your Sanctuary installation. To verify the extracted package first, run `Install SCOM.cmd /check`.
+1. Download [ScomInstaller.zip](https://github.com/Doodihealz/Scom/releases/download/V1.4.0/ScomInstaller.zip).
+2. Close Sanctuary and extract the ZIP into a folder.
+3. Run `Install SCOM.cmd` from that folder and select your Sanctuary installation.
 
 Use setup for upgrades. It preserves settings, retires recognized standalone UI and shatter DLLs, and reports conflicts with modified files. For a manual installation, follow `Manual Installation.txt` in the extracted folder.
 

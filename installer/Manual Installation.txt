@@ -1,8 +1,6 @@
 SCOM 1.4.0 - Manual Installation
 
 Recommended: extract ScomInstaller.zip and run "Install SCOM.cmd".
-For the GitHub release, extract ScomInstaller.zip and ScomAssets.zip into the
-same folder before running setup.
 Setup checks your game version and protects existing files.
 
 To install manually:
