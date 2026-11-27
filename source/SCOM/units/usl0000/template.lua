@@ -135,6 +135,7 @@ UnitTemplate = {
         },
     },
     ["collisionInfo"] = {
+        ["targetBones"] = { "Body" },
         ["centerOffset"] = {
             ["x"] = 0,
             ["y"] = 1.1,

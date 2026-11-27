@@ -1,15 +1,24 @@
-SCOM 1.4.0 - Manual Installation
+SCOM 1.5.1 - Manual Installation
 
 Recommended: extract ScomInstaller.zip and run "Install SCOM.cmd".
-Setup checks your game version and protects existing files.
+Setup checks your game version and lets you choose two independent additions.
+SC2R adds the Cybran Dragon experimental from Supreme Commander 2 Revamp.
+Credit for the Dragon model and animations goes to Avitus.
+Lobby Colors adds the color wheel, random starting colors and host selection
+of AI colors. Skipping either addition keeps any existing copy as it is.
 
 To install manually:
 1. Close Sanctuary.
 2. Open the game's engine folder, which contains Sanctuary.exe.
-3. Copy all files and folders inside payload into engine, keeping the folder
-   structure. This installs SCOM, the UI, AI and required components.
+3. Copy the contents of payload into engine, keeping the folder structure.
+   Within payload/SanctuaryMods, copy SCOM for the base game mod. Copy SC2R
+   and SCOM-LobbyColors only if you want those additions.
+4. Both additions require SCOM. To remove an addition later, close Sanctuary
+   and remove its own folder from engine/SanctuaryMods.
 
-The AI profile belongs at engine/LJ/lua/AI/mods/AI-Scom.
+The AI profile belongs at engine/lua/AI/mods/AI-Scom.
+Setup retires matching files from the old engine/LJ/lua/AI/mods/AI-Scom
+profile and preserves custom files there.
 Select AI-Scom for AI players in the lobby.
 
 Use setup for upgrades so compatibility and file-conflict checks run and the
@@ -25,5 +34,5 @@ and a separate lobby wallpaper that fades smoothly in and out. The original Cybr
 wallpaper is retained for the main menu.
 
 The optional SCOM UI theme follows each player's saved setting. Existing
-settings are preserved. Editable menu/UI source and rebuild tools are in
-source/menu-ui; the installer does not copy source files into the game.
+settings are preserved. The earlier menu/UI source snapshot is included in
+source/menu-ui for reference.

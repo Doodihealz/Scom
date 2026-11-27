@@ -128,7 +128,7 @@ internal static class PackShatter
         Console.WriteLine("PASS: preserved " + count + " original methods, metadata, all " + before.MainModule.Resources.Count + " resources and assembly dependencies; one public patcher remains and shatter is embedded byte-for-byte.");
     }
 
-    private static TypeDefinition CloneType(TypeDefinition source, ModuleDefinition target)
+    internal static TypeDefinition CloneType(TypeDefinition source, ModuleDefinition target)
     {
         if (source.HasNestedTypes || source.HasGenericParameters) throw new InvalidDataException("Bridge must remain one nongeneric type.");
         var type = new TypeDefinition(source.Namespace, source.Name, source.Attributes, target.ImportReference(source.BaseType));

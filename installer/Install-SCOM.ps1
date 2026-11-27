@@ -55,14 +55,15 @@ function Invoke-ScomInstaller {
     )
     $installationStarted = $false
     try {
-        Write-Host 'SCOM Setup 1.4.0' -ForegroundColor Cyan
+        Write-Host 'SCOM Setup 1.5.1' -ForegroundColor Cyan
         Write-Host 'Installs SCOM, SupCom Style UI, AI-Scom and required components.'
+        Write-Host 'Optional additions include SC2R (Cybran Dragon) and Lobby Colors.'
         Write-Host 'Existing settings and other mods are kept. You can back up your mods before installing.'
         Write-Host ''
         Write-Host 'Checking installer package...'
         $package = Read-ScomPackage $PSScriptRoot
         if ($CheckOnly) {
-            Write-Host ('Package verified: {0} files.' -f $package.Files.Count) -ForegroundColor Green
+            Write-Host ('Package verified: {0} files, including optional components.' -f $package.AllFiles.Count) -ForegroundColor Green
             return 0
         }
         $suggested = Find-ScomGame
@@ -73,6 +74,23 @@ function Invoke-ScomInstaller {
         $engine = [IO.Path]::GetFullPath($entered)
         if (-not [IO.File]::Exists((Join-Path $engine 'Sanctuary.exe'))) { $engine = Join-Path $engine 'engine' }
         Assert-ScomGameClosed
+        $selected = @()
+        Write-Host 'Choose optional additions. Skipping keeps any existing installation.'
+        foreach ($component in $package.OptionalComponents) {
+            if ($component.id -eq 'SC2R') {
+                Write-Host 'SC2R adds the Cybran Dragon, a fire-breathing experimental from Supreme Commander 2 Revamp.'
+                $choice = Read-ScomChoice 'Install or update SC2R? [Y]es / [N]o / [C]ancel (default N)' @('Y', 'N', 'C') 'N'
+            }
+            elseif ($component.id -eq 'SCOM-LobbyColors') {
+                Write-Host 'Lobby Colors adds a color wheel, random starting colors and host control of AI colors.'
+                $choice = Read-ScomChoice 'Install or update Lobby Colors? [Y]es / [N]o / [C]ancel (default Y)' @('Y', 'N', 'C') 'Y'
+            }
+            else { throw "Unknown optional component: $($component.id)" }
+            if ($choice -eq 'C') { Write-Host 'Cancelled. Nothing installed.'; return 0 }
+            if ($choice -eq 'Y') { $selected += $component.id }
+        }
+        $package = Select-ScomPackageComponents -Package $package -ComponentIds $selected
+        Write-Host ('Selected for this setup: ' + ((@('SCOM') + $selected) -join ', '))
         Write-Host 'Checking game version and installed files...'
         $plan = Get-ScomInstallPlan $package $engine
         Write-Host ('Install folder: ' + $plan.EngineRoot)

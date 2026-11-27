@@ -614,10 +614,10 @@ do
     end
 
     local function SCOSetMovementLock(unit, locked)
-        if Engine and type(Engine.SetMovementEnabled) == "function"
+        if Engine and type(Engine.SetNavAgentEnabled) == "function"
             and unit.id
         then
-            pcall(Engine.SetMovementEnabled, unit.id, not locked)
+            pcall(Engine.SetNavAgentEnabled, unit.id, not locked)
         end
     end
 

@@ -1,5 +1,5 @@
 local DebugUI = Import("client/ui/debugUI.lua")
-local ClientListeners = Import("client/clientListeners.lua").functions
+local ClientListeners = Import("client/clientListeners.lua")
 local SamplingProfiler = Import("common/systems/samplingProfiler.lua")
 
 _G.Client = {}
@@ -14,7 +14,7 @@ function Init()
     _G.OnDebugSpawnGroupButtonClicked = DebugUI.OnDebugSpawnGroupButtonClicked
 
     -- Registers calls from clients
-    for name, func in pairs(ClientListeners) do
+    for name, func in pairs(ClientListeners.functions) do
         RegisterListener("client_" .. name, func)
     end
 
@@ -54,6 +54,7 @@ function _G.OnRenderUpdate()
 
     local selectionSystem = Import("client/input/selectionSystem.lua")
     selectionSystem.UpdateSelectionSystem()
+    ClientListeners.DrawOverchargeTarget()
 
     -- Should be ran after selection system.
     local uiManager = Import("client/ui/uiManager.lua")

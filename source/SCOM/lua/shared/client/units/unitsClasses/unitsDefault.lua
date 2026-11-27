@@ -539,9 +539,9 @@ local function SCOFaAirFactoryGetBeamPrefabID(materialPath)
     beamEntity.localRotation = GetIdentityQuaternion()
     beamEntity.forceSimulated = false
     table.insert(prefab.hierarchyTemplate.entities, beamEntity)
-    table.insert(prefab.localTemplate.meshTemplates, EngineClasses.MeshTemplate(
+    table.insert(prefab.localTemplate.meshTemplates, Import('scom/clientConstructionAssets.lua').MeshTemplate(
         "Construction Beam",
-        "VFX/Models/Static/ConstructionBeam.sanmodel",
+        Import('common/assetPaths.lua').AssetPaths.ConstructionBeamMesh,
         materialPath,
         EngineClasses.float3(0.05, 1, 1),
         ShadowCastingMode.Off,
@@ -659,7 +659,7 @@ function SCOFaAirFactoryClientLifecycle.Prepare(factory)
             rootID = rootID,
             muzzleID = muzzleID,
             muzzlePosition = EngineClasses.float3(),
-            beam = SCOFaAirFactoryCreateConstructionBeam(rootID),
+            beam = SCOFaAirFactoryCreateConstructionBeam(Engine.GetLocalEntityID(rootID, prefabID, "Construction Beam")),
         })
     end
     factory.constructionBeam = group

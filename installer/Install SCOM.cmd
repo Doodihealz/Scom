@@ -1,6 +1,6 @@
 @echo off
 setlocal DisableDelayedExpansion
-title SCOM Setup 1.4.0
+title SCOM Setup 1.5.1
 if not exist "%~dp0Install-SCOM.ps1" goto incomplete
 if not exist "%~dp0Installer.Core.ps1" goto incomplete
 if not exist "%~dp0manifest.json" goto incomplete

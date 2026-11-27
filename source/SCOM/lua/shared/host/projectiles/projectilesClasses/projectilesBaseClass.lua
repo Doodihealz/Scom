@@ -130,6 +130,7 @@ do
     local previousInit = HostProjectile.__init
     function HostProjectile:__init(...)
         previousInit(self, ...)
+        CollisionUpdate.SCO_TrackBomberProjectile(self)
         local source = self.sourceUnit
         if not source then return end
         local id = self.tp.general and self.tp.general.tpId

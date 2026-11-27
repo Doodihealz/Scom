@@ -325,7 +325,7 @@ InputActions.Orders = {
         end },
         uiDescription = "Overcharge: select an enemy target",
         uiCategory = "Orders",
-        defaultHotkeys = { "O" },
+        defaultHotkeys = { "J", "Shift-J", "O" },
     },
     Priority = 5,
     ToggleAppend = { --this is going to be a mess - needs cleaning up in a proper order mode later
@@ -404,7 +404,7 @@ InputActions.Orders = {
         defaultActions = { press = function() Import("client/inputEventsFunctions.lua").IssueDashOrder() end, },
         uiDescription = "Dash",
         uiCategory = "Orders",
-        defaultHotkeys = {"J","Shift-J"},
+        defaultHotkeys = {},
     },
     OrderPatrol = {
         defaultActions = { press = function() Import("client/inputEventsFunctions.lua").BeginPatrolOrder() end, },

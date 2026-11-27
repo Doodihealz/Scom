@@ -2,11 +2,11 @@
 
 SCOM brings the UEF, Cybran, Aeon, and Seraphim factions from *Supreme Commander: Forged Alliance* to *Sanctuary: Shattered Sun*. It includes land, air, and naval forces, experimental units, commander enhancements, veterancy, Construction Plans, an optional SupCom-style interface, and the AI-Scom opponent.
 
-**[Download SCOM 1.4.0](https://github.com/Doodihealz/Scom/releases/tag/V1.4.0)** · [Discord community](https://discord.gg/quqwHcDb3A) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
+**[Download SCOM 1.5.1](https://github.com/Doodihealz/Scom/releases/tag/V1.5.1)** · [Discord community](https://discord.gg/quqwHcDb3A) · [Report a bug](https://github.com/Doodihealz/Scom/issues)
 
-## New in 1.4.0
+## New in 1.5.1
 
-The Seraphim T4 Yolona now fractures the terrain on impact. The ground collapses into a chasm, land units route around the opening, and waterfalls form where the fracture meets water. The effect and its assets ship inside `Scom-patcher.dll`.
+SCOM now skips an optional AI edit when the installed Lua file is missing or has changed. Commander and unit registration continues, and the log identifies the skipped edit. This fixes the empty map players could see at match start after a Rush update.
 
 | Faction | Sanctuary slot |
 | --- | --- |
@@ -17,13 +17,13 @@ The Seraphim T4 Yolona now fractures the terrain on impact. The ground collapses
 
 ## Installation
 
-1. Download [ScomInstaller.zip](https://github.com/Doodihealz/Scom/releases/download/V1.4.0/ScomInstaller.zip).
+1. Download [ScomInstaller.zip](https://github.com/Doodihealz/Scom/releases/download/V1.5.1/ScomInstaller.zip).
 2. Close Sanctuary and extract the ZIP into a folder.
 3. Run `Install SCOM.cmd` from that folder and select your Sanctuary installation.
 
 Use setup for upgrades. It preserves settings, retires recognized standalone UI and shatter DLLs, and reports conflicts with modified files. For a manual installation, follow `Manual Installation.txt` in the extracted folder.
 
-To use **AI-Scom 10.0.0**, select **AI-Scom** for an AI player in the lobby. The installed profile is under `engine/LJ/lua/AI/mods/AI-Scom`.
+To use **AI-Scom 10.0.0**, select **AI-Scom** for an AI player in the lobby. The installed profile is under `engine/lua/AI/mods/AI-Scom`.
 
 ## Source
 
@@ -32,6 +32,7 @@ To use **AI-Scom 10.0.0**, select **AI-Scom** for an AI player in the lobby. The
 | [Unit definitions](source/SCOM/units/index.lua) | Unit index, templates, host scripts, and client scripts |
 | [Shared gameplay Lua](source/SCOM/lua) | Gameplay systems, movement settings, and source manifest |
 | [AI-Scom](source/AI-Scom) | Economy, production, expansion, and combat logic |
+| [AI compatibility](source/ai-compatibility) | Startup fixes and regression checks for changes to installed AI files |
 | [Yolona Shatter](source/yolona-shatter) | C# runtime and integration code for the 1.4.0 terrain fracture |
 | [Menu and UI](source/menu-ui) | Editable interface source and rebuild tools |
 | [Installer](installer) | Release setup scripts and payload manifest |

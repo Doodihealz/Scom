@@ -1,7 +1,7 @@
 -- Manual ACU Overcharge. The primary cannon keeps sole ownership of its bones.
 local M = {}
 local Version = "1.0.0"
-local EnergyCost, Damage, Radius, Speed = 5000, 12000, 2.5, 25
+local EnergyCost, Damage, Radius, Speed = 4000, 12000, 2.5, 25
 local Cooldown = 1 / 0.3
 local AimTimeout = 10
 local Profiles = {
@@ -330,7 +330,7 @@ local function spawn(unit, profile, pending)
         projectile.damageFriendly = false
         projectile.scoOvercharge = { version = Version, sourceId = profile.sourceId }
         __Entities.Projectiles[projectileId.index] = projectile
-        commands.FireMuzzle.Send(muzzle.id)
+        SendToAllClients(muzzle.id, "SCOOverchargeMuzzle")
     end)
     if not ok then
         local deleted = projectile and pcall(projectile.Delete, projectile)

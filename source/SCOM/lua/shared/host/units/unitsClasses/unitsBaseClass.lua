@@ -7664,7 +7664,7 @@ local function Airborne(pod)
         Engine.SetMovementCollisionMask(pod.id,movement.collisionMaskDefault)
         Engine.SetMovementReferenceAltitude(pod.id,movement.referenceAltitude)
         Engine.SetMovementPreferredAltitude(pod.id,movement.preferredAltitude)
-        pod:SetMovementPatterns("hold")
+        pod:SetNavAgentPatterns("hold")
         Engine.SetMovementTerrainAlignmentFactor(pod.id,movement.terrainAlignmentFactor)
         Engine.SetMovementMaxBankDegrees(pod.id,movement.maxBankDegrees)
     end

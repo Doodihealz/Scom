@@ -1,4 +1,4 @@
--- Dedicated Overcharge identity; reuses the installed faction cannon VFX.
+-- Dedicated Overcharge identity and flight effect.
 -- Runtime owns payment, targeting, damage, muzzle handoff and cooldown.
 ProjectileTemplate = {
     ["additions"] = {
@@ -72,7 +72,7 @@ ProjectileTemplate = {
             [1] = {
                 ["effects"] = {
                     [1] = {
-                        ["particleName"] = "VFX/SCOM/Commanders/ChosenStyle/Aeon/projectile.sanvfx",
+                        ["particleName"] = "VFX/SCOM/Commanders/Overcharge/Aeon/projectile.sanvfx",
                     },
                 },
             },

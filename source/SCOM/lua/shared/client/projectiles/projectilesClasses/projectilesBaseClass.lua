@@ -92,9 +92,12 @@ local SmallestImpactTime = Constants.TickTimeStep / 10
 ---@field impactSizeIndex integer Size of the projectile, 1 (small) to 4 (huge).
 ClientProjectile = Class("ClientProjectile", ClientEntity)
 
----@param tpId TemplateId
+---@param template table Projectile template.
 ---@return integer sizeIndex 1 (small) to 4 (huge).
-local function GetImpactSizeIndex(tpId)
+local function GetImpactSizeIndex(template)
+    local additions = template.additions
+    if additions and additions.scoOvercharge then return 3 end
+    local tpId = template.general.tpId
     local techDigit = string.sub(tpId, 1, 3) == "pxd" and string.sub(tpId, 6, 6) or string.sub(tpId, 4, 4)
     return math.clamp(tonumber(techDigit), 1, 4)
 end
@@ -111,7 +114,7 @@ function ClientProjectile:__init(globalId, localId, armyId, template)
     self.name = self.tp.general.name
     self.tpId = self.tp.general.tpId
     self.armyId = armyId
-    self.impactSizeIndex = GetImpactSizeIndex(self.tpId)
+    self.impactSizeIndex = GetImpactSizeIndex(template)
 
     self:SetUpIcon()
     self:SetUpPersistentEffects()

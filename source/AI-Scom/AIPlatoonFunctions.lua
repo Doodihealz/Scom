@@ -61,7 +61,6 @@ local AILog = DebugUtilities.AILog
 local OrderTasks = Import("common/commonOrders.lua").OrderTasks
 local HostIssueOrder =  Import("host/managers/orders/hostOrderManager.lua").HostIssueOrder
 local HostClearOrder =  Import("host/managers/orders/hostOrderManager.lua").HostClearOrder
-local IssueProduction = Import("host/hostOrders.lua").IssueProduction
 local AITargetManager = Import("AI/AITargetManager.lua")
 local AIMarkerGenerator = Import("AI/AIMarkerGenerator.lua")
 local lobbyOptionsAI = Import("AI/_lobbyOptions.lua").lobbyOptionsAI
@@ -9818,9 +9817,9 @@ function subPlanSelectMainTarget(platoon)
                     and not RushCommanderWork.ConstructionTarget(commander) then
                     local orders=commander.orders or {}
                     local combatOnly=not orders.activeOrder or orders.activeOrder.orderTask==OrderTasks.MOVE
-                        or orders.activeOrder.orderTask==OrderTasks.ATTACK
+                        or orders.activeOrder.orderTask==OrderTasks.ATTACKUNIT
                     for _,order in pairs(orders.queuedOrders or {}) do
-                        if order.orderTask~=OrderTasks.MOVE and order.orderTask~=OrderTasks.ATTACK then combatOnly=false end
+                        if order.orderTask~=OrderTasks.MOVE and order.orderTask~=OrderTasks.ATTACKUNIT then combatOnly=false end
                     end
                     if combatOnly then
                         RushMovementV18.Forget(commander,false)

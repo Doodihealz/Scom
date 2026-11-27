@@ -99,7 +99,7 @@ function Get-ScomTreeFiles {
 }
 
 function Read-ScomPackage {
-    param([Parameter(Mandatory = $true)][string]$PackageRoot)
+    param([Parameter(Mandatory = $true)][string]$PackageRoot, [string[]]$ComponentIds = @())
     $root = [IO.Path]::GetFullPath($PackageRoot).TrimEnd('\')
     Assert-ScomNoReparsePoint $root
     $manifestPath = Join-ScomSafePath $root 'manifest.json'
@@ -113,7 +113,44 @@ function Read-ScomPackage {
     $files = New-Object 'Collections.Generic.List[object]'
     $filePaths = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
     $allPaths = New-Object 'Collections.Generic.Dictionary[string,string]' ([StringComparer]::OrdinalIgnoreCase)
+    $declaredFiles = New-Object 'Collections.Generic.List[object]'
     foreach ($entry in @($manifest.files)) {
+        $relative = ConvertTo-ScomRelativePath $entry.path
+        if ($relative -match '^SanctuaryMods\\(?:SC2R|SCOM-LobbyColors)(?:\\|$)') { throw 'Optional mod files must belong to their optional component.' }
+        $declaredFiles.Add([pscustomobject]@{ Entry = $entry; ComponentId = '' })
+    }
+    $optionalComponents = New-Object 'Collections.Generic.List[object]'
+    $knownComponentIds = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    if ($manifest.PSObject.Properties['optionalComponents']) {
+        if ($manifest.optionalComponents -isnot [array]) { throw 'Invalid optional component list.' }
+        foreach ($component in $manifest.optionalComponents) {
+            if ($null -eq $component -or -not $component.PSObject.Properties['id'] -or
+                $component.id -cnotin @('SC2R', 'SCOM-LobbyColors') -or -not $knownComponentIds.Add($component.id) -or
+                -not $component.PSObject.Properties['ownedRoots'] -or $component.ownedRoots -isnot [array] -or
+                @($component.ownedRoots).Count -ne 1 -or
+                (ConvertTo-ScomRelativePath $component.ownedRoots[0]) -cne ('SanctuaryMods\' + $component.id) -or
+                -not $component.PSObject.Properties['files'] -or $component.files -isnot [array] -or
+                $component.files.Count -eq 0) {
+                throw 'Invalid optional component.'
+            }
+            foreach ($entry in $component.files) {
+                $relative = ConvertTo-ScomRelativePath $entry.path
+                if (-not $relative.StartsWith(('SanctuaryMods\' + $component.id + '\'), [StringComparison]::Ordinal)) {
+                    throw "Optional component file is outside its owned root: $relative"
+                }
+                $declaredFiles.Add([pscustomobject]@{ Entry = $entry; ComponentId = $component.id })
+            }
+            $optionalComponents.Add($component)
+        }
+    }
+    if ($manifest.PSObject.Properties['ownedRoots']) {
+        foreach ($ownedRoot in @($manifest.ownedRoots)) {
+            $relative = ConvertTo-ScomRelativePath $ownedRoot
+            if ($relative -match '^SanctuaryMods\\(?:SC2R|SCOM-LobbyColors)(?:\\|$)') { throw 'Optional mod ownership must belong to its optional component.' }
+        }
+    }
+    foreach ($declaredFile in $declaredFiles) {
+        $entry = $declaredFile.Entry
         $relative = ConvertTo-ScomRelativePath $entry.path
         if (-not $filePaths.Add($relative)) { throw "Duplicate package path: $relative" }
         if ($entry.sha256 -notmatch '^[0-9a-fA-F]{64}$' -or $entry.bytes -is [string] -or
@@ -135,9 +172,9 @@ function Read-ScomPackage {
         if ($entry.PSObject.Properties['replaceFromSha256']) {
             if (($entry.replaceFromSha256 -isnot [string] -and $entry.replaceFromSha256 -isnot [array]) -or
                 ($relative -notmatch '^SanctuaryMods\\SCOM\\(?:lua|units)\\.+\.lua$' -and
-                 $relative -notmatch '^LJ\\lua\\AI\\mods\\AI-Scom\\.+\.(?:lua|txt)$' -and
+                 $relative -notmatch '^lua\\AI\\mods\\AI-Scom\\.+\.(?:lua|txt)$' -and
                  $relative -cne 'BepInEx\plugins\SCOMTreeDecay\ScomTreeDecay.dll' -and
-                 $relative -cne 'SanctuaryMods\SCOM\packs\scom.sanpack' -and
+                 $relative -cnotin @('SanctuaryMods\SCOM\packs\scom.sanpack', 'SanctuaryMods\SCOM\packs\scom-vfx-world-space.sanpack') -and
                  $relative -cne 'SanctuaryMods\SCOM\lua\source-manifest.tsv')) {
                 throw "Invalid source upgrade preimage: $relative"
             }
@@ -150,7 +187,7 @@ function Read-ScomPackage {
                 $replaceFrom += $preimage.ToLowerInvariant()
             }
         }
-        $files.Add([pscustomobject]@{ Path = $relative; Bytes = [long]$entry.bytes; SHA256 = $entry.sha256.ToLowerInvariant(); Source = $source; ReplaceFromSHA256 = $replaceFrom })
+        $files.Add([pscustomobject]@{ Path = $relative; Bytes = [long]$entry.bytes; SHA256 = $entry.sha256.ToLowerInvariant(); Source = $source; ReplaceFromSHA256 = $replaceFrom; ComponentId = $declaredFile.ComponentId; ManifestEntry = $entry })
     }
     if ($files.Count -eq 0) { throw 'Package contains no files.' }
     foreach ($relative in $filePaths) {
@@ -166,7 +203,7 @@ function Read-ScomPackage {
         if ($manifest.obsoleteFiles -isnot [array]) { throw 'Invalid obsolete file list.' }
         foreach ($entry in $manifest.obsoleteFiles) {
             $relative = ConvertTo-ScomRelativePath $entry.path
-            if (($relative -notmatch '^LJ\\lua\\AI\\mods\\AI-Scom\\.+\.(?:lua|txt)$' -and
+            if (($relative -notmatch '^(?:LJ\\)?lua\\AI\\mods\\AI-Scom\\.+\.(?:lua|txt)$' -and
                  $relative -cne 'BepInEx\plugins\SCOMLandMotion\ScomLandMotion.dll' -and
                  $relative -cne 'BepInEx\plugins\SupComStyleUI\SupComStyleUI.dll' -and
                  $relative -cne 'SanctuaryMods\SCOM\ScomYolonaShatter.dll') -or
@@ -219,7 +256,38 @@ function Read-ScomPackage {
         if (-not $actualPaths.Add($relative)) { throw "Case collision in payload: $relative" }
         if (-not $filePaths.Contains($relative)) { throw "Unlisted payload file: $relative" }
     }
-    return [pscustomobject]@{ Root = $root; PayloadRoot = $payloadRoot; Manifest = $manifest; Files = $files.ToArray(); ObsoleteFiles = $obsoleteFiles.ToArray() }
+    $package = [pscustomobject]@{
+        Root = $root; PayloadRoot = $payloadRoot; ManifestTemplate = $manifest
+        AllFiles = $files.ToArray(); OptionalComponents = $optionalComponents.ToArray()
+        ObsoleteFiles = $obsoleteFiles.ToArray()
+    }
+    return Select-ScomPackageComponents $package $ComponentIds
+}
+
+function Select-ScomPackageComponents {
+    param([Parameter(Mandatory = $true)][object]$Package, [string[]]$ComponentIds = @())
+    $selected = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($componentId in $ComponentIds) {
+        $component = @($Package.OptionalComponents | Where-Object { $_.id -ceq $componentId })
+        if ($component.Count -ne 1 -or -not $selected.Add($componentId)) {
+            throw "Unknown or duplicate optional component: $componentId"
+        }
+    }
+    $files = @($Package.AllFiles | Where-Object { -not $_.ComponentId -or $selected.Contains($_.ComponentId) })
+    $manifest = $Package.ManifestTemplate | Select-Object *
+    $manifest.files = @($files | ForEach-Object { $_.ManifestEntry })
+    $ownedRoots = @()
+    if ($manifest.PSObject.Properties['ownedRoots']) { $ownedRoots += @($manifest.ownedRoots) }
+    foreach ($component in $Package.OptionalComponents) {
+        if ($selected.Contains($component.id)) { $ownedRoots += @($component.ownedRoots) }
+    }
+    $manifest | Add-Member NoteProperty ownedRoots $ownedRoots -Force
+    return [pscustomobject]@{
+        Root = $Package.Root; PayloadRoot = $Package.PayloadRoot; Manifest = $manifest
+        ManifestTemplate = $Package.ManifestTemplate; AllFiles = $Package.AllFiles
+        OptionalComponents = $Package.OptionalComponents; SelectedComponentIds = @($ComponentIds)
+        Files = $files; ObsoleteFiles = $Package.ObsoleteFiles
+    }
 }
 
 function Assert-ScomEngine {
@@ -296,7 +364,10 @@ function Test-ScomReplaceableFile {
     param([string]$Path)
     return ($Path -match '^BepInEx\\core\\[^\\]+\.(dll|xml)$' -or $Path -in @(
         'BepInEx\plugins\ModLoader.dll', 'BepInEx\plugins\SupComStyleUI\SupComStyleUI.dll', 'BepInEx\patchers\SanctuaryPatcherHost.dll',
-        'SanctuaryMods\SCOM\Scom-patcher.dll', 'SanctuaryMods\SCOM\lua\source-manifest.tsv'))
+        'SanctuaryMods\SCOM\Scom-patcher.dll', 'SanctuaryMods\SCOM\lua\source-manifest.tsv',
+        'SanctuaryMods\SC2R\SC2R-StompAudio.dll', 'SanctuaryMods\SC2R\ScomSubmod-SC2R-patcher.dll',
+        'SanctuaryMods\SC2R\content\OpenAL32.native', 'SanctuaryMods\SC2R\content\SC2R.assets.zip',
+        'SanctuaryMods\SCOM-LobbyColors\ScomLobbyColors.dll'))
 }
 
 function Get-ScomInstallPlan {
@@ -365,13 +436,18 @@ function Get-ScomInstallPlan {
             }
         }
         if (-not $matchedVersion) {
+            # Custom files in the retired Lua tree can coexist with the Steam profile.
+            if ($file.Path -like 'LJ\lua\AI\mods\AI-Scom\*') {
+                $preserve.Add([pscustomobject]@{ Path = $file.Path; Destination = $destination })
+                continue
+            }
             $conflicts.Add("Obsolete file differs: $($file.Path)")
             continue
         }
         $remove.Add([pscustomobject]@{ Path = $file.Path; Destination = $destination; Bytes = $existingBytes; SHA256 = $existingHash })
     }
     if ($Package.Manifest.PSObject.Properties['ownedRoots']) {
-        $allowedRoots = @('SanctuaryMods\SCOM', 'LJ\lua\AI\mods\AI-Scom', 'BepInEx\plugins\SupComStyleUI', 'BepInEx\plugins\SCOMTreeDecay', 'BepInEx\plugins\SCOMLandMotion')
+        $allowedRoots = @('SanctuaryMods\SC2R', 'SanctuaryMods\SCOM-LobbyColors', 'SanctuaryMods\SCOM', 'lua\AI\mods\AI-Scom', 'BepInEx\plugins\SupComStyleUI', 'BepInEx\plugins\SCOMTreeDecay', 'BepInEx\plugins\SCOMLandMotion')
         foreach ($ownedRoot in @($Package.Manifest.ownedRoots)) {
             $relativeRoot = ConvertTo-ScomRelativePath $ownedRoot
             if ($relativeRoot -notin $allowedRoots) { throw "Unsupported owned mod root: $relativeRoot" }
@@ -426,7 +502,8 @@ function New-ScomDirectories {
 function Invoke-ScomInstall {
     param([Parameter(Mandatory = $true)][object]$Package, [Parameter(Mandatory = $true)][string]$EngineRoot)
     # Revalidate immediately before the first destination write, even after a UI preview.
-    $verified = Read-ScomPackage $Package.Root
+    $componentIds = if ($Package.PSObject.Properties['SelectedComponentIds']) { @($Package.SelectedComponentIds) } else { @() }
+    $verified = Read-ScomPackage -PackageRoot $Package.Root -ComponentIds $componentIds
     $plan = Get-ScomInstallPlan $verified $EngineRoot
     if ($plan.Conflicts.Count -gt 0) { throw ('Nothing installed. Conflicts:' + [Environment]::NewLine + ($plan.Conflicts -join [Environment]::NewLine)) }
     $createdFiles = New-Object 'Collections.Generic.List[object]'
@@ -588,7 +665,7 @@ function Get-ScomBackupFiles {
     $backupRoots = if ($Package.Manifest.PSObject.Properties['backupRoots']) { @($Package.Manifest.backupRoots) } else { @() }
     foreach ($relativeRoot in $backupRoots) {
         $relative = ConvertTo-ScomRelativePath $relativeRoot
-        if ($relative -notmatch '^(?i:SanctuaryMods|Mods|BepInEx\\(?:core|plugins|patchers|config)|LJ\\lua\\AI\\Mods)(?:\\|$)') {
+        if ($relative -notmatch '^(?i:SanctuaryMods|Mods|BepInEx\\(?:core|plugins|patchers|config)|LJ\\lua\\AI\\Mods|lua\\AI\\mods\\AI-Scom)(?:\\|$)') {
             throw "Backup root is outside the supported mod folders: $relative"
         }
         $directory = Join-ScomSafePath $root $relative

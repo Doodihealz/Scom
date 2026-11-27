@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "product": "SCOM",
   "basegameTrebuchetPath": "Sanctuary_Data/Managed/Trebuchet.dll",
-  "basegameTrebuchetSHA": "A76118C593E6D88E37880F714067E81B595F0EDFE5B6ABB9C9CDF4AAFCEDE0B2",
+  "basegameTrebuchetSHA": "13A8158B5706A1042FE3B719EDE7CD78EBFA83ED2F5F8D068F5C8A9322C2E371",
   "ownedRoots": [
     "SanctuaryMods/SCOM",
-    "LJ/lua/AI/mods/AI-Scom",
+    "lua/AI/mods/AI-Scom",
     "BepInEx/plugins/SupComStyleUI",
     "BepInEx/plugins/SCOMTreeDecay",
     "BepInEx/plugins/SCOMLandMotion"
@@ -17,17 +17,18 @@
     "BepInEx/patchers",
     "BepInEx/plugins",
     "BepInEx/config",
-    "LJ/lua/AI/mods"
+    "LJ/lua/AI/mods",
+    "lua/AI/mods/AI-Scom"
   ],
   "backupFiles": [
     ".doorstop_version",
     "doorstop_config.ini",
     "winhttp.dll"
   ],
-  "sourceRevision": "2026-11-21-scom-1.4.0-ai-scom-10.0.0-yolona-shatter-3.4.12",
-  "releaseVersion": "1.4.0",
+  "sourceRevision": "2026-11-27-scom-ai-source-compatibility-1.5.1",
+  "releaseVersion": "1.5.1",
   "releaseChannel": "public",
-  "releaseDate": "2026-11-21",
+  "releaseDate": "2026-11-27",
   "obsoleteFiles": [
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushCybranT4.lua",
@@ -75,431 +76,181 @@
           "sha256": "4bf6332a1bd7ad192c4b3698fa6f09a70471c84d7e2411580968486b2431599b"
         }
       ]
-    }
-  ],
-  "files": [
-    {
-      "path": ".doorstop_version",
-      "bytes": 5,
-      "sha256": "75a2f501000d4fe28f74bc7ee66dae5581959d28b6c44f0c1b0c05cd5ba261e6"
     },
     {
-      "path": "BepInEx/config/BepInEx.cfg",
-      "bytes": 5565,
-      "sha256": "eeaf758806c6d2b23cecbb0f4a00bb1741029ea6c87701af992fa85f94eaa7ee"
+      "path": "lua/AI/mods/AI-Scom/RushCybranT4.lua",
+      "bytes": 28863,
+      "sha256": "6075054b71db669d2fd1d12fcf1802faffb6e437aa2a69226833cc06803b5aa7"
     },
     {
-      "path": "BepInEx/config/ziggy.sanctuary.supcom-style-ui.cfg",
-      "bytes": 2562,
-      "sha256": "4432ecd7f5808ae1eda9ee13c535c701d941b6a57dd1b1a5e28097e01b87ac3e"
+      "path": "lua/AI/mods/AI-Scom/AI Patchnotes.txt",
+      "bytes": 35062,
+      "sha256": "b3514bb7a48870aa644d71a08cb31bc130c8c481eaa3971b6317ea7fee023975"
     },
     {
-      "path": "BepInEx/core/0Harmony.dll",
-      "bytes": 204800,
-      "sha256": "1a21cc03424fc82c3dd1346905d16494536b9595ae4162228d99fb7c285c1031"
+      "path": "lua/AI/mods/AI-Scom/Balance Rules.txt",
+      "bytes": 187118,
+      "sha256": "561f559235bc757bfeacb3cdff65968e8de4bb47f1566136cbf536efdc991fa6"
     },
     {
-      "path": "BepInEx/core/0Harmony.xml",
-      "bytes": 267107,
-      "sha256": "d1f02fc3ada3a13da307de421225bfe56ebe24064370980979391c4be021672f"
-    },
-    {
-      "path": "BepInEx/core/0Harmony20.dll",
-      "bytes": 112640,
-      "sha256": "c755a5ab2712915a32f9a850d580a8c1b70ff1653bc76600f2767aa8ffccc663"
-    },
-    {
-      "path": "BepInEx/core/BepInEx.Harmony.dll",
-      "bytes": 6656,
-      "sha256": "00c8f2ac48593e4d45ce4eb26ce4e68b18113c5c489b38b8bf0850f65830d601"
-    },
-    {
-      "path": "BepInEx/core/BepInEx.Harmony.xml",
-      "bytes": 4056,
-      "sha256": "a04fedf08f7c81f5d01aba6f2840a7ffce50b79bbd24587d8dbe69ab73971d29"
-    },
-    {
-      "path": "BepInEx/core/BepInEx.Preloader.dll",
-      "bytes": 43008,
-      "sha256": "55d3895351a9d16b63b6f35f1c01b44ac650979e853d0bd3a442b92a082af64f"
-    },
-    {
-      "path": "BepInEx/core/BepInEx.Preloader.xml",
-      "bytes": 7964,
-      "sha256": "33275b2783b7b99495a02c098ee86d6a9a2783e884a5c9369021f20c94cf99e7"
-    },
-    {
-      "path": "BepInEx/core/BepInEx.dll",
-      "bytes": 128512,
-      "sha256": "8255b28902886085c578b9e427d3073c97002db85176d2090cdeda90ef14ce70"
-    },
-    {
-      "path": "BepInEx/core/BepInEx.xml",
-      "bytes": 89835,
-      "sha256": "7ba2266061b9f8a9f146218a312bfdd0d7f2b53a99a7e66c957215c6b66ca0d7"
-    },
-    {
-      "path": "BepInEx/core/HarmonyXInterop.dll",
-      "bytes": 23552,
-      "sha256": "7ce1342d3afa0334b59a3e38c0aed15e162b9abe9d46f95f34be44af47f3b493"
-    },
-    {
-      "path": "BepInEx/core/Mono.Cecil.Mdb.dll",
-      "bytes": 43008,
-      "sha256": "5896d1898f616701fff18f3b2c71e6b844d2390ef9f41e1c5fccce8cb27c698e"
-    },
-    {
-      "path": "BepInEx/core/Mono.Cecil.Pdb.dll",
-      "bytes": 86528,
-      "sha256": "174db44a067f58561510af746f3caeb032037762c57a31c8d9ee32db25174984"
-    },
-    {
-      "path": "BepInEx/core/Mono.Cecil.Rocks.dll",
-      "bytes": 27648,
-      "sha256": "54ac539fb5ddc8b44c0e9acd0fcb7324f89d1a072edf8ebc1b06dd691e3d3927"
-    },
-    {
-      "path": "BepInEx/core/Mono.Cecil.dll",
-      "bytes": 339456,
-      "sha256": "7ae470288fff4a402899c254d0a76cefef55877f5c54f96e83c797cc5bb6e2f6"
-    },
-    {
-      "path": "BepInEx/core/MonoMod.RuntimeDetour.dll",
-      "bytes": 105984,
-      "sha256": "40e49bb314391cd7bddc2644f8553eeba92c194b940836b103df16955c464e0c"
-    },
-    {
-      "path": "BepInEx/core/MonoMod.RuntimeDetour.xml",
-      "bytes": 9414,
-      "sha256": "54887808960d156550b37d602d08847607aa9e908d039f2765fb0b5e79394aa4"
-    },
-    {
-      "path": "BepInEx/core/MonoMod.Utils.dll",
-      "bytes": 187904,
-      "sha256": "9d1495f147ac93c4f81f84538c1a326e8f8a6aefc78d6289d798f3ce1162c5e9"
-    },
-    {
-      "path": "BepInEx/core/MonoMod.Utils.xml",
-      "bytes": 78973,
-      "sha256": "0577b362023a3432d6e8d7934c5eddc3e08fdbb19e191af083e341562c5ede38"
-    },
-    {
-      "path": "BepInEx/patchers/SanctuaryPatcherHost.dll",
-      "bytes": 18432,
-      "sha256": "0a395d43480245af95d56fc1086a57ca5a81ebc4439c5dad2e4872b0bd6c6c11"
-    },
-    {
-      "path": "BepInEx/plugins/ModLoader.dll",
-      "bytes": 25088,
-      "sha256": "75decd61491d166c4e40e8663f52d032607470ca1f88d326a7ffa47201dc23c3"
-    },
-    {
-      "path": "BepInEx/plugins/SCOMTreeDecay/ScomTreeDecay.dll",
-      "bytes": 13824,
-      "sha256": "aa8a84dff679b3ea9ef8fe9d35e7a1bacbba9be151262da6f777e71c4682ccff",
-      "replaceFromSha256": [
-        "5e4a6958cb85eeec37fb9997d0c4e4c9772afc50ea7a90e88cd6d37c56791769"
-      ]
+      "path": "lua/AI/mods/AI-Scom/INSTALL.txt",
+      "bytes": 744,
+      "sha256": "1694f628ce8b3a419ce3c738c715630a422eb7e4e159a211ad25e20cf96ce103"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/AIPlatoonFunctions.lua",
       "bytes": 1038744,
-      "sha256": "1a8b329e90da11c184f79b85505a510be743ff7b2c4bd9738731c4c66089e547",
-      "replaceFromSha256": [
-        "2606b369f5d45e0991b5303e6b640dfb19f9bc33903b18c7b5caa0022e37ea68",
-        "4ae8c46d892a565354b29fd7b66fcfb03fd4094ec9ffe47cc56724bc9dd9da7d",
-        "7bb98d4e407e680a848fda959a3fd3326eb57e27cfc461361e2e23797339a192",
-        "eb32fc1cb07adb9bcc8bddc68307a749918141fc9756a7f08462375b8b608d95"
-      ]
+      "sha256": "1a8b329e90da11c184f79b85505a510be743ff7b2c4bd9738731c4c66089e547"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushAdaptive.lua",
       "bytes": 9993,
-      "sha256": "8f182fd7dd430225b591fb871bd56c6124f13bdffc338b7b4b3604d1414c5228",
-      "replaceFromSha256": [
-        "6dd90816700d74997c5b1163b39ad9873744fb8f4d884bd040f95d2d0b0fa083"
-      ]
+      "sha256": "8f182fd7dd430225b591fb871bd56c6124f13bdffc338b7b4b3604d1414c5228"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushAirDefense.lua",
       "bytes": 11999,
-      "sha256": "b5985c00a7aa0fd97bb2ac37b77e654d4bec73e975f08daa69998f5fb504e0a1",
-      "replaceFromSha256": [
-        "30df1657ffb20a64d9de43c4fe2d737753ddf67d41e35b52599858fd453f28ba",
-        "f74e332c16c069130020724eb1cf2ef98eb37fdecc4a112b63d314455596984e"
-      ]
+      "sha256": "b5985c00a7aa0fd97bb2ac37b77e654d4bec73e975f08daa69998f5fb504e0a1"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushAirOrders.lua",
       "bytes": 24541,
-      "sha256": "0ed53cd46c558cd4bb4c26c985e56c5d9a96ceffa2ed013eec34f5b8a1dc3479",
-      "replaceFromSha256": [
-        "0d4ac18b934194e8da4f1025baced27aa854f15b9346379fbf2d94addc16884a",
-        "408c853a710956d3c49c2e7f041bbf506f5c688342797a026a056dd6ab38c00e"
-      ]
+      "sha256": "0ed53cd46c558cd4bb4c26c985e56c5d9a96ceffa2ed013eec34f5b8a1dc3479"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushBalance.lua",
       "bytes": 47225,
-      "sha256": "ef627f15afd91b209f4091857f29b5baccdb900917ecd7df949fa3ae72b72de5",
-      "replaceFromSha256": [
-        "3f8c1cd325917bddc658c17064622b93fd328be0f29e63132bf61f1e5428ace5",
-        "727348cac0625330e4e34005a01d7299e3772084a4318f79a6c25f1e53a7f0fc",
-        "bafdb1ce0c15036e54839023d48c602a29d755e9ac98da5a59c34cef6b0c5f39",
-        "f8305c1cc3f1412e1efb11f5842dc265c0bfb58e6407aae9914db1b2afd3776d"
-      ]
+      "sha256": "ef627f15afd91b209f4091857f29b5baccdb900917ecd7df949fa3ae72b72de5"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushBaseLayout.lua",
       "bytes": 146291,
-      "sha256": "5ee3f7f9f10e6d7c20d615d088fc641596336912de96f22d4b8c18194b5ea598",
-      "replaceFromSha256": [
-        "0144fa888bd15568c78fde4d712970f6ca2c4633e4c9e60adec6a796e7c68cc6",
-        "5c045c12099e3a3a19ff0010e8139fb79ac97a5e10fc8bed234a186a8df4e4bb",
-        "84fd82f24d8acb61225c2044128abbea98d292db2b8193eafe0f985b57dc53f6",
-        "9f6555dada6a3775d6e0d309940edb467ed348b3ecb673a9863ab46f9252edec"
-      ]
+      "sha256": "5ee3f7f9f10e6d7c20d615d088fc641596336912de96f22d4b8c18194b5ea598"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushBeachhead.lua",
       "bytes": 35977,
-      "sha256": "5eb2372eebc0fe9b08d0112f770d02173eaf429c4d28d22b577625ec8fd8307a",
-      "replaceFromSha256": [
-        "99ff5b1bb9738a906653879c9c0c394b54ed052222e496807a96f9b63fb651be"
-      ]
+      "sha256": "5eb2372eebc0fe9b08d0112f770d02173eaf429c4d28d22b577625ec8fd8307a"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushBomberHarassment.lua",
       "bytes": 60033,
-      "sha256": "eda8243acae2d53efb0d78cd6f3e3b0f2a44009c524f1615675e41edfc24ca29",
-      "replaceFromSha256": [
-        "2579b8a32c138e52859728b1da721cff594c383ecdfc4ecf9bbb097e0b30081d",
-        "92d60d037069232733cdfadaa078ce92841a46f087ccfb4bb9886eb8b5a515d4",
-        "e2497526d55eefce0dc5fc701ef5189959250380c190ce16585fce13ba475ec3"
-      ]
+      "sha256": "eda8243acae2d53efb0d78cd6f3e3b0f2a44009c524f1615675e41edfc24ca29"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushBomberPass.lua",
       "bytes": 17540,
-      "sha256": "b293567e85bb81091f1320080b13dc55f0e19622e768a4ce4da3a97d8e22d97a",
-      "replaceFromSha256": [
-        "192055226141c901e8c85ca5677d77cc1fab28400a598cdec8df9da364686684",
-        "374ece713631a15bbf6c01a7a109fb45fb7b6bc430a253f79e09d8fbdffa9eea"
-      ]
+      "sha256": "b293567e85bb81091f1320080b13dc55f0e19622e768a4ce4da3a97d8e22d97a"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushCombat.lua",
       "bytes": 107310,
-      "sha256": "b580c42b376ca27ac65739164285ae80bd13bab85b0b91cc5c301e35329e91e7",
-      "replaceFromSha256": [
-        "30bf7477ab6280d81f7f63ae65dc6ace9b1c81935516a59706f56b2e23ac4648",
-        "75478cc809def4ae912411c0481212120d247b86c7fcba56d6c7f7a746209bfa",
-        "ad797a4f6c272edfd4a9eceeed357d4dba628ded8f058613d9c206d495085ab4",
-        "ecb33ee1d89ed7202ab4f7002e01d781496ca99031a010314d9e6d812a12fe69"
-      ]
+      "sha256": "b580c42b376ca27ac65739164285ae80bd13bab85b0b91cc5c301e35329e91e7"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushCombatIntel.lua",
       "bytes": 29694,
-      "sha256": "18a15a679523efb716fbbd1e29927933561373756222446d148baef03508b5df",
-      "replaceFromSha256": [
-        "1636fc34dad2cef5d5d73a2a5a145d7426571f55e10b8964bddc678a039a40cf",
-        "291dc209d5e838e0b91f2f8f1c35ecae28fc3f31b2e6698bd09fa8aaa47ea31e",
-        "749773902ba2868fd75eecfb524cd72cadbcc882596cf1f38d50b9fee832d3e3",
-        "d8067d318f9e5a753414a5bf6d7da924fe68f73863a5c405c7c9cfa7fcace380"
-      ]
+      "sha256": "18a15a679523efb716fbbd1e29927933561373756222446d148baef03508b5df"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushCombatPolicy.lua",
       "bytes": 11697,
-      "sha256": "e215c6665ab3026f269ec0f652c7df9790e31f4956d5bf82f89c88c914d05954",
-      "replaceFromSha256": [
-        "5f510343c1fde82808343f2a6b74fe3e5ad3c638fef90cd12cfe20b292ba6ac0",
-        "757f12ba686edf597e671522f33ecf16e38be9bc6c9c2cf086d0c90fd6cf2b8b",
-        "b60c07caf09ec73c6ca70b5a1851a1d3c44a860d1bd8e3f09b20a2e0a2efce52",
-        "d24d94d2f9d39b4e4fd02c58c002d17cd00394fb385f753f0dc3a00cd4e35aa7"
-      ]
+      "sha256": "e215c6665ab3026f269ec0f652c7df9790e31f4956d5bf82f89c88c914d05954"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushCommanderWork.lua",
       "bytes": 34118,
-      "sha256": "508f098071266177330a2c9fbfd3c84c2989d35155e8b5be147dd831c29b515b",
-      "replaceFromSha256": [
-        "208b848851d76129824503e2b5757ead386861d0eda0e944761ae58c8404d47b",
-        "a1008138979479770dade205f83cd13b5e20e7470464747ca4591a4ea45e8b87",
-        "b68a0def3060bd4965fc3a135c1b57ab158fe4cf8930844117c5f63fdd6dab10",
-        "be74c5a19492fa05e5dca12505e299e5b7cb4d6ed6329f2738dc149e4bf67695"
-      ]
+      "sha256": "508f098071266177330a2c9fbfd3c84c2989d35155e8b5be147dd831c29b515b"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushController.lua",
       "bytes": 169821,
-      "sha256": "0b01ed62ef6ed90cc0f3ff9ec904b44a1df08c8e68a525459a3772bdcff82d70",
-      "replaceFromSha256": [
-        "65ac599c78854bce559b06d2a7028a6ba00da1a81349fa2f71e0bc4587c2f876",
-        "8d6654791b068df1d7f94c95cf9bb4094bd1ea226b3d58e1cea8eebb814b29d8",
-        "d2098c91cdd57b2eb788a78646fd0fc18be0bf9a71d13b6766d8d494321f0210",
-        "f9905f1455d99ea8198711adb710756c9e953ee749432d5d9e4a09308509eab0"
-      ]
+      "sha256": "0b01ed62ef6ed90cc0f3ff9ec904b44a1df08c8e68a525459a3772bdcff82d70"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushDevelopment.lua",
       "bytes": 122348,
-      "sha256": "b56d1d716c93f22bdad4acc377a4e08f12cae77cb0bbe0206424cbaa6cbb95bf",
-      "replaceFromSha256": [
-        "2ae16bbd8b46f2f2e530805741261f83fb6ff72b389a5a288f0134b9e05e6c3a",
-        "948cad733c3b2b94974026729b104570cd1ccfcd63c5224e4e6649750a52c1d0",
-        "9eba93f378efea010f81de1440590d32a6e42e80f74a4a7f6738bfc048180def",
-        "e567c12716e0231690c5c34126082c77e519d60ea5ff697fce42631876c7dfb8"
-      ]
+      "sha256": "b56d1d716c93f22bdad4acc377a4e08f12cae77cb0bbe0206424cbaa6cbb95bf"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushDiagnostics.lua",
       "bytes": 14656,
-      "sha256": "c28fa4c5d6fffba146fccb1d74fa4cdc5516654a7aec22db04e27762d939992d",
-      "replaceFromSha256": [
-        "4a3e0427c82c9aa62eba282291c67a597e1c9a6968d30c7d60e604ca21461b4a"
-      ]
+      "sha256": "c28fa4c5d6fffba146fccb1d74fa4cdc5516654a7aec22db04e27762d939992d"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushDiagnosticsMonitor.lua",
       "bytes": 15754,
-      "sha256": "ba0f86a3129df5c4562322582f714eac4d3283d0bfbe19d847c0436e8c65879b",
-      "replaceFromSha256": [
-        "4987115d2f7462966b67efb799ad7096b595e6b0c2f9c8af1ac0c0a13213878e",
-        "f94bfccc19f13b5db7309e5beb14ed8576a09fd7aa769b81abb192a411b0ae53"
-      ]
+      "sha256": "ba0f86a3129df5c4562322582f714eac4d3283d0bfbe19d847c0436e8c65879b"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushEconomyPolicy.lua",
       "bytes": 24937,
-      "sha256": "1996aa9fb1a60be53ee8ca9f151db101b2a8b96f2857dd0f0ef45a7ffca21101",
-      "replaceFromSha256": [
-        "0cf2497e667e3058127ca1bd20c947a8e3413af1143c390216c3e16a94163bd3",
-        "26fd74cfdea0829cfadc17a3e57456f9101084a067318d3d73366fd788cb0007",
-        "7f2922aaa641f833a9886763896a206f1018dc4f2d2cdbc877c95ee3fbaa1746",
-        "e4db4abe96595b16d328b4e422bf71b32442cc4d14d67b63a902c266cbfaaa9e"
-      ]
+      "sha256": "1996aa9fb1a60be53ee8ca9f151db101b2a8b96f2857dd0f0ef45a7ffca21101"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushEnhancementWork.lua",
       "bytes": 79242,
-      "sha256": "ef7f2c6e39bcf7562ee950437e3787e6364442410daec1aca4ce6600925ed260",
-      "replaceFromSha256": [
-        "9a9c3eb27ac811c5169fa873c9b4d92176cc321132824051aa48eedcce3f2b12",
-        "b3cb55494ade50e7efdab3b2d57450389ffd3bb5cde2924ca91b5c8bdb0e5d91",
-        "eafedbff5f4d153d9b067427a0c7e289634f9731077d7fad23c5b7c65c0b0ade"
-      ]
+      "sha256": "ef7f2c6e39bcf7562ee950437e3787e6364442410daec1aca4ce6600925ed260"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushExpansion.lua",
       "bytes": 28639,
-      "sha256": "42fd129abf42bd2294e9dcaaba0aed8f67f6a01bed1250478b8fc26ec5eb4385",
-      "replaceFromSha256": [
-        "1c11b5444366330ee0bfe3d7cc93598d5e0997865c620453a53745dd80f0937a",
-        "3396e892073622709d8cf7fc4491e400485b9b43e38ba47f29cc4204a0b574ac",
-        "64db3b0dda05d4c07937e1ed3cbc3d317d7783362fcff3b1961252c3e4b959b8",
-        "e3f572300b5e6eb50bae0483eea63cd39b05233ad054a485b493b9dd86cce840"
-      ]
+      "sha256": "42fd129abf42bd2294e9dcaaba0aed8f67f6a01bed1250478b8fc26ec5eb4385"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushFactoryHandoff.lua",
       "bytes": 6941,
-      "sha256": "eee363d999eb3f3b57ab92bb75fca54405517ac2b1f005300e75b469f8453a04",
-      "replaceFromSha256": [
-        "d9604a4c42bf5f719a6163319ec40ad495b46a32c9525a4c4e04bc22ffc41871"
-      ]
+      "sha256": "eee363d999eb3f3b57ab92bb75fca54405517ac2b1f005300e75b469f8453a04"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushFireSupport.lua",
       "bytes": 17255,
-      "sha256": "909cba147a8608d12ddd00b4e3277a6ac146e7294df303f7ecb55a27962b6e7a",
-      "replaceFromSha256": [
-        "0a7ffa584fb84c1658f94cff9aeb597d792d92c2115351d12221aab79ccfbd34"
-      ]
+      "sha256": "909cba147a8608d12ddd00b4e3277a6ac146e7294df303f7ecb55a27962b6e7a"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushFrontline.lua",
       "bytes": 40372,
-      "sha256": "2bf8c2ba101a389c07d94b81b0d8ec6704bafc0233f4de46a12f1a06bc46e933",
-      "replaceFromSha256": [
-        "0cc4b05c0f288d28467d75f364b0f85f18097bc42da7d02dae5100794238ebde",
-        "5adad405cfab19ebf4af46e4bdf45c72cf0f9e928e5d1d17d5b74d8d1affe288",
-        "5c8a5a49702328eda74043876c47017740e263755f92555b31df0f90de6cf4a7",
-        "c8a70cfa22a2c142e9d531343e36e340b44901707457477c7e09f60e70b83ecd"
-      ]
+      "sha256": "2bf8c2ba101a389c07d94b81b0d8ec6704bafc0233f4de46a12f1a06bc46e933"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushHeavyConstruction.lua",
       "bytes": 73983,
-      "sha256": "db14002baff345a8ab14552577aebd239868260edfe7de4501c76fbe4e8ae19c",
-      "replaceFromSha256": [
-        "1e24111b2890829d7574b838366850cb89a2f1822ce7e6062d38c9e9167d4c94",
-        "4841b07cb4512be145ed17c64dbdc588fa8e3a02cba0a752c5f884fb7b50a325",
-        "df8945640f3af540079b833292a719bb309005f3bcc17d5ab09c461c57c220d7",
-        "f9c617519eaa6cd0223c0feb602036d6a31fd00b3b2c214489fb094e305d23c2"
-      ]
+      "sha256": "db14002baff345a8ab14552577aebd239868260edfe7de4501c76fbe4e8ae19c"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushHeavyPolicy.lua",
       "bytes": 26762,
-      "sha256": "49b0ad5a7fe7253c9f1b704780588a21bb7c0c64a7921d32081cd4af7188f905",
-      "replaceFromSha256": [
-        "55b9289e064865953dce0f8e55d81b8b65da6ad177abeb351d8f60a5f83e546c",
-        "8b36c7096661ce8d6ab4d737785af021aaff5eb95297a89882e5e8bfa602616c"
-      ]
+      "sha256": "49b0ad5a7fe7253c9f1b704780588a21bb7c0c64a7921d32081cd4af7188f905"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushLayoutProfile.lua",
       "bytes": 5073,
-      "sha256": "4f293e248083c83fe8d7eba9094d20197ff611f2970efe444ab5b31933b629cb",
-      "replaceFromSha256": [
-        "e5cbf65b8fa6cb4972e70152be4ec17474df57182864d51a51b59dc9b992a05a"
-      ]
+      "sha256": "4f293e248083c83fe8d7eba9094d20197ff611f2970efe444ab5b31933b629cb"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushMassFabrication.lua",
       "bytes": 21634,
-      "sha256": "a7ce7d3a4adff64728355e387040e770e975cd98fc044eba96e6901e1381c581",
-      "replaceFromSha256": [
-        "984d7405d43e3c81c1237d33ea577c42d6455671f2f0a45e3200f513cdde0e78",
-        "e1cc41020ebf531094ffaa1a69e9a6b1872758fbb9a7952f3f68b3b6685612e3"
-      ]
+      "sha256": "a7ce7d3a4adff64728355e387040e770e975cd98fc044eba96e6901e1381c581"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushMovement.lua",
       "bytes": 26252,
-      "sha256": "4ba713c5219a9aee1f7c37eb650872bd0d217eed812001aa3a77c3480b7394b6",
-      "replaceFromSha256": [
-        "006a5a0694437cb94bfe94b2d561c7c52e19e0f3da55f0c3a14314bb01a90542",
-        "3f776b942787dd8fef34bfdb4d2455b503c468a08a7b0b7126c46b83fba78f6d"
-      ]
+      "sha256": "4ba713c5219a9aee1f7c37eb650872bd0d217eed812001aa3a77c3480b7394b6"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushNavalCombat.lua",
       "bytes": 55027,
-      "sha256": "84967c1534080aba4340688eaa979bf7d06e7e3f3e4ab3cf50d97a8a04003a6d",
-      "replaceFromSha256": [
-        "d39fdeadac727fb86a00cbc7ef02ef82dc414085fcb174af382016e61f93f9ff",
-        "f112ebe21f4ff5e8b5af9f4938fe854fc7e73ca9fecdf18734f22a19660e94b8"
-      ]
+      "sha256": "84967c1534080aba4340688eaa979bf7d06e7e3f3e4ab3cf50d97a8a04003a6d"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushNavalConstruction.lua",
       "bytes": 37148,
-      "sha256": "40766c4c7efdd5ac6375483e94b8c69a3bd02889529e708a62c4e48adf2da582",
-      "replaceFromSha256": [
-        "bea9eac98c4204af799d1d3912656fa84e9a137ae7a5c0c7a43c070d3c87a4fc",
-        "d92c130747cc9175bd01eb870cb52fb59c981d48363a3001421dcf8293538110"
-      ]
+      "sha256": "40766c4c7efdd5ac6375483e94b8c69a3bd02889529e708a62c4e48adf2da582"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushPathBudget.lua",
       "bytes": 5069,
-      "sha256": "91f46cc91b7f6048a5e3f270f4affa7b6375212e390d94290eb477a730601d76",
-      "replaceFromSha256": [
-        "915a7aa9107ae7e53c2619a7ab7a606e6317ba1ab72ebe718546be538bb962fa"
-      ]
+      "sha256": "91f46cc91b7f6048a5e3f270f4affa7b6375212e390d94290eb477a730601d76"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushPowerForecast.lua",
@@ -509,31 +260,17 @@
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushPressure.lua",
       "bytes": 10848,
-      "sha256": "dfb381c89daca696949d887e60a2e061926f59ce4f9e09e9ea8ecfa9f8dbeed1",
-      "replaceFromSha256": [
-        "18c7f322f40c619ca28209a01da2346f7202416185cfe55bc40375ae89059149",
-        "3c13d5ddf6085fe60456d919f7ccab187ca595457340047bd42a142d502103ea"
-      ]
+      "sha256": "dfb381c89daca696949d887e60a2e061926f59ce4f9e09e9ea8ecfa9f8dbeed1"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushProductionHealth.lua",
       "bytes": 10985,
-      "sha256": "42d5db47702086de3c588d0177abb8278c7724b6d737c41d59697b075a3d1e03",
-      "replaceFromSha256": [
-        "664c0c9e22f39f59456f80e9df29ff08aef13f3bd6f3d40d49688b5e9a581f7d",
-        "b415e814e74c992cbf64d635f811c7933d7cceb6571f17ef8f0f9b4596f1d568"
-      ]
+      "sha256": "42d5db47702086de3c588d0177abb8278c7724b6d737c41d59697b075a3d1e03"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushReliability.lua",
       "bytes": 86546,
-      "sha256": "57325bcd53cbb0c1712360ce870cf9504734c378734ae2640b788e4fca24ebc7",
-      "replaceFromSha256": [
-        "666469a407405e4564cf22c0445b2a871efce1720edff4228f8149ec89874170",
-        "70d90a1a2b88fcaa42f518127ad5d5f415981af4358dbf0e98b2cb884419c2d5",
-        "9fff64fb3a428ffa1b53ec67e0dc891db0b9b0999dbed6ed32086fb38db6f386",
-        "f8969116bce23a2fc9ddd39a81fe2505dda3a37c566bf8dc8377f8a79b7ab3b5"
-      ]
+      "sha256": "57325bcd53cbb0c1712360ce870cf9504734c378734ae2640b788e4fca24ebc7"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushSelection.lua",
@@ -543,13 +280,7 @@
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushTactics.lua",
       "bytes": 51430,
-      "sha256": "ec712988cb86f44a934e3db95fa4fd6fafd251d53395604f94c0980d9174b626",
-      "replaceFromSha256": [
-        "539635d7861c4a481e9183b17de353f1a45f4d1a03a01c64cdc310364cf883ce",
-        "5f01cd192619745986df66829bfd0ba2627df64a2def5edfa36dfa5b15a6b391",
-        "60090371717012380a7a29658f87cc32bcf069ace5e06b40e095147f95bec0da",
-        "a0b46e97d773a5200be712a0026063e92a79177deaf1089f83be74505f7b0d1a"
-      ]
+      "sha256": "ec712988cb86f44a934e3db95fa4fd6fafd251d53395604f94c0980d9174b626"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/RushUnitState.lua",
@@ -579,10 +310,7 @@
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/alloy storage.lua",
       "bytes": 2297,
-      "sha256": "ca157e9bfcd77102ac7918312858395cb0f0721ab3a62ea4342507d5007473d3",
-      "replaceFromSha256": [
-        "5124a98de1964a436a844b9774cb5b90c26f27abfecb2670452ce922ee4a16d1"
-      ]
+      "sha256": "ca157e9bfcd77102ac7918312858395cb0f0721ab3a62ea4342507d5007473d3"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/alloy structures.lua",
@@ -622,10 +350,7 @@
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/attack air mobile ground.lua",
       "bytes": 4300,
-      "sha256": "9554073858cf163a1b31cce9004044a1a701adc080e172838c5d1babe4ce2a39",
-      "replaceFromSha256": [
-        "4801780b4c973d5917dd77594c85e31bd3f3caf0bc60fe86e0cb7a80dc762047"
-      ]
+      "sha256": "9554073858cf163a1b31cce9004044a1a701adc080e172838c5d1babe4ce2a39"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/attack air mobile naval.lua",
@@ -640,18 +365,12 @@
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/attack air mobile small.lua",
       "bytes": 12342,
-      "sha256": "ac2e5d39e299225495618bcb8df8599c5aa0d4699953c15b1dfd396603f8989d",
-      "replaceFromSha256": [
-        "4d2bb92896485c72ac695d6391167d9ac46076d5e61642b8da7740b9e60ba269"
-      ]
+      "sha256": "ac2e5d39e299225495618bcb8df8599c5aa0d4699953c15b1dfd396603f8989d"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/attack land commander.lua",
       "bytes": 2098,
-      "sha256": "e4d32a6737d6b200d885cabcd16affa5e952cd669599fb6d4a39f9c196d18912",
-      "replaceFromSha256": [
-        "b9880814db39721837db07773ea4abe6b470775aa16ebe774e4c069f89dfa102"
-      ]
+      "sha256": "e4d32a6737d6b200d885cabcd16affa5e952cd669599fb6d4a39f9c196d18912"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/attack land experimental.lua",
@@ -686,18 +405,12 @@
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/defence anti air.lua",
       "bytes": 9219,
-      "sha256": "45402ec1a52dc6bccb964dd48ab022436b798f0c4445f11a58a9d916dfbb73f4",
-      "replaceFromSha256": [
-        "2ec8507c431e9e2aa8fd48ebeafc35f2da3016e1cc27401f0629bd84ce218d94"
-      ]
+      "sha256": "45402ec1a52dc6bccb964dd48ab022436b798f0c4445f11a58a9d916dfbb73f4"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/defence anti ground.lua",
       "bytes": 5121,
-      "sha256": "ffa27c2c4a61b6d33a29ce82d7649d6a8c7ad891b52bb0ae0562b54a389242a5",
-      "replaceFromSha256": [
-        "62fb86a3340e2277b324ff657190fe3ed5162f41e4ea10026692fa4b82b3597a"
-      ]
+      "sha256": "ffa27c2c4a61b6d33a29ce82d7649d6a8c7ad891b52bb0ae0562b54a389242a5"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/defence assist.lua",
@@ -717,10 +430,7 @@
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/energy storage.lua",
       "bytes": 2285,
-      "sha256": "b753b737317a96720c1ea39fa0d631c9eeb224f5120f4b0391ffd31ce6c118f5",
-      "replaceFromSha256": [
-        "211d3ee2df01f9678080547075368015d846635da591b26aae96849511c57359"
-      ]
+      "sha256": "b753b737317a96720c1ea39fa0d631c9eeb224f5120f4b0391ffd31ce6c118f5"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/energy structures.lua",
@@ -830,10 +540,7 @@
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/factory naval structures.lua",
       "bytes": 2267,
-      "sha256": "08cb9f5fdedb4ff665b633b8130a161cb75af1c5627dc8d1730f798e53a39512",
-      "replaceFromSha256": [
-        "8f8ee2c7ef6849a9ee3bbffab41f47e293a70b319d9972dd510d40b24ab56342"
-      ]
+      "sha256": "08cb9f5fdedb4ff665b633b8130a161cb75af1c5627dc8d1730f798e53a39512"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/factory naval upgrade.lua",
@@ -883,10 +590,7 @@
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/shield structures.lua",
       "bytes": 4896,
-      "sha256": "2ac8974d9009b6296edf411d9bc402a6decb84d52ccb89056faf4a2fb347062e",
-      "replaceFromSha256": [
-        "c043f1a3be921320ce5eff50fb5ad90efebeb683e073c495742353d9929ca1bc"
-      ]
+      "sha256": "2ac8974d9009b6296edf411d9bc402a6decb84d52ccb89056faf4a2fb347062e"
     },
     {
       "path": "LJ/lua/AI/mods/AI-Scom/formers/shield upgrade.lua",
@@ -1169,14 +873,1125 @@
       "sha256": "69e659d9854ec20dff887eb5ffd0b7edb6a3513f0311bfbbbd830fae93dfff5e"
     },
     {
-      "path": "SanctuaryMods/SCOM/Scom-patcher.dll",
-      "bytes": 230017536,
-      "sha256": "921f7960a0a043d91ccacf130cb56895a8e6d383563758066e4f09054184f3a2"
+      "path": "LJ/lua/AI/mods/AI-Scom/RushStrategy.lua",
+      "bytes": 9202,
+      "sha256": "03615049f236f70c37dae84e8aefd4215c58b3bb13fbe903bd9558d061cb3b9a"
+    }
+  ],
+  "files": [
+    {
+      "path": ".doorstop_version",
+      "bytes": 5,
+      "sha256": "75a2f501000d4fe28f74bc7ee66dae5581959d28b6c44f0c1b0c05cd5ba261e6"
+    },
+    {
+      "path": "BepInEx/config/BepInEx.cfg",
+      "bytes": 5565,
+      "sha256": "eeaf758806c6d2b23cecbb0f4a00bb1741029ea6c87701af992fa85f94eaa7ee"
+    },
+    {
+      "path": "BepInEx/config/ziggy.sanctuary.supcom-style-ui.cfg",
+      "bytes": 2562,
+      "sha256": "4432ecd7f5808ae1eda9ee13c535c701d941b6a57dd1b1a5e28097e01b87ac3e"
+    },
+    {
+      "path": "BepInEx/core/0Harmony.dll",
+      "bytes": 204800,
+      "sha256": "1a21cc03424fc82c3dd1346905d16494536b9595ae4162228d99fb7c285c1031"
+    },
+    {
+      "path": "BepInEx/core/0Harmony.xml",
+      "bytes": 267107,
+      "sha256": "d1f02fc3ada3a13da307de421225bfe56ebe24064370980979391c4be021672f"
+    },
+    {
+      "path": "BepInEx/core/0Harmony20.dll",
+      "bytes": 112640,
+      "sha256": "c755a5ab2712915a32f9a850d580a8c1b70ff1653bc76600f2767aa8ffccc663"
+    },
+    {
+      "path": "BepInEx/core/BepInEx.dll",
+      "bytes": 128512,
+      "sha256": "8255b28902886085c578b9e427d3073c97002db85176d2090cdeda90ef14ce70"
+    },
+    {
+      "path": "BepInEx/core/BepInEx.Harmony.dll",
+      "bytes": 6656,
+      "sha256": "00c8f2ac48593e4d45ce4eb26ce4e68b18113c5c489b38b8bf0850f65830d601"
+    },
+    {
+      "path": "BepInEx/core/BepInEx.Harmony.xml",
+      "bytes": 4056,
+      "sha256": "a04fedf08f7c81f5d01aba6f2840a7ffce50b79bbd24587d8dbe69ab73971d29"
+    },
+    {
+      "path": "BepInEx/core/BepInEx.Preloader.dll",
+      "bytes": 43008,
+      "sha256": "55d3895351a9d16b63b6f35f1c01b44ac650979e853d0bd3a442b92a082af64f"
+    },
+    {
+      "path": "BepInEx/core/BepInEx.Preloader.xml",
+      "bytes": 7964,
+      "sha256": "33275b2783b7b99495a02c098ee86d6a9a2783e884a5c9369021f20c94cf99e7"
+    },
+    {
+      "path": "BepInEx/core/BepInEx.xml",
+      "bytes": 89835,
+      "sha256": "7ba2266061b9f8a9f146218a312bfdd0d7f2b53a99a7e66c957215c6b66ca0d7"
+    },
+    {
+      "path": "BepInEx/core/HarmonyXInterop.dll",
+      "bytes": 23552,
+      "sha256": "7ce1342d3afa0334b59a3e38c0aed15e162b9abe9d46f95f34be44af47f3b493"
+    },
+    {
+      "path": "BepInEx/core/Mono.Cecil.dll",
+      "bytes": 339456,
+      "sha256": "7ae470288fff4a402899c254d0a76cefef55877f5c54f96e83c797cc5bb6e2f6"
+    },
+    {
+      "path": "BepInEx/core/Mono.Cecil.Mdb.dll",
+      "bytes": 43008,
+      "sha256": "5896d1898f616701fff18f3b2c71e6b844d2390ef9f41e1c5fccce8cb27c698e"
+    },
+    {
+      "path": "BepInEx/core/Mono.Cecil.Pdb.dll",
+      "bytes": 86528,
+      "sha256": "174db44a067f58561510af746f3caeb032037762c57a31c8d9ee32db25174984"
+    },
+    {
+      "path": "BepInEx/core/Mono.Cecil.Rocks.dll",
+      "bytes": 27648,
+      "sha256": "54ac539fb5ddc8b44c0e9acd0fcb7324f89d1a072edf8ebc1b06dd691e3d3927"
+    },
+    {
+      "path": "BepInEx/core/MonoMod.RuntimeDetour.dll",
+      "bytes": 105984,
+      "sha256": "40e49bb314391cd7bddc2644f8553eeba92c194b940836b103df16955c464e0c"
+    },
+    {
+      "path": "BepInEx/core/MonoMod.RuntimeDetour.xml",
+      "bytes": 9414,
+      "sha256": "54887808960d156550b37d602d08847607aa9e908d039f2765fb0b5e79394aa4"
+    },
+    {
+      "path": "BepInEx/core/MonoMod.Utils.dll",
+      "bytes": 187904,
+      "sha256": "9d1495f147ac93c4f81f84538c1a326e8f8a6aefc78d6289d798f3ce1162c5e9"
+    },
+    {
+      "path": "BepInEx/core/MonoMod.Utils.xml",
+      "bytes": 78973,
+      "sha256": "0577b362023a3432d6e8d7934c5eddc3e08fdbb19e191af083e341562c5ede38"
+    },
+    {
+      "path": "BepInEx/patchers/SanctuaryPatcherHost.dll",
+      "bytes": 20480,
+      "sha256": "c9df993bbe8bd7060b0cd92b57ac33bf95505d1b7ce49876cbb72862e889472b"
+    },
+    {
+      "path": "BepInEx/plugins/ModLoader.dll",
+      "bytes": 41472,
+      "sha256": "8939fab74d8986c070797ab39cecd87ebcb486e6ceb264216256ec97ea3de898"
+    },
+    {
+      "path": "BepInEx/plugins/SCOMTreeDecay/ScomTreeDecay.dll",
+      "bytes": 13824,
+      "sha256": "2f8e905e5bb9776ee61d6167fc5a0cc612e1026cc1990bdfde21fd56720fedc9",
+      "replaceFromSha256": [
+        "5e4a6958cb85eeec37fb9997d0c4e4c9772afc50ea7a90e88cd6d37c56791769",
+        "aa8a84dff679b3ea9ef8fe9d35e7a1bacbba9be151262da6f777e71c4682ccff"
+      ]
+    },
+    {
+      "path": "doorstop_config.ini",
+      "bytes": 1460,
+      "sha256": "4d5c6dfa0f771c6a5b1b0c559aca0bd0ece7d08b08fff894708dc3b73ce73cfc"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/AIPlatoonFunctions.lua",
+      "bytes": 1038681,
+      "sha256": "eeafe1a29d1e851ed33c460d4c1114e409196ac57ac27fe1f984c93bcfc403bb",
+      "replaceFromSha256": [
+        "1a8b329e90da11c184f79b85505a510be743ff7b2c4bd9738731c4c66089e547",
+        "2606b369f5d45e0991b5303e6b640dfb19f9bc33903b18c7b5caa0022e37ea68",
+        "4ae8c46d892a565354b29fd7b66fcfb03fd4094ec9ffe47cc56724bc9dd9da7d",
+        "7bb98d4e407e680a848fda959a3fd3326eb57e27cfc461361e2e23797339a192",
+        "eb32fc1cb07adb9bcc8bddc68307a749918141fc9756a7f08462375b8b608d95"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/airfield assist.lua",
+      "bytes": 1992,
+      "sha256": "85ce6c607243d6d5923af136a45bd0aca24158433526e58abce94d68b05a22c6"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/airfield structures.lua",
+      "bytes": 1399,
+      "sha256": "c7a4e6327c1576fb24b205e0ee564fa5da4e51e8895e0804bfd71f3511ea152a"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/airfield upgrade.lua",
+      "bytes": 2218,
+      "sha256": "0f3a516aa7723b6710b83b43f4a822fc822221ad19d275d498d49420e22927e6"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/alloy assist.lua",
+      "bytes": 1293,
+      "sha256": "d509894c06a58d1da44703fa56edd393c5658d3b84b75f26eb9d49acef9b59ff"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/alloy storage.lua",
+      "bytes": 2297,
+      "sha256": "ca157e9bfcd77102ac7918312858395cb0f0721ab3a62ea4342507d5007473d3",
+      "replaceFromSha256": [
+        "5124a98de1964a436a844b9774cb5b90c26f27abfecb2670452ce922ee4a16d1"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/alloy structures.lua",
+      "bytes": 7818,
+      "sha256": "8565ab3dd2b9942c0a261a40b0905df3018bf66832c624dfce80eb394b76a272"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/alloy upgrade.lua",
+      "bytes": 1129,
+      "sha256": "94d9d929e07a42d9e42c20bcb540dd8a2929a1224c44aebdce128c65d15d5397"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/alloyfurnace assist.lua",
+      "bytes": 1023,
+      "sha256": "2fd52e4fa6636eeb3e1fc681198ddd2a8e327174827e9dc9b7343d1b1fc1340d"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/alloyfurnace structure.lua",
+      "bytes": 1656,
+      "sha256": "84d0dd2a49f073cc8053f835e5ca45ad72e052cf7058d6a1258100f1fc088576"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/artillery assist.lua",
+      "bytes": 1008,
+      "sha256": "7590d975034afe29a815ba6004ecfbe2f7a692178c225fc951af35b67fb66af3"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/artillery structures.lua",
+      "bytes": 2509,
+      "sha256": "d6c3636493386c794d0d67a45cbd6bef8079ae0c0f4259cc24ca88aa07c269e9"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack air experimental.lua",
+      "bytes": 1680,
+      "sha256": "25173ed389b99771370a6dd144614dfd5fd6e77dc2f018b8564737897ba55a3f"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack air mobile ground.lua",
+      "bytes": 4300,
+      "sha256": "9554073858cf163a1b31cce9004044a1a701adc080e172838c5d1babe4ce2a39",
+      "replaceFromSha256": [
+        "4801780b4c973d5917dd77594c85e31bd3f3caf0bc60fe86e0cb7a80dc762047"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack air mobile naval.lua",
+      "bytes": 1988,
+      "sha256": "e3e01fcb15489036202c86206c8f5c33d464bcc36d877bf9be1352d7ba215049"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack air mobile primary platoon.lua",
+      "bytes": 3141,
+      "sha256": "bfc1342755bca007216efed4e0934e478e3db5571190e2ded894eb278434abcf"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack air mobile small.lua",
+      "bytes": 12342,
+      "sha256": "ac2e5d39e299225495618bcb8df8599c5aa0d4699953c15b1dfd396603f8989d",
+      "replaceFromSha256": [
+        "4d2bb92896485c72ac695d6391167d9ac46076d5e61642b8da7740b9e60ba269"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack land commander.lua",
+      "bytes": 2098,
+      "sha256": "e4d32a6737d6b200d885cabcd16affa5e952cd669599fb6d4a39f9c196d18912",
+      "replaceFromSha256": [
+        "b9880814db39721837db07773ea4abe6b470775aa16ebe774e4c069f89dfa102"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack land experimental.lua",
+      "bytes": 1710,
+      "sha256": "233e39485f554d59e8f91c8264064032f1fa71ab548440f516b994acb0fd4d09"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack land mobile primary platoon.lua",
+      "bytes": 4494,
+      "sha256": "1fff19224479fdfa98cb7fac378edab77df999cb76a4757f97ad417898d620c6"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack land mobile small.lua",
+      "bytes": 3107,
+      "sha256": "734a291dbd1fb8c353f5b18dd99fc819b7b03e9aef3f594b5274e861084ec9b9"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack naval experimental.lua",
+      "bytes": 1304,
+      "sha256": "993edc8c004a0a77df26cfb4b2c76160c72ec06e4a85d4dcbef498b0a55c7bf4"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack naval mobile primary platoon.lua",
+      "bytes": 2513,
+      "sha256": "a823c247ed5e8bcd9c0a43f46b05bd8463a01ef5e7e24e995ef691cd4e02c494"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/attack naval mobile small.lua",
+      "bytes": 1553,
+      "sha256": "d14837b75f10e487262ce2a2e1129d7753712c9bf628242bf0bdf9c54a4f98f9"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/defence anti air.lua",
+      "bytes": 9219,
+      "sha256": "45402ec1a52dc6bccb964dd48ab022436b798f0c4445f11a58a9d916dfbb73f4",
+      "replaceFromSha256": [
+        "2ec8507c431e9e2aa8fd48ebeafc35f2da3016e1cc27401f0629bd84ce218d94"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/defence anti ground.lua",
+      "bytes": 5121,
+      "sha256": "ffa27c2c4a61b6d33a29ce82d7649d6a8c7ad891b52bb0ae0562b54a389242a5",
+      "replaceFromSha256": [
+        "62fb86a3340e2277b324ff657190fe3ed5162f41e4ea10026692fa4b82b3597a"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/defence assist.lua",
+      "bytes": 1238,
+      "sha256": "fc088b1ff0db5234d37e85dd2111a4239112715a240f1959f1f59aa2620780ff"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/energy assist.lua",
+      "bytes": 2553,
+      "sha256": "4a9c67e8a4aa350542cdf5df43a5f58bfca32fed77857efc45862624121c2b15"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/energy reclaim.lua",
+      "bytes": 2372,
+      "sha256": "6aae831b313cb62df5f5b5f0f4f79a39177755b55c4ac3d82b364baf545be94b"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/energy storage.lua",
+      "bytes": 2285,
+      "sha256": "b753b737317a96720c1ea39fa0d631c9eeb224f5120f4b0391ffd31ce6c118f5",
+      "replaceFromSha256": [
+        "211d3ee2df01f9678080547075368015d846635da591b26aae96849511c57359"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/energy structures.lua",
+      "bytes": 43281,
+      "sha256": "8ca68477d9a788f2260c21924113919a4f7b3a62516fdbdc2f845a532c373d5d"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/engineer maintenance.lua",
+      "bytes": 3416,
+      "sha256": "9d7f4a293d9bad0c1ff75878613a55c2392d8e365e82f15dfae7881d92ba8930"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/engineer reclaim.lua",
+      "bytes": 919,
+      "sha256": "d4893603a2258e363560e2ce0644c81ffa7f9168671c587e96ca12a1a1c6a6f6"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/engineer repair.lua",
+      "bytes": 2270,
+      "sha256": "19550939debd12de06113b553d621cba9fcb189112e64a0c33ceb6cfa7cc191e"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/engineer transfer.lua",
+      "bytes": 2758,
+      "sha256": "908f58b9dc39abfc40ea519c9c40d0fc7856727b5e7cd18fc0f32497c6370a93"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/engineering-station assist.lua",
+      "bytes": 2056,
+      "sha256": "542553438a4c839605c2dbaf3f0d08a2474212aae4c6ea8a15cc239cc244cb03"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/engineering-station structures.lua",
+      "bytes": 3342,
+      "sha256": "74523914680bc9b929f578062586ad92902d3ec2d8f8de2884db68c9d560537f"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/engineering-station upgrade.lua",
+      "bytes": 2284,
+      "sha256": "3b29d6134bb7c148faed0912adcb1eabd8dbdcd0510cd785daf7e5a66b911f9e"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/expansions.lua",
+      "bytes": 4587,
+      "sha256": "1262a84adb02c1cec82d53ba76da22716a74605195fef22240b01bed7bd29451"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory air assist.lua",
+      "bytes": 1971,
+      "sha256": "1b0b70464747eb7a408cc2174612ac46ec273e4d8972aa53982ced21b723df03"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory air mobile.lua",
+      "bytes": 57084,
+      "sha256": "3371726a7dd86fd64ad494fa534c865afc07238ee64c9c47cecfa3990a5354c2"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory air scout.lua",
+      "bytes": 5807,
+      "sha256": "fd3ba9b3e8e974fc1e992ac3b8f493ae0b8137e172c9b179695f061c720aa90a"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory air structures.lua",
+      "bytes": 10486,
+      "sha256": "6b4ce96bda12062bdd2503f2377152e56451bd35eb461acf34b8987ab4382af0"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory air upgrade.lua",
+      "bytes": 16398,
+      "sha256": "c8a61531cbd2df1b618477ec756b8430a1171c946a569218c22226b25576f084"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory land assist.lua",
+      "bytes": 1977,
+      "sha256": "b6762f2f903535fb4b1d1c2c31c35fccc30cb91c414e41fc2abbd5181cf8b1c2"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory land engineers.lua",
+      "bytes": 24586,
+      "sha256": "b9eceb9446c5860acacc063ae4cdc1bd74f30e4dc08d424b39d03674b491bf08"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory land mobile.lua",
+      "bytes": 66155,
+      "sha256": "5ee54308835262acfe00a7e2d4ab241e822cd6f4019652c7e4a4824fdd776d32"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory land scout.lua",
+      "bytes": 3004,
+      "sha256": "0c16babbfb5ce713732f8a84436f94356394aa5056ad680a94da8ecee9471800"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory land structures.lua",
+      "bytes": 27759,
+      "sha256": "43b16600aaf4221d32d5cae6bed62511ebd3da2f6571e4f925a77b41ee577ea2"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory land upgrade.lua",
+      "bytes": 24499,
+      "sha256": "df98e5754d58cc66123a13811ab43ffe0ffa84c59119552aa22a7865a1cea137"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory naval mobile.lua",
+      "bytes": 2549,
+      "sha256": "2dbe4ec9f4f43c7ffb629ed620f9edf47e734cac56f296f8f67f3f7f361796fc"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory naval structures.lua",
+      "bytes": 2267,
+      "sha256": "08cb9f5fdedb4ff665b633b8130a161cb75af1c5627dc8d1730f798e53a39512",
+      "replaceFromSha256": [
+        "8f8ee2c7ef6849a9ee3bbffab41f47e293a70b319d9972dd510d40b24ab56342"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/factory naval upgrade.lua",
+      "bytes": 2195,
+      "sha256": "17ef2ea9e14d47e994aeb39757248de780ed0afb026e72ea51a9cf9b68cea254"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/opening economy.lua",
+      "bytes": 6202,
+      "sha256": "4f92cde2d8ba72791aab4d018923a1f66e69040ea1243629253b0fb38bf30ac0"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/radar assist.lua",
+      "bytes": 1970,
+      "sha256": "43c2cab6e8a08f5afe93f130dd999184fd17d1748feb9503ca72b5d4f97c8144"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/radar reclaim.lua",
+      "bytes": 2223,
+      "sha256": "f33271e425781d828313a4b38c4a1ed97abacbd2297584ca191f2623c0cac222"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/radar structures.lua",
+      "bytes": 4323,
+      "sha256": "10648fb4b2480b7595ae424683e28de79448950935e3ec92239d4cc1fb264656"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/radar upgrade.lua",
+      "bytes": 2120,
+      "sha256": "a644294ccee91b87fee9e1a4948506406dfc90b336d35cde469d7bb71c8c60c5"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/scout map.lua",
+      "bytes": 1024,
+      "sha256": "f47af68da687898ecf21276255863d150908c81d0d2f563a0ba20eaa5fc64c58"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/shield assist.lua",
+      "bytes": 1980,
+      "sha256": "a0931511510e953ec1b037d3d788705f9525f7e0c18a35bc4516983046900fe4"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/shield recharge.lua",
+      "bytes": 1170,
+      "sha256": "d6a43703a46bf73b52d0ef66622dea7f2a250429fb3df9d32b49266262d2e273"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/shield structures.lua",
+      "bytes": 4896,
+      "sha256": "2ac8974d9009b6296edf411d9bc402a6decb84d52ccb89056faf4a2fb347062e",
+      "replaceFromSha256": [
+        "c043f1a3be921320ce5eff50fb5ad90efebeb683e073c495742353d9929ca1bc"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/shield upgrade.lua",
+      "bytes": 1122,
+      "sha256": "a5fe402932fd5e022b6ddde0f20fad11c9bcd022571051be785542a4cac63407"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/stealthfield assist.lua",
+      "bytes": 1018,
+      "sha256": "02b3b3108ec6855b428632cd92184015a7671c4a9f8bb071fc8813dab2c54128"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/stealthfield structures.lua",
+      "bytes": 1684,
+      "sha256": "2734ab670583819b8d46ae8d36ece067e2eb900224ae70e460ec8cc6f72cb623"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/strategic missile defence assist.lua",
+      "bytes": 1067,
+      "sha256": "012f47a325c7a586368442ef946fbf6f524326a004ae9bfdabacdaf10123d75f"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/strategic missile defence structure.lua",
+      "bytes": 2843,
+      "sha256": "5c4517bfa2856653c96a9fb6aa468e5713bc6425c9f37f0b78c365ec7548874e"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/strategic missile launcher assist.lua",
+      "bytes": 1048,
+      "sha256": "3bbe474d89e723ea340b0206c87991d3b7497a0a005ae2d2dafe7516b8da0ee0"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/strategic missile launcher structures.lua",
+      "bytes": 1434,
+      "sha256": "49787588753207e55e7abd05b5b8391671fa7c57ffcf6c79b0ae68a8591544b3"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/tech4 mobile assist.lua",
+      "bytes": 2203,
+      "sha256": "08cde665abc06fb7d7ef3657a6352a90b476878ad68b7c701623d40fb188c687"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/tech4 mobile bot.lua",
+      "bytes": 2440,
+      "sha256": "a475992839b721d7ecce07de9f7e90225b5e07330385ac305bdc69695b3ba7f8"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/tech4 mobile gunship.lua",
+      "bytes": 2402,
+      "sha256": "63d713627c80f71679c590c7806cd8200eabd8d00306b1a60df0fe6245c9c34c"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/tech4 mobile naval.lua",
+      "bytes": 2356,
+      "sha256": "73d5106a3f419b2f54270abdec1d445d20f7cff9cdf0a669f752b0a7040c77d2"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/techcenter air structures.lua",
+      "bytes": 1508,
+      "sha256": "0f075f0d4f643b57b435d95512796919a08c5b9cc75253e1d0e5bb42e268471b"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/techcenter air upgrade.lua",
+      "bytes": 1111,
+      "sha256": "9d029a3a33ed4270e3854ffafb664a68b0b8c473802e81cb85f1ba0a7f24f659"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/techcenter assist.lua",
+      "bytes": 2011,
+      "sha256": "7e5cb4453ec63ee2aee78e4d81344762a940b97d96aa0e8b43fd4ab05c2a7b2b"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/techcenter land structures.lua",
+      "bytes": 1514,
+      "sha256": "ca2a75781928ed5c66620c2041de8f529b482a939d4df32c2f0fda081cdb2bf6"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/techcenter land upgrade.lua",
+      "bytes": 1120,
+      "sha256": "c5b79571cdde5e616412b604beefc5d72535470c33cb587357a11ca69ffb7250"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/techcenter naval structure.lua",
+      "bytes": 1553,
+      "sha256": "c1618e62dd8a778f37d03ec7e0f8cb7a5501573d7af0f581006f084c8be3c45d"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/techcenter naval upgrade.lua",
+      "bytes": 1117,
+      "sha256": "c6922b03ccb97ec15a9c3724c47c23b2387e083d36f1f983847ad2573cae1f6e"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/transmitter assist.lua",
+      "bytes": 2008,
+      "sha256": "8d5abcbfe7168b3e3ab1ad2bf62d06432593638671d762c764013e8e56a5c9eb"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/transmitter structures.lua",
+      "bytes": 1672,
+      "sha256": "426590d5875a25e79ec4d412d748cbb5f47b14f144e2aa65878285ab9dfbf13d"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/formers/transmitter upgrade.lua",
+      "bytes": 1185,
+      "sha256": "e9a75b16ae9735e2ecd27b0367fd423659070ec7235898bbf742ff2baa544b63"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushAdaptive.lua",
+      "bytes": 9993,
+      "sha256": "8f182fd7dd430225b591fb871bd56c6124f13bdffc338b7b4b3604d1414c5228",
+      "replaceFromSha256": [
+        "6dd90816700d74997c5b1163b39ad9873744fb8f4d884bd040f95d2d0b0fa083"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushAirDefense.lua",
+      "bytes": 11999,
+      "sha256": "b5985c00a7aa0fd97bb2ac37b77e654d4bec73e975f08daa69998f5fb504e0a1",
+      "replaceFromSha256": [
+        "30df1657ffb20a64d9de43c4fe2d737753ddf67d41e35b52599858fd453f28ba",
+        "f74e332c16c069130020724eb1cf2ef98eb37fdecc4a112b63d314455596984e"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushAirOrders.lua",
+      "bytes": 24541,
+      "sha256": "0ed53cd46c558cd4bb4c26c985e56c5d9a96ceffa2ed013eec34f5b8a1dc3479",
+      "replaceFromSha256": [
+        "0d4ac18b934194e8da4f1025baced27aa854f15b9346379fbf2d94addc16884a",
+        "408c853a710956d3c49c2e7f041bbf506f5c688342797a026a056dd6ab38c00e"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushBalance.lua",
+      "bytes": 47225,
+      "sha256": "ef627f15afd91b209f4091857f29b5baccdb900917ecd7df949fa3ae72b72de5",
+      "replaceFromSha256": [
+        "3f8c1cd325917bddc658c17064622b93fd328be0f29e63132bf61f1e5428ace5",
+        "727348cac0625330e4e34005a01d7299e3772084a4318f79a6c25f1e53a7f0fc",
+        "bafdb1ce0c15036e54839023d48c602a29d755e9ac98da5a59c34cef6b0c5f39",
+        "f8305c1cc3f1412e1efb11f5842dc265c0bfb58e6407aae9914db1b2afd3776d"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushBaseLayout.lua",
+      "bytes": 146291,
+      "sha256": "5ee3f7f9f10e6d7c20d615d088fc641596336912de96f22d4b8c18194b5ea598",
+      "replaceFromSha256": [
+        "0144fa888bd15568c78fde4d712970f6ca2c4633e4c9e60adec6a796e7c68cc6",
+        "5c045c12099e3a3a19ff0010e8139fb79ac97a5e10fc8bed234a186a8df4e4bb",
+        "84fd82f24d8acb61225c2044128abbea98d292db2b8193eafe0f985b57dc53f6",
+        "9f6555dada6a3775d6e0d309940edb467ed348b3ecb673a9863ab46f9252edec"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushBeachhead.lua",
+      "bytes": 35977,
+      "sha256": "5eb2372eebc0fe9b08d0112f770d02173eaf429c4d28d22b577625ec8fd8307a",
+      "replaceFromSha256": [
+        "99ff5b1bb9738a906653879c9c0c394b54ed052222e496807a96f9b63fb651be"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushBomberHarassment.lua",
+      "bytes": 60033,
+      "sha256": "eda8243acae2d53efb0d78cd6f3e3b0f2a44009c524f1615675e41edfc24ca29",
+      "replaceFromSha256": [
+        "2579b8a32c138e52859728b1da721cff594c383ecdfc4ecf9bbb097e0b30081d",
+        "92d60d037069232733cdfadaa078ce92841a46f087ccfb4bb9886eb8b5a515d4",
+        "e2497526d55eefce0dc5fc701ef5189959250380c190ce16585fce13ba475ec3"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushBomberPass.lua",
+      "bytes": 17540,
+      "sha256": "b293567e85bb81091f1320080b13dc55f0e19622e768a4ce4da3a97d8e22d97a",
+      "replaceFromSha256": [
+        "192055226141c901e8c85ca5677d77cc1fab28400a598cdec8df9da364686684",
+        "374ece713631a15bbf6c01a7a109fb45fb7b6bc430a253f79e09d8fbdffa9eea"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushCombat.lua",
+      "bytes": 107310,
+      "sha256": "b580c42b376ca27ac65739164285ae80bd13bab85b0b91cc5c301e35329e91e7",
+      "replaceFromSha256": [
+        "30bf7477ab6280d81f7f63ae65dc6ace9b1c81935516a59706f56b2e23ac4648",
+        "75478cc809def4ae912411c0481212120d247b86c7fcba56d6c7f7a746209bfa",
+        "ad797a4f6c272edfd4a9eceeed357d4dba628ded8f058613d9c206d495085ab4",
+        "ecb33ee1d89ed7202ab4f7002e01d781496ca99031a010314d9e6d812a12fe69"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushCombatIntel.lua",
+      "bytes": 29694,
+      "sha256": "18a15a679523efb716fbbd1e29927933561373756222446d148baef03508b5df",
+      "replaceFromSha256": [
+        "1636fc34dad2cef5d5d73a2a5a145d7426571f55e10b8964bddc678a039a40cf",
+        "291dc209d5e838e0b91f2f8f1c35ecae28fc3f31b2e6698bd09fa8aaa47ea31e",
+        "749773902ba2868fd75eecfb524cd72cadbcc882596cf1f38d50b9fee832d3e3",
+        "d8067d318f9e5a753414a5bf6d7da924fe68f73863a5c405c7c9cfa7fcace380"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushCombatPolicy.lua",
+      "bytes": 11697,
+      "sha256": "e215c6665ab3026f269ec0f652c7df9790e31f4956d5bf82f89c88c914d05954",
+      "replaceFromSha256": [
+        "5f510343c1fde82808343f2a6b74fe3e5ad3c638fef90cd12cfe20b292ba6ac0",
+        "757f12ba686edf597e671522f33ecf16e38be9bc6c9c2cf086d0c90fd6cf2b8b",
+        "b60c07caf09ec73c6ca70b5a1851a1d3c44a860d1bd8e3f09b20a2e0a2efce52",
+        "d24d94d2f9d39b4e4fd02c58c002d17cd00394fb385f753f0dc3a00cd4e35aa7"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushCommanderWork.lua",
+      "bytes": 34118,
+      "sha256": "508f098071266177330a2c9fbfd3c84c2989d35155e8b5be147dd831c29b515b",
+      "replaceFromSha256": [
+        "208b848851d76129824503e2b5757ead386861d0eda0e944761ae58c8404d47b",
+        "a1008138979479770dade205f83cd13b5e20e7470464747ca4591a4ea45e8b87",
+        "b68a0def3060bd4965fc3a135c1b57ab158fe4cf8930844117c5f63fdd6dab10",
+        "be74c5a19492fa05e5dca12505e299e5b7cb4d6ed6329f2738dc149e4bf67695"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushController.lua",
+      "bytes": 169821,
+      "sha256": "0b01ed62ef6ed90cc0f3ff9ec904b44a1df08c8e68a525459a3772bdcff82d70",
+      "replaceFromSha256": [
+        "65ac599c78854bce559b06d2a7028a6ba00da1a81349fa2f71e0bc4587c2f876",
+        "8d6654791b068df1d7f94c95cf9bb4094bd1ea226b3d58e1cea8eebb814b29d8",
+        "d2098c91cdd57b2eb788a78646fd0fc18be0bf9a71d13b6766d8d494321f0210",
+        "f9905f1455d99ea8198711adb710756c9e953ee749432d5d9e4a09308509eab0"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushDevelopment.lua",
+      "bytes": 122348,
+      "sha256": "b56d1d716c93f22bdad4acc377a4e08f12cae77cb0bbe0206424cbaa6cbb95bf",
+      "replaceFromSha256": [
+        "2ae16bbd8b46f2f2e530805741261f83fb6ff72b389a5a288f0134b9e05e6c3a",
+        "948cad733c3b2b94974026729b104570cd1ccfcd63c5224e4e6649750a52c1d0",
+        "9eba93f378efea010f81de1440590d32a6e42e80f74a4a7f6738bfc048180def",
+        "e567c12716e0231690c5c34126082c77e519d60ea5ff697fce42631876c7dfb8"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushDiagnostics.lua",
+      "bytes": 14656,
+      "sha256": "c28fa4c5d6fffba146fccb1d74fa4cdc5516654a7aec22db04e27762d939992d",
+      "replaceFromSha256": [
+        "4a3e0427c82c9aa62eba282291c67a597e1c9a6968d30c7d60e604ca21461b4a"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushDiagnosticsMonitor.lua",
+      "bytes": 15754,
+      "sha256": "ba0f86a3129df5c4562322582f714eac4d3283d0bfbe19d847c0436e8c65879b",
+      "replaceFromSha256": [
+        "4987115d2f7462966b67efb799ad7096b595e6b0c2f9c8af1ac0c0a13213878e",
+        "f94bfccc19f13b5db7309e5beb14ed8576a09fd7aa769b81abb192a411b0ae53"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushEconomyPolicy.lua",
+      "bytes": 24937,
+      "sha256": "1996aa9fb1a60be53ee8ca9f151db101b2a8b96f2857dd0f0ef45a7ffca21101",
+      "replaceFromSha256": [
+        "0cf2497e667e3058127ca1bd20c947a8e3413af1143c390216c3e16a94163bd3",
+        "26fd74cfdea0829cfadc17a3e57456f9101084a067318d3d73366fd788cb0007",
+        "7f2922aaa641f833a9886763896a206f1018dc4f2d2cdbc877c95ee3fbaa1746",
+        "e4db4abe96595b16d328b4e422bf71b32442cc4d14d67b63a902c266cbfaaa9e"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushEnhancementWork.lua",
+      "bytes": 79242,
+      "sha256": "ff97bf411c3f7a19d3b755c9e3adfef6a36d4f906afa972f2256dda7f39f550b",
+      "replaceFromSha256": [
+        "9a9c3eb27ac811c5169fa873c9b4d92176cc321132824051aa48eedcce3f2b12",
+        "b3cb55494ade50e7efdab3b2d57450389ffd3bb5cde2924ca91b5c8bdb0e5d91",
+        "eafedbff5f4d153d9b067427a0c7e289634f9731077d7fad23c5b7c65c0b0ade",
+        "ef7f2c6e39bcf7562ee950437e3787e6364442410daec1aca4ce6600925ed260"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushExpansion.lua",
+      "bytes": 28639,
+      "sha256": "42fd129abf42bd2294e9dcaaba0aed8f67f6a01bed1250478b8fc26ec5eb4385",
+      "replaceFromSha256": [
+        "1c11b5444366330ee0bfe3d7cc93598d5e0997865c620453a53745dd80f0937a",
+        "3396e892073622709d8cf7fc4491e400485b9b43e38ba47f29cc4204a0b574ac",
+        "64db3b0dda05d4c07937e1ed3cbc3d317d7783362fcff3b1961252c3e4b959b8",
+        "e3f572300b5e6eb50bae0483eea63cd39b05233ad054a485b493b9dd86cce840"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushFactoryHandoff.lua",
+      "bytes": 6941,
+      "sha256": "eee363d999eb3f3b57ab92bb75fca54405517ac2b1f005300e75b469f8453a04",
+      "replaceFromSha256": [
+        "d9604a4c42bf5f719a6163319ec40ad495b46a32c9525a4c4e04bc22ffc41871"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushFireSupport.lua",
+      "bytes": 17255,
+      "sha256": "909cba147a8608d12ddd00b4e3277a6ac146e7294df303f7ecb55a27962b6e7a",
+      "replaceFromSha256": [
+        "0a7ffa584fb84c1658f94cff9aeb597d792d92c2115351d12221aab79ccfbd34"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushFrontline.lua",
+      "bytes": 40372,
+      "sha256": "2bf8c2ba101a389c07d94b81b0d8ec6704bafc0233f4de46a12f1a06bc46e933",
+      "replaceFromSha256": [
+        "0cc4b05c0f288d28467d75f364b0f85f18097bc42da7d02dae5100794238ebde",
+        "5adad405cfab19ebf4af46e4bdf45c72cf0f9e928e5d1d17d5b74d8d1affe288",
+        "5c8a5a49702328eda74043876c47017740e263755f92555b31df0f90de6cf4a7",
+        "c8a70cfa22a2c142e9d531343e36e340b44901707457477c7e09f60e70b83ecd"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushHeavyConstruction.lua",
+      "bytes": 73983,
+      "sha256": "db14002baff345a8ab14552577aebd239868260edfe7de4501c76fbe4e8ae19c",
+      "replaceFromSha256": [
+        "1e24111b2890829d7574b838366850cb89a2f1822ce7e6062d38c9e9167d4c94",
+        "4841b07cb4512be145ed17c64dbdc588fa8e3a02cba0a752c5f884fb7b50a325",
+        "df8945640f3af540079b833292a719bb309005f3bcc17d5ab09c461c57c220d7",
+        "f9c617519eaa6cd0223c0feb602036d6a31fd00b3b2c214489fb094e305d23c2"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushHeavyPolicy.lua",
+      "bytes": 26762,
+      "sha256": "49b0ad5a7fe7253c9f1b704780588a21bb7c0c64a7921d32081cd4af7188f905",
+      "replaceFromSha256": [
+        "55b9289e064865953dce0f8e55d81b8b65da6ad177abeb351d8f60a5f83e546c",
+        "8b36c7096661ce8d6ab4d737785af021aaff5eb95297a89882e5e8bfa602616c"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushLayoutProfile.lua",
+      "bytes": 5073,
+      "sha256": "4f293e248083c83fe8d7eba9094d20197ff611f2970efe444ab5b31933b629cb",
+      "replaceFromSha256": [
+        "e5cbf65b8fa6cb4972e70152be4ec17474df57182864d51a51b59dc9b992a05a"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushMassFabrication.lua",
+      "bytes": 21634,
+      "sha256": "a7ce7d3a4adff64728355e387040e770e975cd98fc044eba96e6901e1381c581",
+      "replaceFromSha256": [
+        "984d7405d43e3c81c1237d33ea577c42d6455671f2f0a45e3200f513cdde0e78",
+        "e1cc41020ebf531094ffaa1a69e9a6b1872758fbb9a7952f3f68b3b6685612e3"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushMovement.lua",
+      "bytes": 26252,
+      "sha256": "1dc22c8b94d2dc9aa406e7aac4e517721dc464b82d9d382a3282d3182d239548",
+      "replaceFromSha256": [
+        "006a5a0694437cb94bfe94b2d561c7c52e19e0f3da55f0c3a14314bb01a90542",
+        "3f776b942787dd8fef34bfdb4d2455b503c468a08a7b0b7126c46b83fba78f6d",
+        "4ba713c5219a9aee1f7c37eb650872bd0d217eed812001aa3a77c3480b7394b6"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushNavalCombat.lua",
+      "bytes": 55027,
+      "sha256": "84967c1534080aba4340688eaa979bf7d06e7e3f3e4ab3cf50d97a8a04003a6d",
+      "replaceFromSha256": [
+        "d39fdeadac727fb86a00cbc7ef02ef82dc414085fcb174af382016e61f93f9ff",
+        "f112ebe21f4ff5e8b5af9f4938fe854fc7e73ca9fecdf18734f22a19660e94b8"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushNavalConstruction.lua",
+      "bytes": 37148,
+      "sha256": "40766c4c7efdd5ac6375483e94b8c69a3bd02889529e708a62c4e48adf2da582",
+      "replaceFromSha256": [
+        "bea9eac98c4204af799d1d3912656fa84e9a137ae7a5c0c7a43c070d3c87a4fc",
+        "d92c130747cc9175bd01eb870cb52fb59c981d48363a3001421dcf8293538110"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushPathBudget.lua",
+      "bytes": 5069,
+      "sha256": "91f46cc91b7f6048a5e3f270f4affa7b6375212e390d94290eb477a730601d76",
+      "replaceFromSha256": [
+        "915a7aa9107ae7e53c2619a7ab7a606e6317ba1ab72ebe718546be538bb962fa"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushPowerForecast.lua",
+      "bytes": 16048,
+      "sha256": "16b6efea7fec99b2c1106c489e5f35556c0316a10b232e48b25d5e17eee3b8e5"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushPressure.lua",
+      "bytes": 10848,
+      "sha256": "dfb381c89daca696949d887e60a2e061926f59ce4f9e09e9ea8ecfa9f8dbeed1",
+      "replaceFromSha256": [
+        "18c7f322f40c619ca28209a01da2346f7202416185cfe55bc40375ae89059149",
+        "3c13d5ddf6085fe60456d919f7ccab187ca595457340047bd42a142d502103ea"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushProductionHealth.lua",
+      "bytes": 10985,
+      "sha256": "42d5db47702086de3c588d0177abb8278c7724b6d737c41d59697b075a3d1e03",
+      "replaceFromSha256": [
+        "664c0c9e22f39f59456f80e9df29ff08aef13f3bd6f3d40d49688b5e9a581f7d",
+        "b415e814e74c992cbf64d635f811c7933d7cceb6571f17ef8f0f9b4596f1d568"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushReliability.lua",
+      "bytes": 86546,
+      "sha256": "57325bcd53cbb0c1712360ce870cf9504734c378734ae2640b788e4fca24ebc7",
+      "replaceFromSha256": [
+        "666469a407405e4564cf22c0445b2a871efce1720edff4228f8149ec89874170",
+        "70d90a1a2b88fcaa42f518127ad5d5f415981af4358dbf0e98b2cb884419c2d5",
+        "9fff64fb3a428ffa1b53ec67e0dc891db0b9b0999dbed6ed32086fb38db6f386",
+        "f8969116bce23a2fc9ddd39a81fe2505dda3a37c566bf8dc8377f8a79b7ab3b5"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushSelection.lua",
+      "bytes": 1632,
+      "sha256": "33deb1f8d2642df62db542a53fb21e8b1fe6a52526276cdce4c2ecd03ef14f13"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushStrategy.lua",
+      "bytes": 9202,
+      "sha256": "03615049f236f70c37dae84e8aefd4215c58b3bb13fbe903bd9558d061cb3b9a"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushTactics.lua",
+      "bytes": 51430,
+      "sha256": "ec712988cb86f44a934e3db95fa4fd6fafd251d53395604f94c0980d9174b626",
+      "replaceFromSha256": [
+        "539635d7861c4a481e9183b17de353f1a45f4d1a03a01c64cdc310364cf883ce",
+        "5f01cd192619745986df66829bfd0ba2627df64a2def5edfa36dfa5b15a6b391",
+        "60090371717012380a7a29658f87cc32bcf069ace5e06b40e095147f95bec0da",
+        "a0b46e97d773a5200be712a0026063e92a79177deaf1089f83be74505f7b0d1a"
+      ]
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/RushUnitState.lua",
+      "bytes": 621,
+      "sha256": "088d6977e942ef84532c2923ccf0fdb17a62171c179f1ca3e95d93095a59a7f5"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/airfield.lua",
+      "bytes": 2002,
+      "sha256": "da165822cea2df74614df00b8a98768b00fff260e8d8dc19f8c255430519d392"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/alloy furnace.lua",
+      "bytes": 1407,
+      "sha256": "2c2e2186150a5aca6d2da1eb65fd4fb8a0e0864ddbc1c0d5426096e4a1f9e113"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/alloy.lua",
+      "bytes": 3842,
+      "sha256": "3fd75bca7b509f85bbd2a0e975f7cf2b705fc33b1afba6ba77c832c127e58bf9"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/artillery structures.lua",
+      "bytes": 2007,
+      "sha256": "1f30d9b7943745f992d8cabd03adce9533d3b27f51813f11d4759be80dc0f5fa"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/attack air experimental.lua",
+      "bytes": 674,
+      "sha256": "3dc41f8ba0bf268ab44aa6ce03c4a336ddd4c0788e440e4d38bfa2056379329f"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/attack air mobile.lua",
+      "bytes": 2466,
+      "sha256": "2c5d9cbe482bf39f08c0cd28780d134dff758e61c3976bcf7798e2c8b1941e93"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/attack land experimental.lua",
+      "bytes": 661,
+      "sha256": "f1705398703611f52f12c1b7e3a2ea28ed8eb569a15453486d1a11583c532d2a"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/attack land mobile.lua",
+      "bytes": 2127,
+      "sha256": "00033fa7d690679458cb622d891ed7cd4499d1a952553e1ffacc70e8f4bade07"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/attack naval experimental.lua",
+      "bytes": 699,
+      "sha256": "2eb91ab869db448c2dc1c7696b28891567a23df5170a2e5feb0a989ac36c76dc"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/attack naval mobile.lua",
+      "bytes": 1204,
+      "sha256": "b554420cda957376a5082436164697949dc2a066c8e50e41094f5f4053bad28c"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/base defence.lua",
+      "bytes": 1847,
+      "sha256": "ee75478bd3d9cd342330a850a4c7724aac699aee54aec0eb91429a16f1733ed4"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/energy.lua",
+      "bytes": 3675,
+      "sha256": "c9228a2e478e6fadc817decbdea2736d8c363054a0acc9a82d095bf97b9b385f"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/engineer maintenance.lua",
+      "bytes": 628,
+      "sha256": "efab0e3a7600e7fd8b44f4649bd73061723452dbcf5de703d17d83a5631d5ee3"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/engineer reclaim.lua",
+      "bytes": 647,
+      "sha256": "e9131f061c6aac2954bf6c5c7809d8280bdb315471460e9984297a4ee4a39024"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/engineer transfer.lua",
+      "bytes": 703,
+      "sha256": "a3b957869b9f71529c650029e6372b255625740ad6bfc8c7f443fa65393681a1"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/engineering-station.lua",
+      "bytes": 2079,
+      "sha256": "69af504fc9346973cff47c33cb408dd748829ac09790e5917cfeddef0355855e"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/expansions.lua",
+      "bytes": 2441,
+      "sha256": "6d7937425171aeca4f5050417156f064b949d5f040a3eea8353c58da680a9292"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/factory air mobile.lua",
+      "bytes": 7910,
+      "sha256": "aa51cf2501f1bf67728e53e42fcfd5778a8e3e95d369d83c0674fed80dd3a77c"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/factory air structures.lua",
+      "bytes": 3296,
+      "sha256": "f192de6a06f58a295094e1397359ec974fbf255d861d3db794df9b85d0b10781"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/factory land engineers.lua",
+      "bytes": 1711,
+      "sha256": "8e0df1b256cb9a2a3b353bf6521c1b7890cd10e2aa01c9498d34b34a6ddeeed7"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/factory land mobile.lua",
+      "bytes": 2106,
+      "sha256": "3ebb5ed21a09548c0e3fea103ace176b141cbea2e69c57ba125da50f12e2f8ff"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/factory land structures.lua",
+      "bytes": 2632,
+      "sha256": "7552dc33930b1dd1a6e244c71fcc7842dd33ff082d1910144ce44bfdd661acc6"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/factory naval.lua",
+      "bytes": 2893,
+      "sha256": "b9959ae45e1ec355b6d44187c3f500e5cc5da770d0c762c27474ccfef656370a"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/opening economy.lua",
+      "bytes": 683,
+      "sha256": "9db18414f75f4a96cf5dc31951db70b62909eca595da91f6f028dbb0e2105ca3"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/radar.lua",
+      "bytes": 2654,
+      "sha256": "f5083e9571c982b548426791966b61dd4b17994e81576a7ae6198beb128cd341"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/recover.lua",
+      "bytes": 704,
+      "sha256": "43e772643f0bbc0de6f4cc889ec22ea8c6b90ff4f5d7a60b80244d22f792a848"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/repair.lua",
+      "bytes": 716,
+      "sha256": "15d8cf6491de8166c0925cc6302e808e7a1fe40c39e62201c171942d9b13c006"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/scout.lua",
+      "bytes": 1359,
+      "sha256": "b3cd31094d42d60d73a20c535d1a95dedc78926097dfd71b0f8deeaff2a00f1d"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/shield.lua",
+      "bytes": 3731,
+      "sha256": "7726c18dd3f10b0c104649d0837aa9859715095a4077434529e7c6bcc314757c"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/stealthfield.lua",
+      "bytes": 1402,
+      "sha256": "fe45948fa3847f38e06dd4def481bf0e4165ad08bccc3ca726c86233aa1a5ffd"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/strategic missile defence.lua",
+      "bytes": 1459,
+      "sha256": "f82c4a85c8d539f09c75de67bb361d73b9db79a1c59a531e47be7ddda8b33d95"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/strategic missile launcher.lua",
+      "bytes": 1442,
+      "sha256": "c7a1065c87552fdd2ce2c2c613e0c8778fb6ad18828e0d8e6130409b6f97171c"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/tech center.lua",
+      "bytes": 3361,
+      "sha256": "2ff231eab9c45c781bff78717a43837569b386b64a8b4106fcfc599e20c63227"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/tech4 mobile.lua",
+      "bytes": 2994,
+      "sha256": "d7289089b316517b398e3bde936913c9c469c2e77dafa8755ca99fb70b66a732"
+    },
+    {
+      "path": "lua/AI/mods/AI-Scom/strategies/transmitter.lua",
+      "bytes": 2052,
+      "sha256": "69e659d9854ec20dff887eb5ffd0b7edb6a3513f0311bfbbbd830fae93dfff5e"
     },
     {
       "path": "SanctuaryMods/SCOM/lua/native/groundMotion.lua",
       "bytes": 22252,
       "sha256": "b1829ad65880955465d15b4a5f9283068ff66a1d08dec85c4c89b433fc4b0c42"
+    },
+    {
+      "path": "SanctuaryMods/SCOM/lua/native/groundPresentation.lua",
+      "bytes": 14269,
+      "sha256": "6bcfb075920a2e607af5cd2aab4015f529d746fd0a1724cf900de66b5b40e571"
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/AI/AIInit.markers.lua",
@@ -1195,17 +2010,21 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/client/clientListeners.lua",
-      "bytes": 162019,
-      "sha256": "165eec13ca64ab2bbea2baf0dcf244813166ff43cf23fccb24595971540d0c41",
+      "bytes": 165191,
+      "sha256": "09b76ade5dcf2b85d11780d48b3067dc70fead7fa13a5779a3c69917b2779e31",
       "replaceFromSha256": [
         "02adc79a66748e9456a034cfdc8d455d2adef0315b72d219efcfa66abb8dfc60",
+        "165eec13ca64ab2bbea2baf0dcf244813166ff43cf23fccb24595971540d0c41",
         "f16cfc31dd7f3b26f301054fe4453697b47b81b309f64a84999c1ff70193fe40"
       ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/client/clientMain.part01.lua",
-      "bytes": 4245,
-      "sha256": "c20858355134586e9e40376b8963b97df91c5c237f5b59ad88daf7b9d9172fd7"
+      "bytes": 4288,
+      "sha256": "77adf1d1bece8dbd0e5c1426184da4f61fd542ef9de3b2d111aadc3daef85fd1",
+      "replaceFromSha256": [
+        "c20858355134586e9e40376b8963b97df91c5c237f5b59ad88daf7b9d9172fd7"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/client/clientMain.part02.lua",
@@ -1270,9 +2089,10 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/client/input/inputActions.part01.lua",
-      "bytes": 31127,
-      "sha256": "404695bf0b4ef754216f618162e2764b5fd6e471aa384af8fc7740a07fa8542b",
+      "bytes": 31130,
+      "sha256": "070f0312a1c76ff3bc82a81978339fa626915db98bc5c075d2e5bf9a801f84aa",
       "replaceFromSha256": [
+        "404695bf0b4ef754216f618162e2764b5fd6e471aa384af8fc7740a07fa8542b",
         "59f600e51b8a47d04f2c13853d3f117eebf3476db1ff5fad31c438b3ecb036b4"
       ]
     },
@@ -1324,10 +2144,11 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/client/projectiles/projectilesClasses/projectilesBaseClass.lua",
-      "bytes": 22508,
-      "sha256": "f5e32a47de5594bf33a6e33e23d6ce9b129fe7904abd509ad6ace554c5f4a6aa",
+      "bytes": 22674,
+      "sha256": "e2781f4eac06414801d18b3c179f16acf685f51965846d15a0eb2ba05746f082",
       "replaceFromSha256": [
-        "593daa63fab3082262bafbba9fc293149d528f6f91c744e50fea9d6703617583"
+        "593daa63fab3082262bafbba9fc293149d528f6f91c744e50fea9d6703617583",
+        "f5e32a47de5594bf33a6e33e23d6ce9b129fe7904abd509ad6ace554c5f4a6aa"
       ]
     },
     {
@@ -1360,11 +2181,12 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/client/ui/ordersPanel.lua",
-      "bytes": 37391,
-      "sha256": "99cd4da2614020fcaeeefe0e07b548563ec842a931bf28fcd2fddcecee783893",
+      "bytes": 37408,
+      "sha256": "a775c24c203999a440703062d0708d3f2bf9131aec43788bb85fe0dfaf8d93d8",
       "replaceFromSha256": [
         "0cec4e1965297bc453c06cb0a179de9a6dd5dffc979c14abc70cfe9345f7ff73",
-        "6f3f1aa5037018dab61d4e8a1f6c17dcfca52c27add7ebab37c071278ad3fb74"
+        "6f3f1aa5037018dab61d4e8a1f6c17dcfca52c27add7ebab37c071278ad3fb74",
+        "99cd4da2614020fcaeeefe0e07b548563ec842a931bf28fcd2fddcecee783893"
       ]
     },
     {
@@ -1396,9 +2218,10 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/client/units/unitsClasses/unitsDefault.lua",
-      "bytes": 53346,
-      "sha256": "01cd8a37406c7dff4056266587607b83d8490442c8473ae11f4143189f8f4066",
+      "bytes": 53450,
+      "sha256": "930a0e1333659d18f71bfe4be19300132c104adb6bc21509204ba6ff359e4bb3",
       "replaceFromSha256": [
+        "01cd8a37406c7dff4056266587607b83d8490442c8473ae11f4143189f8f4066",
         "ec39055692d0e423d7d2c08c15c811f0d179ff986952421bd8f32bd18a7ba197"
       ]
     },
@@ -1437,8 +2260,11 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/client/units/weaponsClasses/clientMuzzleClass.lua",
-      "bytes": 10588,
-      "sha256": "32c4a32ef0839fe8a4ff0e69a12de08e4903ec47fc5033d4294ee31440bc3e71"
+      "bytes": 12328,
+      "sha256": "cc4620dce45f53af079ea9dffc45575a4fddf7d2e95ec67d0b99e4f1b4d277a4",
+      "replaceFromSha256": [
+        "32c4a32ef0839fe8a4ff0e69a12de08e4903ec47fc5033d4294ee31440bc3e71"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/commands/definitions/buildQueue.lua",
@@ -1550,11 +2376,6 @@
       "replaceFromSha256": [
         "f677f8511866fbe9dccfa31f361c3e2a050472ab7491638427931f28e28c4b16"
       ]
-    },
-    {
-      "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/PXD003/PXD003.lua",
-      "bytes": 664,
-      "sha256": "7c35dd2ad480b4ce4c906462db6cc3c7d4ffaada241b7b33ea2c49900b989f4a"
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/paa111/paa111.lua",
@@ -1936,23 +2757,35 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/pocaeon/pocaeon.lua",
-      "bytes": 2369,
-      "sha256": "d71f6938206b23feabc877ed1d6fbbf573a41f4606c3a3e7182435559920a118"
+      "bytes": 2345,
+      "sha256": "7687cebc835e34f817892de5f83fd2401a531c747adceec086e2de0a122693ec",
+      "replaceFromSha256": [
+        "d71f6938206b23feabc877ed1d6fbbf573a41f4606c3a3e7182435559920a118"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/poccybran/poccybran.lua",
-      "bytes": 2268,
-      "sha256": "138b1b75be5b9dd239ffe492b9a07fcc04764636f1ed16199a1deaa7a89f4ea4"
+      "bytes": 2244,
+      "sha256": "a9516c20f60d515038e4b23409b52bbe025157cc26b77af5b38b956341bf4d86",
+      "replaceFromSha256": [
+        "138b1b75be5b9dd239ffe492b9a07fcc04764636f1ed16199a1deaa7a89f4ea4"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/pocsera/pocsera.lua",
-      "bytes": 2259,
-      "sha256": "a0235ae46b2b999a546e1a19467e85dbbb5dc8f7137a02fe58d8b1fad644315b"
+      "bytes": 2235,
+      "sha256": "852b5d26921bfdcf00c1c477a653bfcb07a9c088f3008f639a19251be83d4cbe",
+      "replaceFromSha256": [
+        "a0235ae46b2b999a546e1a19467e85dbbb5dc8f7137a02fe58d8b1fad644315b"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/pocuef/pocuef.lua",
-      "bytes": 2366,
-      "sha256": "51ffe7458cb08e2377e20704f0634f896c1a43f38bb1e971f0376109069849a4"
+      "bytes": 2342,
+      "sha256": "91f1b1cdf456c3e21ebfdec77b07a9169bd6124818c4c1e93aaf504899955809",
+      "replaceFromSha256": [
+        "51ffe7458cb08e2377e20704f0634f896c1a43f38bb1e971f0376109069849a4"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/psb101/psb101.lua",
@@ -2117,8 +2950,11 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/psf0028/psf0028.lua",
-      "bytes": 1225,
-      "sha256": "c3da0dfae08cccfe3d1d986996ee124179684485e69ac5b1bf40a1fefb27f3ab"
+      "bytes": 1008,
+      "sha256": "a69e1daaaba557e59934f5e63bd42ba9eed5e9f9a3a90d367f8b47bcec31b4f2",
+      "replaceFromSha256": [
+        "c3da0dfae08cccfe3d1d986996ee124179684485e69ac5b1bf40a1fefb27f3ab"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/psf0029/psf0029.lua",
@@ -2127,13 +2963,19 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/psf0030/psf0030.lua",
-      "bytes": 1574,
-      "sha256": "f7b708aa75617df08eacd0cc526190be09a335c9d2be3297c05b0ef95e194d2a"
+      "bytes": 1062,
+      "sha256": "eac37197a4e980d2c46b4f462672dc619a45ce7f0c0bbb88e0096ff066223642",
+      "replaceFromSha256": [
+        "f7b708aa75617df08eacd0cc526190be09a335c9d2be3297c05b0ef95e194d2a"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/psf0031/psf0031.lua",
-      "bytes": 1769,
-      "sha256": "4c83445cf4a327400c62249285de04cd9fb25b488419696d4ce2aca907e7aff5"
+      "bytes": 913,
+      "sha256": "2a7e80bf9ed7c8d16a15f14479947f1d246bfb6262cd3e26a05d81714dfc04ff",
+      "replaceFromSha256": [
+        "4c83445cf4a327400c62249285de04cd9fb25b488419696d4ce2aca907e7aff5"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/psf0032/psf0032.lua",
@@ -3141,6 +3983,11 @@
       "replaceFromSha256": [
         "375c1dfa0da60a5c3774208f4e89c1c559d9728cf989adbccb0fb2f5cc099ab8"
       ]
+    },
+    {
+      "path": "SanctuaryMods/SCOM/lua/shared/common/projectiles/projectilesTemplates/PXD003/PXD003.lua",
+      "bytes": 664,
+      "sha256": "7c35dd2ad480b4ce4c906462db6cc3c7d4ffaada241b7b33ea2c49900b989f4a"
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/systems/factions.lua",
@@ -5932,8 +6779,11 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/systems/scoOvercharge.lua",
-      "bytes": 23491,
-      "sha256": "900b67a731c1563bf8903e1d2bf2f27141e6160975e6ef644a0aed992cf3df44"
+      "bytes": 23506,
+      "sha256": "ba36ad473288e97223d198e656671028def252e665467e0ded9a928966dff53d",
+      "replaceFromSha256": [
+        "900b67a731c1563bf8903e1d2bf2f27141e6160975e6ef644a0aed992cf3df44"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/systems/scoSceneryReclaim.lua",
@@ -5983,8 +6833,11 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/systems/scoSourceSpecialWeapons.lua",
-      "bytes": 8096,
-      "sha256": "a7fb9433c594f25a730eb87c9839dc292a002b4e593eddb99a20c03bf1d1ae0b"
+      "bytes": 8593,
+      "sha256": "c517c47b60db3d5f257a422fb53e84265e1f0912f390589bdc020bf202fd0248",
+      "replaceFromSha256": [
+        "a7fb9433c594f25a730eb87c9839dc292a002b4e593eddb99a20c03bf1d1ae0b"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/common/systems/scoSourceSubmarineTargeting.lua",
@@ -6052,12 +6905,13 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/host/collisionUpdate.lua",
-      "bytes": 88102,
-      "sha256": "a0b566fc3fbaa58412f22990f0369f62e8f3474ec5df5c2465f1ac0b18e97370",
+      "bytes": 93050,
+      "sha256": "abc9a52dc4ca7e0dbcc16eaf9f20cb153ee63b8eed66f2bf8722cad9636328cd",
       "replaceFromSha256": [
         "112ae6d1c259af57c3d9262342b58bcbd6babc7ad7e5f5f416417951591b3bcf",
         "1f0cb76cf1ab94d3b519d9d91035a6134a9d97bc15a51f5071cb04648760b4d7",
-        "93b42e3412205d474bcd504c49bb6c3f0df893a1b4a809747e95a9f83c28f3f7"
+        "93b42e3412205d474bcd504c49bb6c3f0df893a1b4a809747e95a9f83c28f3f7",
+        "a0b566fc3fbaa58412f22990f0369f62e8f3474ec5df5c2465f1ac0b18e97370"
       ]
     },
     {
@@ -6102,10 +6956,11 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/host/managers/orders/hostOrderManager.lua",
-      "bytes": 15345,
-      "sha256": "e1fd85bbbe50dd35afe76043a6ac5043a5f9b4d155cdc7df4f73b2c88af12582",
+      "bytes": 15815,
+      "sha256": "a9392229a4137111082f7b542f08f459d11d99c1aa8081a06e7e7446829857e0",
       "replaceFromSha256": [
-        "83122205d16a61bec8b258b02ba7c9dbe9a2e420308ca838e3d563dc602e5001"
+        "83122205d16a61bec8b258b02ba7c9dbe9a2e420308ca838e3d563dc602e5001",
+        "e1fd85bbbe50dd35afe76043a6ac5043a5f9b4d155cdc7df4f73b2c88af12582"
       ]
     },
     {
@@ -6128,10 +6983,11 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/host/projectiles/projectilesClasses/projectilesBaseClass.lua",
-      "bytes": 6932,
-      "sha256": "97cd8d16e74db3cfd89127fe56a37a15d746f003e2fdae1261ad48f8f7d2c883",
+      "bytes": 6988,
+      "sha256": "ee19ec22bdb97638f6fd981348f74438644afd37e263cf2b365b612dc6acf8d4",
       "replaceFromSha256": [
-        "566ea580f6e85e73d882bee32c992c32266281e2b06258fd45d224b1329c5e6a"
+        "566ea580f6e85e73d882bee32c992c32266281e2b06258fd45d224b1329c5e6a",
+        "97cd8d16e74db3cfd89127fe56a37a15d746f003e2fdae1261ad48f8f7d2c883"
       ]
     },
     {
@@ -6175,8 +7031,9 @@
     {
       "path": "SanctuaryMods/SCOM/lua/shared/host/units/unitsClasses/unitsBaseClass.lua",
       "bytes": 368516,
-      "sha256": "12e1eea5676d7e4a40ddb7f239d9cc00c985193dc608a1bf11d31af3e66eefea",
+      "sha256": "79cbe7b9c4f10e8dab251bb12c1d4bdc6b3db0842d13e77db5ca8b4cca1a7e92",
       "replaceFromSha256": [
+        "12e1eea5676d7e4a40ddb7f239d9cc00c985193dc608a1bf11d31af3e66eefea",
         "4655b7a1c49fce6694e958da19742c1a521bba22cd11e8a32e9fbe2fb4d4690d",
         "4e824e60785f356d7e7ff53348787c96223023031b2f703d7cb58321507f3d68",
         "a4e852bc14577913c96e4eb0bb59d381dffee9320a6b0e4643b3aad0ff6d98e1"
@@ -6184,11 +7041,12 @@
     },
     {
       "path": "SanctuaryMods/SCOM/lua/shared/host/units/unitsClasses/unitsDefault.lua",
-      "bytes": 478884,
-      "sha256": "69b3e12fae9ad0fa556b3b020da94cb50e530f05765d53699e44cfdb581f8859",
+      "bytes": 482668,
+      "sha256": "d0dc68ad079ffd9d82ece53ca673074e998682533be750f4cc49753416e5057d",
       "replaceFromSha256": [
         "292706933a9b5d18bd58691f199677c2d76e6dd6d703be5b9a9edd012a04c7dd",
-        "66b8944b22e281967232a2a69db33421b03b08a7f418a09ee1fa2f5320944770"
+        "66b8944b22e281967232a2a69db33421b03b08a7f418a09ee1fa2f5320944770",
+        "69b3e12fae9ad0fa556b3b020da94cb50e530f05765d53699e44cfdb581f8859"
       ]
     },
     {
@@ -6272,14 +7130,27 @@
       ]
     },
     {
+      "path": "SanctuaryMods/SCOM/packs/scom-native-factions.sanpack",
+      "bytes": 84207912,
+      "sha256": "34131204414b4d51dfa1b74c30faaeaad195284a140c36184528b304a4c66d6d"
+    },
+    {
+      "path": "SanctuaryMods/SCOM/packs/scom-overcharge-vfx.sanpack",
+      "bytes": 11731,
+      "sha256": "94f4f9599b0a49c81f5b7c7ef3d78858f3b87a24249060cf1f1d18d3f37fbebd"
+    },
+    {
       "path": "SanctuaryMods/SCOM/packs/scom-vfx-world-space.sanpack",
-      "bytes": 28120,
-      "sha256": "68e654fb2ca7e51db12b424499e2a25f9714e3147834c207e695f1e48b4101f6"
+      "bytes": 102219,
+      "sha256": "480075e5a365bbb77abc3e933937c013d4069825631d3f6d4145205f089020d4",
+      "replaceFromSha256": [
+        "68e654fb2ca7e51db12b424499e2a25f9714e3147834c207e695f1e48b4101f6"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/packs/scom.sanpack",
-      "bytes": 1664532372,
-      "sha256": "e42327ef15441dc3c5f773abc12ff3b7dc8e96b20b9530f5ea69ef9bb731f929",
+      "bytes": 1664534267,
+      "sha256": "4330a19a29f357baef215b074e8a55e2b5a135e5ab6f7cebd2d4cb46d8b11075",
       "replaceFromSha256": [
         "014382e52e9374c2d83371d2abd4f2ca318f3b969fe092e3062aef6da23dc613",
         "223d70bb8c5c83c1481e000d48781a531f9cb424f15f0583fb65045b922b7237",
@@ -6299,8 +7170,19 @@
         "af7d4241f26fd8056c8531ad657eb088ed806acc26f47819a46868ed75487c7a",
         "bbd499e2c9b1be9965049901b3437ba59ab49fc58ec93ee249d923fbee705d7c",
         "c19fcd141d27f9c3402739f7634d6971e9836d2ca4fd9310e84458d3bfc85a2c",
-        "4e430d717cb5a06909a1791abd97ae81ed7a0457c6f3f18788b5ea93849137e1"
+        "4e430d717cb5a06909a1791abd97ae81ed7a0457c6f3f18788b5ea93849137e1",
+        "e42327ef15441dc3c5f773abc12ff3b7dc8e96b20b9530f5ea69ef9bb731f929",
+        "218ae6ebdc85fd6c7039938a7ac5d772809f36305689c77cb90439d2b7fe953a",
+        "9629690dac12a32214bbd9a68f309b733a7780832703cb77d4b040dca47c11b5",
+        "653a52bdeef05b885d8830a6d37bc498a8db4504fe0d78ed4f539c7236496516",
+        "87167aedb3ef5dcfeadc7447c4ad494f92cbad346db76d0128c7472c68c46f46",
+        "1a2bdbdb8191bf702e77b3a58856046f51aed0a5130d8f3747e661468decce59"
       ]
+    },
+    {
+      "path": "SanctuaryMods/SCOM/Scom-patcher.dll",
+      "bytes": 311154176,
+      "sha256": "e2cbab00267204ef38211ac01c1b26a254295e2fdfdbddb7a67e825c60974b09"
     },
     {
       "path": "SanctuaryMods/SCOM/units/behavior.lua",
@@ -15662,9 +16544,10 @@
     },
     {
       "path": "SanctuaryMods/SCOM/units/usl0000/template.lua",
-      "bytes": 19665,
-      "sha256": "6a24d3e8f2449c7ac90a3c0cc72784b0016bc717152bb2f41f68ddafd6e52aee",
+      "bytes": 19704,
+      "sha256": "c65e9e34039e15eaa32b72ee7c03ff3e2a952cd0d15ff1fb5d85af7e564a6006",
       "replaceFromSha256": [
+        "6a24d3e8f2449c7ac90a3c0cc72784b0016bc717152bb2f41f68ddafd6e52aee",
         "a035ced0822670fcc98b18c7cdb2c2f94fe2f45f73f678af5305eca9f969dd0e",
         "c7dd97f4588c40604d05ba33d28c1c3c5e9ff3eadab76f2fc6761b1dcdbcb7c5"
       ]
@@ -15687,7 +16570,10 @@
     {
       "path": "SanctuaryMods/SCOM/units/usl1001/template.lua",
       "bytes": 13566,
-      "sha256": "66f57b6234f56efa55722d455d4737ed502d7d36006fa14166888c578cdfd0b9"
+      "sha256": "98357785b203991e51b7dfb6837d6866426b3f66c55feee139393de1d8bff13d",
+      "replaceFromSha256": [
+        "66f57b6234f56efa55722d455d4737ed502d7d36006fa14166888c578cdfd0b9"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/units/usl1101/client.lua",
@@ -16037,8 +16923,11 @@
     },
     {
       "path": "SanctuaryMods/SCOM/units/usl5002/client.lua",
-      "bytes": 341,
-      "sha256": "c9b270846ccc69f0c59b5a29575e17c5f6bb338be9dfb35d37069b23a6be3df8"
+      "bytes": 1369,
+      "sha256": "3800cdf6dfd43d169c6b926d16c3a81fdbc86355acb50895f1690f979e57bdce",
+      "replaceFromSha256": [
+        "c9b270846ccc69f0c59b5a29575e17c5f6bb338be9dfb35d37069b23a6be3df8"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/units/usl5002/entry.lua",
@@ -16047,13 +16936,19 @@
     },
     {
       "path": "SanctuaryMods/SCOM/units/usl5002/host.lua",
-      "bytes": 333,
-      "sha256": "fada6dbb53c49dfdefbb177577fd46c88c2ccaadfc84edfe220b5065a86bf807"
+      "bytes": 545,
+      "sha256": "2c0b401c088e579af6189a74036b20e24759f3c32dba6d8d3059f80503c8b147",
+      "replaceFromSha256": [
+        "fada6dbb53c49dfdefbb177577fd46c88c2ccaadfc84edfe220b5065a86bf807"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/units/usl5002/template.lua",
-      "bytes": 22639,
-      "sha256": "e467487475d59c6f3b0b1f6e0362e5f1386bcc6d221893e9db45c5e5d73fc20a"
+      "bytes": 23021,
+      "sha256": "ee446ace47d492f5e3bee73c4c1fd6372bb80bb4ede0ac35599d80dcc42e7974",
+      "replaceFromSha256": [
+        "e467487475d59c6f3b0b1f6e0362e5f1386bcc6d221893e9db45c5e5d73fc20a"
+      ]
     },
     {
       "path": "SanctuaryMods/SCOM/units/usn1001/client.lua",
@@ -17586,19 +18481,62 @@
       "sha256": "a7d31f6cec53d511f943d05e2fe3eabc504cf7ab97d690770558c5ee08ef1fd6"
     },
     {
-      "path": "doorstop_config.ini",
-      "bytes": 1460,
-      "sha256": "4d5c6dfa0f771c6a5b1b0c559aca0bd0ece7d08b08fff894708dc3b73ce73cfc"
-    },
-    {
       "path": "winhttp.dll",
       "bytes": 26112,
       "sha256": "8c6cdbc38836dee87e3368f5de1994d7c0ccebf29e4ce7aba3c0981f9375412c"
+    }
+  ],
+  "optionalComponents": [
+    {
+      "id": "SC2R",
+      "ownedRoots": [
+        "SanctuaryMods/SC2R"
+      ],
+      "files": [
+        {
+          "path": "SanctuaryMods/SC2R/SC2R-StompAudio.dll",
+          "bytes": 1783808,
+          "sha256": "e46035be0a357e2c692f938601a6e7380d719a9a949d24e94ae16e79bac4eb3b"
+        },
+        {
+          "path": "SanctuaryMods/SC2R/ScomSubmod-SC2R-patcher.dll",
+          "bytes": 42496,
+          "sha256": "991eebf70c42dd8f5f548ddebdb628893fad4fd4b5df3329a0d8d4ef403e7923"
+        },
+        {
+          "path": "SanctuaryMods/SC2R/content/OpenAL32.native",
+          "bytes": 2089068,
+          "sha256": "e777290e1472f2d26c24535b6003516aa40609d1c1f5149b02497e454f419b67"
+        },
+        {
+          "path": "SanctuaryMods/SC2R/content/SC2R.assets.zip",
+          "bytes": 8769489,
+          "sha256": "f0c304eb4cb30f35eb0bec414838cf5ac3a190e99ac6f04b800d7ddf17428a85"
+        },
+        {
+          "path": "SanctuaryMods/SC2R/requires.txt",
+          "bytes": 5,
+          "sha256": "f10137f27594aee0805fe103df1a3f356f0cb6d122cd251922f0d6b4ace39662"
+        }
+      ]
     },
     {
-      "path": "LJ/lua/AI/mods/AI-Scom/RushStrategy.lua",
-      "bytes": 9202,
-      "sha256": "03615049f236f70c37dae84e8aefd4215c58b3bb13fbe903bd9558d061cb3b9a"
+      "id": "SCOM-LobbyColors",
+      "ownedRoots": [
+        "SanctuaryMods/SCOM-LobbyColors"
+      ],
+      "files": [
+        {
+          "path": "SanctuaryMods/SCOM-LobbyColors/ScomLobbyColors.dll",
+          "bytes": 56320,
+          "sha256": "3734e93abf2ed96234e8b07237831d9d7bda0b2b561db62a415c76d1ee7197ca"
+        },
+        {
+          "path": "SanctuaryMods/SCOM-LobbyColors/requires.txt",
+          "bytes": 5,
+          "sha256": "f10137f27594aee0805fe103df1a3f356f0cb6d122cd251922f0d6b4ace39662"
+        }
+      ]
     }
   ]
 }

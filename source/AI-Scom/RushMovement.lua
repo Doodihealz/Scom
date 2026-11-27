@@ -128,8 +128,8 @@ function UnitMovementLayer(u)
     if not u or u.dead or u.deleted then return nil end
     local tp=u.tp or {};local index=tp.general and tp.general.navigationLayer
     if TypeLayer[tp.movement and tp.movement.type]~="Air" and Engine and EngineErrorCode
-        and type(Engine.GetMovementNavigationLayer)=="function" and u.id then
-        local ok,code,current=pcall(Engine.GetMovementNavigationLayer,u.id)
+        and type(Engine.GetNavAgentNavigationLayer)=="function" and u.id then
+        local ok,code,current=pcall(Engine.GetNavAgentNavigationLayer,u.id)
         if ok and code==EngineErrorCode.Success then index=current end
     end
     -- Live Sea/Land morphs remain restrictive even for an amphibious template.
@@ -158,7 +158,7 @@ local function RouteContext(p,layer,maximum,request)
     local r=request or Capture(p)
     if not RequestCurrent(r) or r.platoon~=p or not Finite(maximum) or maximum<0
         or not ThreatLayers[layer] or not Engine or type(Engine.NavmapLineCast)~="function"
-        or type(Engine.GetMovementNavigationLayer)~="function" or not EngineErrorCode or not NavmapLineCastResult
+        or type(Engine.GetNavAgentNavigationLayer)~="function" or not EngineErrorCode or not NavmapLineCastResult
         or type(TM.GetHeatMapGridSizeXZ)~="function" or type(TM.GetThreatFromHeatMapGrid)~="function"
         or type(TM.GetHeatMapGridIndexFromWorldPosition)~="function"
         or type(TM.GetWorldPositionFromHeatMapGridIndexFast)~="function" then return nil end
@@ -169,7 +169,7 @@ local function RouteContext(p,layer,maximum,request)
     for _,entry in ipairs(r.units) do
         local u=entry.unit
         if UnitCurrent(u,p,r.owner,entry.ai,r.pai,r.armyAI,r.operation,r.fleet) then
-            local ok,code,index=pcall(Engine.GetMovementNavigationLayer,u.id)
+            local ok,code,index=pcall(Engine.GetNavAgentNavigationLayer,u.id)
             if not ok or code~=EngineErrorCode.Success or not Finite(index)
                 or index==Layers.NavigationLayer.Invalid then return nil end
             local tp=u.tp or {};local f=tp.footprint or {};local b=tp.collisionInfo and tp.collisionInfo.collisionSize or {}

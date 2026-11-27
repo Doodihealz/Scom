@@ -8,7 +8,6 @@ local Units = __Entities.Units
 local Shields = __Entities.Shields
 local Projectiles = __Entities.Projectiles
 local Props = __Entities.Props
-
 function CollisionUpdate()
     for _, muzzle in pairs(__Muzzles) do
         muzzle:Update()
@@ -412,6 +411,22 @@ if SCO_FaBomberGroundFireInstalled == nil then
     local SCO_FaBomberStockAreaDamage = ProcessAreaDamage
     local SCO_FaBomberActiveProjectile = nil
 
+    -- Keep the original scan order and stop scanning after the last matching bomb.
+    -- The initial pass also discovers projectiles created before this owner loads.
+    local SCO_WaterBombScanArmed = true
+    local SCO_ScorcherScanArmed = true
+
+    function SCO_TrackBomberProjectile(projectile)
+        local template = projectile.tp
+        local additions = template and template.additions
+        if additions and additions.scoFaDestroyOnWater ~= nil then
+            SCO_WaterBombScanArmed = true
+        end
+        if template and template.general and template.general.tpId == "peb101" then
+            SCO_ScorcherScanArmed = true
+        end
+    end
+
     local SCO_FaBomberImpactProfiles = {
         pab101 = { damage = 200, radius = 4, damageFriendly = true },
         pab301 = { damage = 3450, radius = 4, damageFriendly = true },
@@ -477,6 +492,7 @@ if SCO_FaBomberGroundFireInstalled == nil then
     end
 
     local function SCO_FaBomberCullWaterProjectiles()
+        if not SCO_WaterBombScanArmed then return end
         local _, hasWater = Engine.HasWater()
         if not hasWater then return end
         local _, waterLevel = Engine.GetWaterLevel()
@@ -484,8 +500,10 @@ if SCO_FaBomberGroundFireInstalled == nil then
             error("SCOM FA bomber water level is unavailable")
         end
         local toDestroy = {}
+        SCO_WaterBombScanArmed = false
         for _, projectile in pairs(Projectiles) do
             if SCO_FaBomberDestroyOnWaterContract(projectile) ~= nil then
+                SCO_WaterBombScanArmed = true
                 local _, position =
                     Engine.GetGlobalEntityWorldPosition(projectile.id)
                 if position ~= nil and position.y <= waterLevel then
@@ -498,6 +516,13 @@ if SCO_FaBomberGroundFireInstalled == nil then
                 DestroyProjectile(projectile.id, 0)
             end
         end
+    end
+
+    -- The initial sweep also covers wrecks that exist when this module loads.
+    -- New crash contracts wake the two native-order passes at creation.
+    local pendingBomberCrash = true
+    function SCO_BomberWreckCreated()
+        pendingBomberCrash = true
     end
 
     local function SCO_FaBomberCrashImpactContract(wreck)
@@ -559,6 +584,7 @@ if SCO_FaBomberGroundFireInstalled == nil then
     end
 
     local function SCO_FaBomberApplyWaterCrashImpacts()
+        if not pendingBomberCrash then return end
         local _, hasWater = Engine.HasWater()
         if not hasWater then return end
         local _, waterLevel = Engine.GetWaterLevel()
@@ -591,11 +617,15 @@ if SCO_FaBomberGroundFireInstalled == nil then
     end
 
     local function SCO_FaBomberApplyTerrainCrashImpacts()
+        if not pendingBomberCrash then return end
+        -- Reset before iterating so crashes created by impact damage stay pending.
+        pendingBomberCrash = false
         for _, wreck in pairs(Props) do
-            if wreck.crashImpactPosition ~= nil then
-                SCO_FaBomberApplyCrashImpact(
-                    wreck,
-                    wreck.crashImpactPosition)
+            if wreck.scoFaBomberCrashImpact and not wreck.scoFaBomberCrashImpactApplied then
+                if wreck.crashImpactPosition then
+                    SCO_FaBomberApplyCrashImpact(wreck, wreck.crashImpactPosition)
+                end
+                if not wreck.scoFaBomberCrashImpactApplied then pendingBomberCrash = true end
             end
         end
     end
@@ -643,15 +673,18 @@ if SCO_FaBomberGroundFireInstalled == nil then
     end
 
     local function SCO_FaBomberRecoverScorcherTerrainImpacts()
+        if not SCO_ScorcherScanArmed then return end
         -- Native rays test only the previous/current segment. Once both
         -- endpoints are below terrain, another crossing cannot be found.
         -- Let native unit/shield/water/terrain events consume bombs first,
         -- then recover only surviving Scorcher bombs at the actual floor.
+        SCO_ScorcherScanArmed = false
         for _, projectile in pairs(Projectiles) do
             local general = projectile.tp and projectile.tp.general
             if general and general.tpId == "peb101"
                 and SCO_FaBomberGroundFireContract(projectile) ~= nil
             then
+                SCO_ScorcherScanArmed = true
                 local result, position =
                     Engine.GetGlobalEntityWorldPosition(projectile.id)
                 if result == EngineErrorCode.Success and position ~= nil then
@@ -718,12 +751,12 @@ if SCO_FaBomberGroundFireInstalled == nil then
                     end
                     projectile.scoFaBomberGroundFireStarted = true
                     local sourceUnit = projectile.sourceUnit or select(1, ...)
-                    NewThread(
-                        SCO_FaBomberGroundFireThread,
-                        position,
-                        projectileArmy,
-                        sourceUnit,
-                        groundFireContract)
+                    -- Capture the optional shooter: native NewThread packs varargs
+                    -- into a Lua array, whose length is undefined across nil holes.
+                    NewThread(function()
+                        SCO_FaBomberGroundFireThread(position, projectileArmy,
+                            sourceUnit, groundFireContract)
+                    end)
                 end
                 -- Suppress the stock direct area call. The exact 15 source
                 -- pulses above are the complete 60 damage for this bomb.
@@ -1495,34 +1528,71 @@ if SCOFieldFixStrategicSiloCollisionMarker == nil then
                 environmentCollisionWorld)
         end
 
-        -- Resolve the physically nearest collision world first for each shell.
-        -- A nearer friendly collider can be ignored by the stock handler, so
-        -- water events behind ordinary collisions are deferred, not discarded.
-        local nearestCollisionDistance = {}
-        for _, data in ipairs(rayCollisionEvents) do
-            local projectileIndex = data.rayGlobalID.index
-            local nearest = nearestCollisionDistance[projectileIndex]
-            if nearest == nil or data.hitDistance < nearest then
-                nearestCollisionDistance[projectileIndex] = data.hitDistance
-            end
-        end
-
-        local deferredWaterCollisionEvents = {}
-        for _, data in ipairs(waterCollisionEvents) do
-            local _, projectileId = Engine.GetGlobalEntityRoot(data.rayGlobalID)
-            local collisionDistance = projectileId and nearestCollisionDistance[projectileId.index]
-            if collisionDistance == nil or data.hitDistance < collisionDistance then
-                xpcall(SCOProcessSpecialWaterImpact, ErrorHandler, data)
+        -- Ordinary land volleys already arrive sorted by RefineAll. Avoid a
+        -- second queue/sort unless water or child-ray ownership crosses worlds.
+        local waterContacts = {}
+        for _, event in ipairs(waterCollisionEvents) do
+            if _G.WaterGlobalID and SameCollisionID(event.otherGlobalID, _G.WaterGlobalID) then
+                local projectile = ResolveCollisionEntity(Projectiles, event.rayGlobalID)
+                -- Stale water rays must never reach a special impact owner
+                -- that resolves by root index without checking its generation.
+                if projectile then waterContacts[#waterContacts + 1] = {event=event, projectile=projectile} end
             else
-                table.insert(deferredWaterCollisionEvents, data)
+                xpcall(ProcessEnvironmentCollisionEvent, ErrorHandler, event)
             end
         end
-
-        for _, data in ipairs(rayCollisionEvents) do
-            xpcall(ProcessRayCollisionEvent, ErrorHandler, data)
+        local merge = #waterContacts > 0
+        if not merge and #rayCollisionEvents > 1 then
+            for _, event in ipairs(rayCollisionEvents) do
+                local projectile = Projectiles[event.rayGlobalID.index]
+                if not projectile or not SameCollisionID(projectile.id, event.rayGlobalID) then
+                    merge = true
+                    break
+                end
+            end
         end
-        for _, data in ipairs(deferredWaterCollisionEvents) do
-            xpcall(SCOProcessSpecialWaterImpact, ErrorHandler, data)
+        if not merge then
+            for _, event in ipairs(rayCollisionEvents) do xpcall(ProcessRayCollisionEvent, ErrorHandler, event) end
+        else
+            local contacts = {}
+            for sequence, event in ipairs(rayCollisionEvents) do
+                local projectile = Projectiles[event.rayGlobalID.index]
+                if not projectile or not SameCollisionID(projectile.id, event.rayGlobalID) then
+                    projectile = ResolveCollisionEntity(Projectiles, event.rayGlobalID)
+                end
+                contacts[#contacts + 1] = {event=event, projectile=projectile,
+                    id=projectile and projectile.id or event.rayGlobalID, world=0, sequence=sequence}
+            end
+            for sequence, contact in ipairs(waterContacts) do
+                contact.id, contact.world, contact.sequence = contact.projectile.id, 1, sequence
+                contacts[#contacts + 1] = contact
+            end
+            table.sort(contacts, function(a, b)
+                if a.id.index ~= b.id.index then return a.id.index < b.id.index end
+                if a.id.version ~= b.id.version then return a.id.version < b.id.version end
+                local x, y = a.event, b.event
+                if x.hitDistance ~= y.hitDistance then return x.hitDistance < y.hitDistance end
+                -- A coincident solid surface wins over a water crossing,
+                -- matching the existing tie policy; other ties use stable IDs.
+                if a.world ~= b.world then return a.world < b.world end
+                if x.otherGlobalID.index ~= y.otherGlobalID.index then return x.otherGlobalID.index < y.otherGlobalID.index end
+                if x.otherGlobalID.version ~= y.otherGlobalID.version then return x.otherGlobalID.version < y.otherGlobalID.version end
+                if x.colliderHitIndex ~= y.colliderHitIndex then return x.colliderHitIndex < y.colliderHitIndex end
+                return a.sequence < b.sequence
+            end)
+            for _, contact in ipairs(contacts) do
+                local event, projectile = contact.event, contact.projectile
+                -- Accepted earlier contacts can consume the projectile. The
+                -- outer ray wrapper owns ray validation; water needs it here.
+                if contact.world == 1 then
+                    if ResolveCollisionEntity(Projectiles, event.rayGlobalID) == projectile then
+                        xpcall(SCOProcessSpecialWaterImpact, ErrorHandler, event)
+                    end
+                elseif not projectile or (Projectiles[contact.id.index] == projectile
+                    and not projectile.dead and not projectile.deleted) then
+                    xpcall(ProcessRayCollisionEvent, ErrorHandler, event)
+                end
+            end
         end
 
         if _G.WaterGlobalID then
@@ -1902,7 +1972,18 @@ do
         local projectile = event and ResolveCollisionEntity(Projectiles, event.rayGlobalID)
         if not projectile then return end
         event = SCOM_MeshContact.Refine(event)
-        if event then return withContact(previous, event, projectile) end
+        if event then
+            if not SameCollisionID(event.rayGlobalID, projectile.id) then
+                -- Specialized and native damage owners index the registered
+                -- projectile root. Preserve the original event and all of its
+                -- contact metadata while projecting that exact accepted owner.
+                local childEvent = event
+                event = setmetatable({rayGlobalID = projectile.id}, {
+                    __index = function(_, key) return childEvent[key] end,
+                })
+            end
+            return withContact(previous, event, projectile)
+        end
     end
     function ProcessWaterCollisionEvent(event)
         local projectile = event and ResolveCollisionEntity(Projectiles, event.rayGlobalID)

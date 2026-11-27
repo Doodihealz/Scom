@@ -2274,6 +2274,7 @@ if SCO_FaBomberAttackRunInstalled == nil then
                 runtimeMode = contract.runtimeMode,
                 army = unit.army,
             }
+            Import("host/collisionUpdate.lua").SCO_BomberWreckCreated()
         end
         return wreck
     end
@@ -8192,6 +8193,33 @@ end
         return true
     end
 
+    -- Private AI dispatch shares the same paid native ability implementation.
+    -- Human transport still requires the unchanged SCOValidateOwner boundary.
+    local function SCOAITeleportUnit(unit)
+        local army = type(unit) == "table" and unit.army
+        local ai = type(army) == "table" and army.ai
+        local settings = type(ai) == "table" and ai.settings or {}
+        if type(settings) ~= "table" then return false end
+        local directory = tostring(settings.modDirectory or ""):gsub("\\", "/"):gsub("/+$", "")
+        return IsHost == true and type(unit) == "table" and unit.tpId == "ugl0000"
+            and not unit.dead and not unit.deleted and not unit.CaptureInProgress and not unit.ReclaimInProgress
+            and unit.id and army and ai and ai.isAlive == true and army.units
+            and army.units[unit.id.index] == unit and GetUnitById(unit.id) == unit
+            and not SCOLobby.ArmyToPlayer[army.id]
+            and (directory == "AI/mods/AI-Scom" or directory:sub(-#"/AI-Scom") == "/AI-Scom"
+                or directory == "" and settings.modName == "AI-Scom")
+    end
+
+    local function SCOAITeleportLeaseCurrent(unit, owner)
+        local platoon = type(owner) == "table" and owner.platoon
+        return SCOAITeleportUnit(unit) and type(owner) == "table"
+            and unit.ai == owner.unitAI and unit.ai.rushCommanderTeleport == owner
+            and unit.army.ai == owner.armyAI and unit.platoon == platoon
+            and platoon and platoon.army == unit.army and platoon.ai == owner.platoonAI
+            and not platoon.dead and not platoon.deleted
+            and unit.army:PlatoonExists(platoon) == platoon
+    end
+
     local function SCOTeleportThread(unit, active)
         while not unit.dead and not unit.deleted do
             local state = unit.scoCommanderAbilities
@@ -8203,6 +8231,19 @@ end
                 SCOCancelTeleport(unit, false, true)
                 SCOEmitAbilityState(unit)
                 return
+            end
+
+            if active.aiOwner then
+                local valid = SCOAITeleportLeaseCurrent(unit, active.aiOwner) and SCOUnitIsIdle(unit)
+                if valid and active.aiGuard then
+                    local ok, permitted = pcall(active.aiGuard, unit, active.aiOwner, active)
+                    valid = ok and permitted == true
+                end
+                if not valid then
+                    SCOCancelTeleport(unit, false, true)
+                    SCOEmitAbilityState(unit)
+                    return
+                end
             end
 
             local entity = active.entity
@@ -8228,9 +8269,7 @@ end
         end
     end
 
-    local function SCOHostTeleport(clientID, unitId, targetPosition)
-        local unit, state = SCOValidateOwner(clientID, unitId)
-        if not unit then return false, state end
+    local function SCOStartTeleport(unit, state, targetPosition, aiOwner, aiGuard)
         if not SCOInstalled(unit, "Teleporter") then
             return false, "teleporter-not-installed"
         end
@@ -8270,6 +8309,8 @@ end
         end
         local active = {
             target = canonical,
+            aiOwner = aiOwner,
+            aiGuard = aiGuard,
             progress = 0,
             lastPublishedBucket = 0,
             builder = fixedBuilder,
@@ -8286,6 +8327,35 @@ end
         active.thread = unit:NewThread(SCOTeleportThread, active)
         SCOEmitAbilityState(unit)
         return true
+    end
+
+    local function SCOHostTeleport(clientID, unitId, targetPosition)
+        local unit, state = SCOValidateOwner(clientID, unitId)
+        if not unit then return false, state end
+        return SCOStartTeleport(unit, state, targetPosition)
+    end
+
+    local function SCOAIStartTeleport(unit, owner, targetPosition, guard)
+        if not SCOAITeleportLeaseCurrent(unit, owner) or type(guard) ~= "function" then
+            return false, "not-ai-owner"
+        end
+        local ok, state = pcall(SCOEnsureAbilityState, unit)
+        if not ok then return false, "runtime-unavailable" end
+        return SCOStartTeleport(unit, state, targetPosition, owner, guard)
+    end
+
+    local function SCOAICancelTeleport(unit, owner)
+        local state = type(unit) == "table" and unit.scoCommanderAbilities
+        if not SCOAITeleportLeaseCurrent(unit, owner) or not state or not state.teleport
+            or state.teleport.aiOwner ~= owner then return false, "not-ai-owner" end
+        SCOCancelTeleport(unit, true, true)
+        SCOEmitAbilityState(unit)
+        return true
+    end
+
+    local function SCOAITeleportEndpoint(unit, position)
+        if not SCOAITeleportUnit(unit) then return nil, "not-ai-owner" end
+        return SCOTeleportEndpoint(unit, position)
     end
 
     local function SCOHostCancelTeleport(clientID, unitId)
@@ -8681,6 +8751,9 @@ end
     SCOInstallExport(
         "SCO_CommanderAbilityHostLaunchMissile", SCOHostLaunchMissile)
     SCOInstallExport("SCO_CommanderAbilityHostTeleport", SCOHostTeleport)
+    SCOInstallExport("SCO_CommanderAbilityAIStartTeleport", SCOAIStartTeleport)
+    SCOInstallExport("SCO_CommanderAbilityAICancelTeleport", SCOAICancelTeleport)
+    SCOInstallExport("SCO_CommanderAbilityAITeleportEndpoint", SCOAITeleportEndpoint)
     SCOInstallExport(
         "SCO_CommanderAbilityHostCancelTeleport", SCOHostCancelTeleport)
     SCOInstallExport("SCO_CommanderAbilityHostCancel", SCOHostCancelAbility)

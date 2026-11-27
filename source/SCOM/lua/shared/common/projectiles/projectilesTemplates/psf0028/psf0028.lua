@@ -40,22 +40,13 @@ nonUniformScale = { x = 1, y = 1, z = 1 },
 },
 ["onImpactEffects"] = { {
 ["effects"] = { {
-["particleName"] = "VFX/SCOM/Source/psf0028/impact_land.sanvfx",
+["particleName"] = "VFX/SCOM/Titan/impact.sanvfx",
 } },
 } },
 ["persistantEffects"] = { {
 ["effects"] = { {
-["particleName"] = "VFX/SCOM/Source/psf0028/trail.sanvfx",
+["particleName"] = "VFX/SCOM/Titan/projectile.sanvfx",
 } },
 } },
-["scoProjectileMesh"] = {
-["material"] = "Projectiles/psf0028/LOD0/psf0028.sanmaterial",
-["model"] = "Projectiles/psf0028/LOD0/psf0028.sanmodel",
-["scale"] = {
-["x"] = 1,
-["y"] = 1,
-["z"] = 1,
-},
-},
 },
 }

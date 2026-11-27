@@ -3132,25 +3132,18 @@ SCOSupportedCommanders.usl4002 = true
     local function SCOCanTargetAbility(unit, abilityId)
         local rule = SCOAbilityRules[abilityId]
         if type(rule) ~= "table" or unit == nil then return false end
-        local state = SCOGetAuthorityState(unit)
-        if type(state) ~= "table" or state.active ~= nil then return false end
         if rule.unitTarget then
-            local tpId = SCOUnitTpId(unit)
-            if tpId ~= "uel0000" and tpId ~= "ucl0000"
-                and tpId ~= "ugl0000" and tpId ~= "usl0000"
-            then return false end
+            local additions = unit.tp and unit.tp.additions
+            if not (additions and additions.scoOvercharge) then return false end
             local selected = Import("client/input/selectionSystem.lua").GetSelectedUnits()
             local count, current = 0, nil
             for _, candidate in pairs(selected or {}) do
                 count, current = count + 1, candidate
             end
-            if count ~= 1 or current ~= unit then return false end
-            local overcharge = type(state.abilities) == "table"
-                and state.abilities.overcharge
-            return type(overcharge) == "table"
-                and overcharge.available == true
-                and overcharge.ready == true
+            return count == 1 and current == unit
         end
+        local state = SCOGetAuthorityState(unit)
+        if type(state) ~= "table" or state.active ~= nil then return false end
         if rule.dynamicMissile == true then
             local abilities = state.abilities
             local missile = type(abilities) == "table" and abilities.missile
@@ -3170,6 +3163,53 @@ SCOSupportedCommanders.usl4002 = true
             and type(capability) == "table"
             and type(capability.domains) == "table"
             and capability.domains[rule.capabilityDomain] == true
+    end
+
+    local function SCOGetOverchargeEnemy(unit)
+        local target = SCOInputEvents.GetHoverUnit()
+        if target and target.entityType == "unit" and not target.dead
+            and target.army and unit.army and unit.army:IsEnemy(target.army)
+        then
+            return target
+        end
+    end
+
+    local function SCOCanFireOvercharge(unit, target)
+        if not target then return false, "target" end
+        local state = SCOGetAuthorityState(unit)
+        local ability = state and type(state.abilities) == "table" and state.abilities.overcharge
+        if type(ability) ~= "table" or ability.available ~= true then
+            return false, "unavailable"
+        end
+        if ability.ready ~= true then
+            return false, ability.reason, ability.energyCost
+        end
+        local range = ability.rangeMax
+        if type(range) == "number" then
+            local origin, destination = unit:GetSimPosition(), target:GetSimPosition()
+            if not origin or not destination then return false end
+            local x, z = destination.x - origin.x, destination.z - origin.z
+            if x * x + z * z > (range + 0.000001) ^ 2 then
+                return false, "range"
+            end
+        end
+        return true
+    end
+
+    local overchargeFeedback = {
+        target = "Overcharge requires an enemy unit.",
+        range = "That enemy is out of Overcharge range.",
+        cooldown = "Overcharge is recharging.",
+        aiming = "Overcharge is already aiming.",
+        ["weapon-unavailable"] = "The commander's cannon is unavailable.",
+    }
+
+    local function SCOReportOverchargeBlock(reason, energyCost)
+        local message = overchargeFeedback[reason] or "Overcharge is unavailable right now."
+        if reason == "energy" and type(energyCost) == "number" then
+            message = string.format("Overcharge needs %d stored energy.", energyCost)
+        end
+        Engine.UI_AddLogText(message, 4)
     end
 
     local function SCONotifyTargetInput(reason)
@@ -3197,6 +3237,28 @@ SCOSupportedCommanders.usl4002 = true
         SCOPointerDown = false
         if wasActive then SCONotifyTargetInput(reason or "cancelled") end
         return wasActive
+    end
+
+    local overchargeReadyColor = EngineClasses.float4(1, 0.15, 0.1, 1)
+    local overchargeAimColor = EngineClasses.float4(1, 0.65, 0.12, 1)
+
+    function DrawOverchargeTarget()
+        local active = SCOActiveTargetInput
+        if not active or active.abilityId ~= "Overcharge" then return end
+        local unit = SCOResolveOwnedCommander(active.unitId)
+        if not unit or not SCOCanTargetAbility(unit, active.abilityId) then
+            SCOCancelTargetInput("selection-changed")
+            return
+        end
+        if not SCOMouseCursor.IsCursorInGameView() or Engine.IsMouseOverUI() then return end
+
+        local enemy = SCOGetOverchargeEnemy(unit)
+        local position = (enemy and enemy:GetPosition()) or SCOMouseCursor.GetMousePosition()
+        local point = EngineClasses.float3(position.x, position.y + 0.25, position.z)
+        local radius = math.clamp(Engine.GetCameraWorldSpaceHeight() * 0.015, 2.5, 25)
+        local color = SCOCanFireOvercharge(unit, enemy) and overchargeReadyColor or overchargeAimColor
+        Engine.DrawCircle(point, radius, color)
+        Engine.DrawCross(point, radius * 1.5, color)
     end
 
     local function SCOBeginTargetInput(unit, abilityId)
@@ -3248,19 +3310,26 @@ SCOSupportedCommanders.usl4002 = true
 
     local function SCOConfirmTargetInput(target)
         local active = SCOActiveTargetInput
-        local canonicalTarget
-        if active and active.abilityId == "Overcharge" then
-            canonicalTarget = SCOGlobalId(target)
-        else
-            canonicalTarget = SCOPosition(target)
-        end
-        if active == nil or canonicalTarget == nil then return false end
-        SCOCancelStrategicTargetInput("commander-submit")
+        if not active then return false end
         local unit = SCOResolveOwnedCommander(active.unitId)
         if unit == nil or not SCOCanTargetAbility(unit, active.abilityId) then
             SCOCancelTargetInput("state-changed")
             return false
         end
+        local canonicalTarget
+        if active.abilityId == "Overcharge" then
+            local enemy = SCOGetOverchargeEnemy(unit)
+            local ready, reason, energyCost = SCOCanFireOvercharge(unit, enemy)
+            if not ready then
+                SCOReportOverchargeBlock(reason, energyCost)
+                return false
+            end
+            canonicalTarget = SCOGlobalId(enemy.id)
+        else
+            canonicalTarget = SCOPosition(target)
+        end
+        if not canonicalTarget then return false end
+        SCOCancelStrategicTargetInput("commander-submit")
         local ok, accepted = pcall(
             SCOAbilityRequestDispatcher,
             active.abilityId,
@@ -3336,13 +3405,8 @@ SCOSupportedCommanders.usl4002 = true
                 SCOMouseCursor.UpdateMouseRayCastPosition()
                 local selection = Import("client/input/selectionSystem.lua")
                 selection.UpdateSelectionSystem()
-                local target = SCOInputEvents.GetHoverUnit()
-                if target and target.entityType == "unit"
-                    and not target.dead and target.id
-                    and SCOMouseCursor.IsCursorInGameView()
-                    and not Engine.IsMouseOverUI()
-                then
-                    SCOConfirmTargetInput(target.id)
+                if SCOMouseCursor.IsCursorInGameView() and not Engine.IsMouseOverUI() then
+                    SCOConfirmTargetInput()
                 end
             else
                 SCOConfirmTargetInput(SCOMouseCursor.GetMousePosition())
@@ -3370,6 +3434,14 @@ SCOSupportedCommanders.usl4002 = true
         end
         SCOCancelStrategicTargetInput("commander-right-click")
         SCOCancelTargetInput("right-click")
+    end
+
+    function functions.SCOOverchargeMuzzle(value)
+        local id = SCOGlobalId(value)
+        local muzzle = id and __Muzzles[id.index]
+        if muzzle and muzzle.id.version == id.version then
+            muzzle:RunOverchargeMuzzle()
+        end
     end
 
     if functions.SCOCommanderAbilityVisualEvent ~= nil then

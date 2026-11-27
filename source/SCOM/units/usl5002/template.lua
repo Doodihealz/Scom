@@ -3,6 +3,10 @@
 -- Explicit ranges control range rings; coordinate them with weapon range edits.
 -- host.lua and client.lua own behavior and class inheritance.
 UnitTemplate = {
+    -- Native one-shots keep the orb on Sanctuary's positional SFX bus.
+    ["audio"] = {
+        ["onDestroyed"] = { ["name"] = "acom2143", ["looping"] = false },
+    },
     ["additions"] = {
         ["faSourceContract"] = {
             ["fuelIntentionallyOmitted"] = false,
@@ -429,6 +433,10 @@ UnitTemplate = {
                     ["yawMin"] = -180,
                     ["yawSpeed"] = 1000,
                 },
+            },
+            -- Short Chosen arc: the source body decays before the next bolt's tail.
+            ["audio"] = {
+                ["onFire"] = { ["name"] = "acom1114", ["looping"] = false },
             },
             ["beam"] = {
                 ["cullDistance"] = 400,

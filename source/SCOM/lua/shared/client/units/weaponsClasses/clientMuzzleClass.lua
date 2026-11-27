@@ -65,6 +65,38 @@ function ClientMuzzle:FireMuzzleThread()
     self:FireMuzzle()
 end
 
+local overchargeFlash = "VFX/Muzzle/vcm1303_cannon_plasma_large_muzzle.sanvfx"
+local overchargeFlashPrefab
+local overchargeSoundPrefab
+
+function ClientMuzzle:RunOverchargeMuzzle()
+    self:NewThread(self.FireOverchargeMuzzle)
+end
+
+function ClientMuzzle:FireOverchargeMuzzle()
+    WaitTickEnd()
+    local unit = self.weapon.unit
+    if unit.dead or unit.deleted or not unit:IsIntelVisionVisible() then return end
+
+    local position, orientation = self:GetPosition(), self:GetOrientation()
+    AudioManager.NotifyCombatActivity()
+
+    if not overchargeFlashPrefab and Engine.LoadEffect(overchargeFlash) then
+        overchargeFlashPrefab = Import("common/loading/vfxTemplateLoader.lua").GetOrCreateVFXPrefab(overchargeFlash)
+    end
+    if overchargeFlashPrefab then
+        Engine.InstantiatePrefab(overchargeFlashPrefab, position, EngineClasses.float3(1, 1, 1), orientation)
+    end
+
+    if not overchargeSoundPrefab then
+        overchargeSoundPrefab = Import("common/loading/audioPrefabLoader.lua").CreateOneShotAudioPrefab(
+            "SCOM_Overcharge_onFireAudio", "acom2130", "weapons")
+    end
+    if overchargeSoundPrefab then
+        AudioManager.PlayOneShot(overchargeSoundPrefab, position, orientation)
+    end
+end
+
 ---@param enabled boolean
 function ClientMuzzle:SetFiring(enabled)
     if enabled and (self.weapon.tp.beamLifetime or -1) > 0 then
@@ -250,6 +282,17 @@ end
 
 -- Source beam start loops are spawned by their tracked beam lifecycle. Keep
 -- native onFire fields for prefab loading and keep the original muzzle audio.
+local function SCOM_AdmitSourceBeamAudio(muzzle)
+    local unit = muzzle.weapon.unit
+    if unit.tpId ~= "usl5002" then return true end
+    local tick = Engine.GetSimulationTick()
+    if unit.scoOthuyLastArcAudioTick == tick then return false end
+    -- Host residual beams dispatch every three ticks. Preserve each real bolt,
+    -- but never stack duplicate presentation commands from the same tick.
+    unit.scoOthuyLastArcAudioTick = tick
+    return true
+end
+
 local SCOM_PreviousSourceBeamFire = ClientMuzzle.FireMuzzle
 function ClientMuzzle:FireMuzzle()
     local tp = self.weapon.tp
@@ -261,7 +304,8 @@ function ClientMuzzle:FireMuzzle()
     end
     if self.weapon.unit:IsIntelVisionVisible() then
         AudioManager.NotifyCombatActivity()
-        if tp.audio and tp.audio.onFire and tp.audio.onFire.prefabID then
+        if tp.audio and tp.audio.onFire and tp.audio.onFire.prefabID
+            and SCOM_AdmitSourceBeamAudio(self) then
             AudioManager.PlayOneShot(tp.audio.onFire.prefabID, self:GetPosition(), self:GetOrientation())
         end
     end

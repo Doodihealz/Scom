@@ -397,3 +397,15 @@ do
         return previous(unit)
     end
 end
+
+-- Engineer orders have their own target checks, separate from weapon targeting.
+for _, orderClass in ipairs({HostCaptureOrder, HostReclaimOrder}) do
+    local validate = orderClass.ValidateUnitAssignment
+    function orderClass:ValidateUnitAssignment(unit)
+        local target = self.targetUnit
+        if target and target.tpId == "usl5002" and unit.army:IsEnemy(target.army) then
+            return false
+        end
+        return validate(self, unit)
+    end
+end

@@ -847,7 +847,7 @@ do
         local ready = type(ability) == "table"
             and ability.available == true and ability.ready == true
         local text = targeting and "CANCEL" or "OC"
-        local description = "Select an enemy unit to fire Overcharge. Right-click or Escape cancels targeting."
+        local description = "Click an enemy in range to fire Overcharge. The marker turns red when ready. Right-click or Escape cancels targeting."
         if type(ability) == "table" then
             description = description .. " Costs " .. tostring(ability.energyCost or "?") .. " energy."
             if type(ability.cooldownDuration) == "number" then
@@ -864,9 +864,9 @@ do
         else
             text = "WAIT"
         end
-        button:SetDisabled(not (targeting or ready))
+        button:SetDisabled(false)
         button:SetActive(targeting)
         Engine.UI_SetButtonText(button.buttonID, text)
-        Engine.UI_SetButtonTooltip(button.buttonID, "Overcharge (O)", description)
+        Engine.UI_SetButtonTooltip(button.buttonID, "Overcharge (J)", description)
     end
 end

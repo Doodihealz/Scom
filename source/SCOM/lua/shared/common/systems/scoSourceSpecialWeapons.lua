@@ -1,5 +1,4 @@
--- The residual's source weapon intentionally attacks friendly and enemy LAND
--- units, or random ground positions. Ordinary native and FA weapons stay intact.
+-- The residual strikes land units and buildings of either army, or empty ground.
 local M={}
 function M.InstallWeapon(HostWeapon)
     local previous=HostWeapon.Update
@@ -8,6 +7,7 @@ function M.InstallWeapon(HostWeapon)
     local previousTargeting=HostWeapon.UpdateTargeting
     local Commands=Import("common/commands/definitions/projectiles.lua")
     local Map=Import("common/mapUtils.lua")
+    local landLayer=Import("common/layers.lua").TargetingLayer.Land
     function HostWeapon:__init(...)
         previousInit(self,...)
         local orbital=self.tp.scoSpecialOrbital
@@ -45,14 +45,17 @@ function M.InstallWeapon(HostWeapon)
         table.sort(candidates,function(a,b)if a.rank~=b.rank then return a.rank<b.rank end return a.unit.id.index<b.unit.id.index end)
         self:SetAimTarget(candidates[1] and candidates[1].unit or nil)
     end
+    local function IsLandStructure(unit)
+        return unit.targetingLayer == landLayer and unit:HasTags(Tags.STRUCTURE)
+    end
     local function Eligible(unit,other)
-        if other==unit or other.dead or other.isTargetable~=true then return false end
+        if other==unit or other.dead or other.deleted or other.isTargetable~=true then return false end
         local land=false
         for _,tag in ipairs(other.tp.tags or {}) do
             if tag=="SCFA_UNTARGETABLE" then return false end
             if tag=="LAND" or tag=="SCFA_LAND" then land=true end
         end
-        return land
+        return land or IsLandStructure(other)
     end
     function HostWeapon:SCOSpecialResidualTarget()
         local position=self.unit:GetPosition()
@@ -67,10 +70,10 @@ function M.InstallWeapon(HostWeapon)
         table.sort(candidates,function(a,b)return a.id.index<b.id.index end)
         local point
         if #candidates>0 then
-            self.targetUnit=candidates[math.random(1,#candidates)]
+            self:SetAimTarget(candidates[math.random(1,#candidates)])
             point=self.targetUnit:GetPosition()
         else
-            self.targetUnit=nil
+            self:SetAimTarget(nil)
             point=EngineClasses.float3(position.x+(math.random()*2-1)*self.tp.rangeMax,position.y,
                 position.z+(math.random()*2-1)*self.tp.rangeMax)
             if not Map.IsPositionOnMap(point) then point=position end
@@ -80,10 +83,7 @@ function M.InstallWeapon(HostWeapon)
         self.scoResidualTargetPoint=point
     end
     function HostWeapon:SCOSpecialResidualAim()
-        if self.targetUnit and not self.targetUnit.dead then
-            self:SetAimTarget(self.targetUnit)
-            return
-        end
+        if self.targetUnit and not self.targetUnit.dead then return end
         local point=self.scoResidualTargetPoint
         local marker=self.unit:GetBoneId(self.tp.scoFaResidual.groundTargetEntity)
         if not point or not marker then return end
@@ -109,6 +109,13 @@ function M.InstallWeapon(HostWeapon)
         self.scoResidualTicks=self.scoResidualTicks-1
         if self.scoResidualTicks>0 then return end
         if self.scoResidualPhase=="aim" then
+            local target=self.targetUnit
+            if target and not target.dead and IsLandStructure(target)
+                and not self:IsMuzzleOnTarget(self.muzzleGroups[1][1]) then
+                -- A 180-degree turn needs two sim ticks. Reselect if alignment fails.
+                if self.scoResidualTicks <= -2 then self.scoResidualPhase=nil end
+                return
+            end
             self.scoResidualPhase="fire"
             self.scoResidualTicks=source.lifetimeTicks
             for _,muzzle in ipairs(self.muzzleGroups[1]) do
